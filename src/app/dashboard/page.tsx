@@ -39,13 +39,23 @@ import {
   Unlock,
   Printer,
   FilePlus,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
-import { liveHistoryItems, BillItem } from '@/lib/data';
+import { liveHistoryItems, BillItem, customers, products } from '@/lib/data';
 import {
     Popover,
     PopoverContent,
     PopoverTrigger,
   } from "@/components/ui/popover"
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
 import { Calendar } from "@/components/ui/calendar"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
@@ -56,11 +66,18 @@ export default function BillingPage() {
   const [currentBillItems, setCurrentBillItems] = useState<BillItem[]>([]);
   const [date, setDate] = React.useState<Date>()
 
+  const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false)
+  const [selectedCustomer, setSelectedCustomer] = React.useState<string>("")
+
+  const [productPopoverOpen, setProductPopoverOpen] = React.useState(false)
+  const [selectedProduct, setSelectedProduct] = React.useState<string>("")
+
   const handleAddItem = () => {
     // This is a mock function. In a real app, this would use form data.
+    const productInfo = products.find(p => p.id === selectedProduct);
     const newItem: BillItem = {
       id: currentBillItems.length + 1,
-      product: 'இறால்',
+      product: productInfo ? productInfo.name_ta : 'இறால்',
       uom: 'KGS',
       qty: 2,
       rate: 1200,
@@ -74,10 +91,14 @@ export default function BillingPage() {
   const handleNewBill = () => {
     setCurrentBillItems([]);
     setDate(new Date());
+    setSelectedCustomer("");
+    setSelectedProduct("");
     // You might want to reset other form fields here as well
   };
 
   const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
+  const selectedCustomerData = customers.find(c => c.id.toLowerCase() === selectedCustomer.toLowerCase());
+  const selectedProductData = products.find(p => p.id.toLowerCase() === selectedProduct.toLowerCase());
 
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -123,14 +144,50 @@ export default function BillingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="customer">Customer (ID, பெயர், Name)</Label>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="customer"
-                  placeholder="Search customer..."
-                  className="pl-8"
-                />
-              </div>
+              <Popover open={customerPopoverOpen} onOpenChange={setCustomerPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={customerPopoverOpen}
+                    className="justify-between"
+                    >
+                    {selectedCustomer
+                        ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
+                        : "Select customer..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0">
+                    <Command>
+                    <CommandInput placeholder="Search customer..." />
+                    <CommandList>
+                        <CommandEmpty>No customer found.</CommandEmpty>
+                        <CommandGroup>
+                        {customers.map((customer) => (
+                            <CommandItem
+                            key={customer.id}
+                            value={`${customer.id} ${customer.name_en} ${customer.name_ta}`}
+                            onSelect={(currentValue) => {
+                                const customerId = customers.find(c => `${c.id} ${c.name_en} ${c.name_ta}`.toLowerCase() === currentValue)?.id || "";
+                                setSelectedCustomer(customerId)
+                                setCustomerPopoverOpen(false)
+                            }}
+                            >
+                            <Check
+                                className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedCustomer.toLowerCase() === customer.id.toLowerCase() ? "opacity-100" : "opacity-0"
+                                )}
+                            />
+                            {customer.name_en} ({customer.name_ta})
+                            </CommandItem>
+                        ))}
+                        </CommandGroup>
+                    </CommandList>
+                    </Command>
+                </PopoverContent>
+             </Popover>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="stall">Stall</Label>
@@ -158,13 +215,51 @@ export default function BillingPage() {
             <div className="grid gap-2 md:col-span-2 lg:col-span-3">
               <Label htmlFor="product">Product (ID, பெயர், Name)</Label>
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="product"
-                  placeholder="Search product..."
-                  className="pl-8"
-                  disabled={isProductLocked}
-                />
+              <Popover open={productPopoverOpen} onOpenChange={setProductPopoverOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={productPopoverOpen}
+                    className="w-full justify-between"
+                    disabled={isProductLocked}
+                    >
+                    {selectedProduct
+                        ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
+                        : "Select product..."}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[300px] p-0">
+                    <Command>
+                    <CommandInput placeholder="Search product..." />
+                    <CommandList>
+                        <CommandEmpty>No product found.</CommandEmpty>
+                        <CommandGroup>
+                        {products.map((product) => (
+                            <CommandItem
+                            key={product.id}
+                            value={`${product.id} ${product.name_en} ${product.name_ta}`}
+                            onSelect={(currentValue) => {
+                                const productId = products.find(p => `${p.id} ${p.name_en} ${p.name_ta}`.toLowerCase() === currentValue)?.id || "";
+                                setSelectedProduct(productId)
+                                setProductPopoverOpen(false)
+                            }}
+                            >
+                            <Check
+                                className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedProduct.toLowerCase() === product.id.toLowerCase() ? "opacity-100" : "opacity-0"
+                                )}
+                            />
+                            {product.name_en} ({product.name_ta})
+                            </CommandItem>
+                        ))}
+                        </CommandGroup>
+                    </CommandList>
+                    </Command>
+                </PopoverContent>
+             </Popover>
                 <Button
                   variant="ghost"
                   size="icon"
