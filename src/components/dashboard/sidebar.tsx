@@ -73,7 +73,7 @@ export function DashboardSidebar() {
                 <Fish className="size-5 text-primary" />
                 <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
             </Button>
-            <SidebarTrigger className="size-7" />
+            <SidebarTrigger />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
