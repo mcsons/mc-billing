@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -61,6 +61,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function BillingPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { toast } = useToast();
   const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices, liveBillSummaries, setCurrentBillItems, updateLiveBillSummary, customerBalances } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
@@ -155,6 +156,7 @@ export default function BillingPage() {
     setPaidAmount('');
     setEditingBillNo(null);
     setInitialBillTotal(0);
+    router.replace('/dashboard');
   };
   
   const handleSaveBill = () => {
@@ -199,6 +201,32 @@ export default function BillingPage() {
     }
 
     handleNewBill(); // Clear everything for the next bill
+  };
+
+    const handlePrintBill = () => {
+    if (!selectedCustomerId || currentBillItems.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Print Bill',
+        description: 'A customer must be selected and items must be added.',
+      });
+      return;
+    }
+
+    const billData = {
+      billNo: editingBillNo || 'NEW',
+      date: date?.toISOString() || new Date().toISOString(),
+      customer: selectedCustomerData,
+      items: currentBillItems,
+      totalAmount,
+      previousBalance,
+      paidAmount: parseFloat(paidAmount) || 0,
+      finalBalance,
+      stall: '1', // Should be dynamic
+    };
+
+    const encodedData = encodeURIComponent(JSON.stringify(billData));
+    router.push(`/dashboard/print?data=${encodedData}`);
   };
 
   const totalAmount = currentBillItems.reduce(
@@ -302,10 +330,10 @@ export default function BillingPage() {
                         {customers.map((customer) => (
                           <CommandItem
                             key={customer.id}
-                            value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
+                            value={customer.id}
                             onSelect={(currentValue) => {
                               setSelectedCustomerId(
-                                customer.id === selectedCustomerId ? '' : customer.id
+                                currentValue === selectedCustomerId ? '' : currentValue
                               );
                               setCustomerPopoverOpen(false);
                             }}
@@ -380,10 +408,10 @@ export default function BillingPage() {
                           {products.map((product) => (
                             <CommandItem
                               key={product.id}
-                              value={`${product.name_en} ${product.name_ta} ${product.id}`}
+                              value={product.id}
                               onSelect={(currentValue) => {
                                 handleProductSelect(
-                                  product.id === selectedProductId ? '' : product.id
+                                  currentValue === selectedProductId ? '' : currentValue
                                 )
                               }}
                             >
@@ -528,7 +556,7 @@ export default function BillingPage() {
               <Save className="mr-2 h-4 w-4" />
               Save Bill
             </Button>
-            <Button size="lg">
+            <Button size="lg" onClick={handlePrintBill}>
               <Printer className="mr-2 h-4 w-4" />
               Print Bill
             </Button>
