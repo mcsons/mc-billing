@@ -31,7 +31,6 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<BillPrintData | null>(null);
-  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -48,16 +47,7 @@ function PrintPageContent() {
     }
   }, [searchParams, router]);
 
-  useEffect(() => {
-    if (billData) {
-      // Use a small timeout to ensure the data is rendered before we declare it ready
-      const timer = setTimeout(() => setIsReady(true), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [billData]);
-
-
-  if (!billData || !isReady) {
+  if (!billData) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Loading bill data...</p>
