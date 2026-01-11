@@ -1,0 +1,108 @@
+
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  ClipboardList,
+  Fish,
+  History,
+  Home,
+  IndianRupee,
+  Printer,
+  Settings,
+  UserCog,
+  Users,
+} from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarTrigger,
+} from '@/components/ui/sidebar';
+import { Button } from '@/components/ui/button';
+
+const menuItems = [
+  { href: '/dashboard', label: 'Billing', icon: ClipboardList },
+  { href: '/dashboard/history', label: 'Bill History', icon: History },
+  { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
+];
+
+const settingsSubItems = [
+    { href: '/dashboard/settings/printer', label: 'Printer', icon: Printer },
+];
+
+
+// Mock current user role
+const currentUserRole = 'ADMIN';
+
+export function DashboardSidebar() {
+  const pathname = usePathname();
+
+  const isMenuItemActive = (href: string, exact = false) => {
+    if (exact) {
+      return pathname === href;
+    }
+    return pathname.startsWith(href);
+  };
+  
+  const isSettingsActive = isMenuItemActive('/dashboard/settings');
+
+  return (
+      <Sidebar>
+        <SidebarHeader className="flex items-center justify-between p-2">
+            <Button variant="ghost" className="h-8 w-full justify-start gap-2 px-2">
+                <Fish className="size-5 text-primary" />
+                <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
+            </Button>
+            <SidebarTrigger className="size-7" />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            {menuItems.map((item) => 
+                (!item.roles || item.roles.includes(currentUserRole)) && (
+                    <SidebarMenuItem key={item.label}>
+                        <Link href={item.href} legacyBehavior passHref>
+                        <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard')}>
+                            <item.icon />
+                            <span>{item.label}</span>
+                        </SidebarMenuButton>
+                        </Link>
+                    </SidebarMenuItem>
+                )
+            )}
+            <SidebarMenuItem>
+                <SidebarMenuButton data-state={isSettingsActive ? 'open' : 'closed'}>
+                    <Settings />
+                    <span>Settings</span>
+                </SidebarMenuButton>
+                {isSettingsActive && (
+                    <SidebarMenuSub>
+                        {settingsSubItems.map(subItem => (
+                            <SidebarMenuSubItem key={subItem.label}>
+                                <Link href={subItem.href} legacyBehavior passHref>
+                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                        <subItem.icon />
+                                        <span>{subItem.label}</span>
+                                    </SidebarMenuSubButton>
+                                </Link>
+                            </SidebarMenuSubItem>
+                        ))}
+                    </SidebarMenuSub>
+                )}
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarContent>
+      </Sidebar>
+  );
+}
