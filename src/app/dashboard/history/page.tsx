@@ -19,25 +19,37 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Search } from 'lucide-react';
+import { Check, ChevronsUpDown, Search } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { liveBillSummaries } from '@/lib/data';
+import { liveBillSummaries, customers } from '@/lib/data';
 
 export default function HistoryPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const router = useRouter();
+  const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
+  const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
 
   const handleEditBill = (billNo: string) => {
     router.push(`/dashboard?billNo=${billNo}`);
   };
+  
+  const selectedCustomerData = customers.find(c => c.id.toLowerCase() === selectedCustomer.toLowerCase());
 
   return (
     <Card>
@@ -50,8 +62,62 @@ export default function HistoryPage() {
       <CardContent>
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="grid gap-2 flex-1">
-            <Label htmlFor="customer-search">Customer or Bill No.</Label>
-            <Input id="customer-search" placeholder="Search by ID or Name" />
+            <Label htmlFor="customer-search">Customer</Label>
+            <Popover
+              open={customerPopoverOpen}
+              onOpenChange={setCustomerPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={customerPopoverOpen}
+                  className="justify-between"
+                >
+                  {selectedCustomer
+                    ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
+                    : 'Select customer...'}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search customer..." />
+                  <CommandList>
+                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandGroup>
+                      {customers.map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          value={`${customer.id} ${customer.name_en} ${customer.name_ta}`}
+                          onSelect={(currentValue) => {
+                            const customerId =
+                              customers.find(
+                                (c) =>
+                                  `${c.id} ${c.name_en} ${c.name_ta}`.toLowerCase() ===
+                                  currentValue
+                              )?.id || '';
+                            setSelectedCustomer(customerId);
+                            setCustomerPopoverOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 h-4 w-4',
+                              selectedCustomer.toLowerCase() ===
+                                customer.id.toLowerCase()
+                                ? 'opacity-100'
+                                : 'opacity-0'
+                            )}
+                          />
+                          {customer.name_en} ({customer.name_ta})
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="date-search">Date</Label>
@@ -89,22 +155,28 @@ export default function HistoryPage() {
         <Table>
           <TableHeader>
             <TableRow>
-                <TableHead>Bill No</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead>Created By</TableHead>
-                <TableHead>Stall</TableHead>
+              <TableHead>Bill No</TableHead>
+              <TableHead>Customer</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>Created By</TableHead>
+              <TableHead>Stall</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {liveBillSummaries.map((bill) => (
-                <TableRow key={bill.billNo} className="cursor-pointer" onDoubleClick={() => handleEditBill(bill.billNo)}>
-                    <TableCell className="font-medium">{bill.billNo}</TableCell>
-                    <TableCell>{bill.customerName}</TableCell>
-                    <TableCell className="text-right">₹{bill.amount.toFixed(2)}</TableCell>
-                    <TableCell>{bill.createdBy}</TableCell>
-                    <TableCell>{bill.stall}</TableCell>
-                </TableRow>
+              <TableRow
+                key={bill.billNo}
+                className="cursor-pointer"
+                onDoubleClick={() => handleEditBill(bill.billNo)}
+              >
+                <TableCell className="font-medium">{bill.billNo}</TableCell>
+                <TableCell>{bill.customerName}</TableCell>
+                <TableCell className="text-right">
+                  ₹{bill.amount.toFixed(2)}
+                </TableCell>
+                <TableCell>{bill.createdBy}</TableCell>
+                <TableCell>{bill.stall}</TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>
