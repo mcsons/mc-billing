@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Card,
@@ -57,10 +57,12 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
+import { useToast } from '@/hooks/use-toast';
 
 export default function BillingPage() {
   const searchParams = useSearchParams();
-  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices, liveBillSummaries, setCurrentBillItems, updateLiveBillSummary } = useData();
+  const { toast } = useToast();
+  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices, liveBillSummaries, setCurrentBillItems, updateLiveBillSummary, customerBalances } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
   const [date, setDate] = React.useState<Date | undefined>(new Date());
 
@@ -71,11 +73,13 @@ export default function BillingPage() {
   const [selectedProductId, setSelectedProductId] = React.useState<string>('');
   
   const [editingBillNo, setEditingBillNo] = useState<string | null>(null);
+  const [initialBillTotal, setInitialBillTotal] = useState(0);
 
   // Form state for new item
   const [qty, setQty] = useState('');
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
+  const [paidAmount, setPaidAmount] = useState('');
 
 
   useEffect(() => {
@@ -86,9 +90,11 @@ export default function BillingPage() {
         setEditingBillNo(billNo);
         const customer = customers.find(c => billToEdit.customerName.includes(c.name_en));
         setSelectedCustomerId(customer?.id || '');
-        // For simplicity, we are not loading bill items.
         // In a real app, you would fetch and set the bill items here.
-        // setCurrentBillItems(billToEdit.items); 
+        // For now, we simulate this by clearing items.
+        setCurrentBillItems([]); 
+        setInitialBillTotal(billToEdit.amount);
+        setPaidAmount('');
       }
     } else {
       handleNewBill();
@@ -109,7 +115,11 @@ export default function BillingPage() {
   const handleAddItem = () => {
     const productInfo = products.find((p) => p.id === selectedProductId);
     if (!productInfo || !qty || !rate) {
-        // Maybe show a toast message
+        toast({
+            variant: "destructive",
+            title: "Missing Information",
+            description: "Please select a product and enter quantity and rate.",
+        });
         return;
     }
     
@@ -142,18 +152,24 @@ export default function BillingPage() {
     setSelectedProductId('');
     setQty('');
     setRate('');
+    setPaidAmount('');
     setEditingBillNo(null);
+    setInitialBillTotal(0);
   };
   
   const handleSaveBill = () => {
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (!customer || currentBillItems.length === 0) {
-      // Add user feedback, e.g. a toast
-      console.error("Cannot save bill: No customer selected or no items in bill.");
+      toast({
+          variant: "destructive",
+          title: "Cannot Save Bill",
+          description: "A customer must be selected and at least one item must be added.",
+      });
       return;
     }
 
     const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
+    const paidAmountNum = parseFloat(paidAmount) || 0;
 
     if (editingBillNo) {
         const updatedSummary: LiveBillSummary = {
@@ -163,7 +179,11 @@ export default function BillingPage() {
             createdBy: 'Admin', // Should be dynamic
             stall: '1', // Should be dynamic
         };
-        updateLiveBillSummary(updatedSummary);
+        updateLiveBillSummary(updatedSummary, paidAmountNum, initialBillTotal);
+        toast({
+            title: "Bill Updated",
+            description: `Bill ${editingBillNo} has been successfully updated.`,
+        });
     } else {
         const newBillSummary: Omit<LiveBillSummary, 'billNo'> = {
             customerName: `${customer.name_en} (${customer.name_ta})`,
@@ -171,7 +191,11 @@ export default function BillingPage() {
             createdBy: 'Admin', // Should be dynamic
             stall: '1', // Should be dynamic
         };
-        addLiveBillSummary(newBillSummary);
+        addLiveBillSummary(newBillSummary, paidAmountNum);
+        toast({
+            title: "Bill Saved",
+            description: "A new bill has been successfully created.",
+        });
     }
 
     handleNewBill(); // Clear everything for the next bill
@@ -181,6 +205,15 @@ export default function BillingPage() {
     (sum, item) => sum + item.amount,
     0
   );
+
+  const previousBalance = useMemo(() => {
+      if (!selectedCustomerId) return 0;
+      const editingBillOriginalAmount = editingBillNo ? initialBillTotal : 0;
+      return (customerBalances[selectedCustomerId] || 0) - editingBillOriginalAmount;
+  }, [selectedCustomerId, customerBalances, editingBillNo, initialBillTotal]);
+  
+  const finalBalance = previousBalance + totalAmount - (parseFloat(paidAmount) || 0);
+
   const selectedCustomerData = customers.find(
     (c) => c.id.toLowerCase() === selectedCustomerId.toLowerCase()
   );
@@ -271,14 +304,16 @@ export default function BillingPage() {
                             key={customer.id}
                             value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
                             onSelect={(currentValue) => {
-                              setSelectedCustomerId(customer.id === selectedCustomerId ? '' : customer.id);
+                              setSelectedCustomerId(
+                                customer.id === selectedCustomerId ? '' : customer.id
+                              );
                               setCustomerPopoverOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 'mr-2 h-4 w-4',
-                                selectedCustomerId.toLowerCase() === customer.id.toLowerCase()
+                                selectedCustomerId === customer.id
                                   ? 'opacity-100'
                                   : 'opacity-0'
                               )}
@@ -347,13 +382,15 @@ export default function BillingPage() {
                               key={product.id}
                               value={`${product.name_en} ${product.name_ta} ${product.id}`}
                               onSelect={(currentValue) => {
-                                handleProductSelect(product.id === selectedProductId ? '' : product.id)
+                                handleProductSelect(
+                                  product.id === selectedProductId ? '' : product.id
+                                )
                               }}
                             >
                               <Check
                                 className={cn(
                                   'mr-2 h-4 w-4',
-                                  selectedProductId.toLowerCase() === product.id.toLowerCase()
+                                  selectedProductId === product.id
                                     ? 'opacity-100'
                                     : 'opacity-0'
                                 )}
@@ -475,14 +512,16 @@ export default function BillingPage() {
               ₹{totalAmount.toFixed(2)}
             </span>
             <span className="font-semibold">Prev Balance:</span>
-            <span className="font-mono">₹500.00</span>
+            <span className="font-mono">₹{previousBalance.toFixed(2)}</span>
             <span className="font-semibold">Paid:</span>
             <Input
               className="max-w-32 text-right font-mono"
-              placeholder="₹1000.00"
+              placeholder="0.00"
+              value={paidAmount}
+              onChange={(e) => setPaidAmount(e.target.value)}
             />
             <span className="font-semibold">Balance:</span>
-            <span className="font-bold font-mono">₹1700.00</span>
+            <span className="font-bold font-mono">₹{finalBalance.toFixed(2)}</span>
           </div>
           <div className="flex gap-2">
             <Button size="lg" variant="outline" onClick={handleSaveBill}>
@@ -499,5 +538,3 @@ export default function BillingPage() {
     </div>
   );
 }
-
-    

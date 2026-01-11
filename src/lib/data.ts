@@ -31,6 +31,14 @@ export type LiveBillSummary = {
   stall: string;
 }
 
+export type Payment = {
+    id: number;
+    customerId: string;
+    amount: number;
+    date: Date;
+    notes?: string;
+}
+
 export const customers: Customer[] = [
   { id: 'C001', name_en: 'Retail Shop A', name_ta: 'சில்லறை கடை அ', phone: '9876543210' },
   { id: 'C002', name_en: 'Hotel B', name_ta: 'ஹோட்டல் ஆ', phone: '9876543211' },

@@ -13,6 +13,7 @@ import {
   User,
   UserCog,
   Users,
+  Wallet,
 } from 'lucide-react';
 import React from 'react';
 
@@ -34,6 +35,7 @@ import { Button } from '@/components/ui/button';
 const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
+  { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
@@ -61,9 +63,7 @@ export function DashboardSidebar() {
   };
   
   React.useEffect(() => {
-    if (isMenuItemActive('/dashboard/settings')) {
-      setIsSettingsOpen(true);
-    }
+    setIsSettingsOpen(pathname.startsWith('/dashboard/settings'));
   }, [pathname]);
 
   return (
@@ -81,7 +81,7 @@ export function DashboardSidebar() {
                 (!item.roles || item.roles.includes(currentUserRole)) && (
                     <SidebarMenuItem key={item.label}>
                         <Link href={item.href}>
-                            <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href === '/dashboard/profile')}>
+                            <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
                                 <item.icon />
                                 <span>{item.label}</span>
                             </SidebarMenuButton>
@@ -89,13 +89,14 @@ export function DashboardSidebar() {
                     </SidebarMenuItem>
                 )
             )}
+            {(currentUserRole === 'CREATOR' || currentUserRole === 'ADMIN') && (
             <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} data-state={isSettingsOpen ? 'open' : 'closed'}>
+                <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} isActive={isMenuItemActive('/dashboard/settings')} data-state={isSettingsOpen ? 'open' : 'closed'}>
                     <Settings />
                     <span>Settings</span>
                 </SidebarMenuButton>
-                {isSettingsOpen && (
-                    <SidebarMenuSub>
+                
+                    <SidebarMenuSub open={isSettingsOpen}>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
                                 <Link href={subItem.href}>
@@ -107,8 +108,9 @@ export function DashboardSidebar() {
                             </SidebarMenuSubItem>
                         ))}
                     </SidebarMenuSub>
-                )}
+                
             </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarContent>
       </Sidebar>
