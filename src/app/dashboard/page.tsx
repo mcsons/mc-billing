@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -58,7 +58,7 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 
 export default function BillingPage() {
-  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary } = useData();
+  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
   const [date, setDate] = React.useState<Date | undefined>(new Date());
 
@@ -72,6 +72,16 @@ export default function BillingPage() {
   const [qty, setQty] = useState('');
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
+
+
+  useEffect(() => {
+    if (selectedProductId && uom) {
+      const price = productPrices[selectedProductId]?.[uom] || '';
+      setRate(price.toString());
+    } else {
+      setRate('');
+    }
+  }, [selectedProductId, uom, productPrices]);
 
 
   const handleAddItem = () => {
@@ -97,9 +107,9 @@ export default function BillingPage() {
     addBillItem(newItem);
     // Reset fields
     setQty('');
-    setRate('');
     if (!isProductLocked) {
         setSelectedProductId('');
+        setRate('');
     }
   };
 
@@ -143,6 +153,16 @@ export default function BillingPage() {
   const selectedProductData = products.find(
     (p) => p.id === selectedProductId
   );
+  
+  const handleProductSelect = (productId: string) => {
+    setSelectedProductId(productId);
+    const product = products.find(p => p.id === productId);
+    if (product && product.uom_allowed.length > 0) {
+      setUom(product.uom_allowed[0]);
+    }
+    setProductPopoverOpen(false);
+  }
+
 
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
@@ -293,8 +313,7 @@ export default function BillingPage() {
                               key={product.id}
                               value={product.id}
                               onSelect={(currentValue) => {
-                                setSelectedProductId(currentValue === selectedProductId ? '' : currentValue);
-                                setProductPopoverOpen(false);
+                                handleProductSelect(currentValue === selectedProductId ? '' : currentValue)
                               }}
                             >
                               <Check
@@ -332,15 +351,14 @@ export default function BillingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="uom">UOM</Label>
-              <Select value={uom} onValueChange={setUom}>
+              <Select value={uom} onValueChange={setUom} disabled={!selectedProductData}>
                 <SelectTrigger id="uom">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="KGS">KGS</SelectItem>
-                  <SelectItem value="BOX">BOX</SelectItem>
-                  <SelectItem value="NOS">NOS</SelectItem>
-                  <SelectItem value="ITEMS">ITEMS</SelectItem>
+                  {selectedProductData?.uom_allowed.map(uom => (
+                     <SelectItem key={uom} value={uom}>{uom}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

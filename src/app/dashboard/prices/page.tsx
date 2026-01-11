@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   CardContent,
@@ -24,20 +24,57 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsUpDown, Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Product } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
+
+type LocalPrices = Record<string, string>;
 
 export default function PricesPage() {
-  const { products } = useData();
+  const { products, productPrices, updateProductPrice } = useData();
+  const { toast } = useToast();
   const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [localPrices, setLocalPrices] = useState<LocalPrices>({});
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      const initialPrices: LocalPrices = {};
+      selectedProduct.uom_allowed.forEach((uom) => {
+        initialPrices[uom] = productPrices[selectedProduct.id]?.[uom]?.toString() || '';
+      });
+      setLocalPrices(initialPrices);
+    } else {
+      setLocalPrices({});
+    }
+  }, [selectedProduct, productPrices]);
 
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
     setProductPopoverOpen(false);
+  };
+
+  const handlePriceChange = (uom: string, value: string) => {
+    setLocalPrices((prev) => ({ ...prev, [uom]: value }));
+  };
+
+  const handleUpdatePrices = () => {
+    if (!selectedProduct) return;
+
+    Object.entries(localPrices).forEach(([uom, priceStr]) => {
+      const price = parseFloat(priceStr);
+      if (!isNaN(price)) {
+        updateProductPrice(selectedProduct.id, uom, price);
+      }
+    });
+
+    toast({
+        title: "Prices Updated",
+        description: `Prices for ${selectedProduct.name_en} have been saved.`,
+    });
   };
 
   return (
@@ -123,6 +160,8 @@ export default function PricesPage() {
                     id={`${selectedProduct.id}-${uom}`}
                     type="number"
                     placeholder="0.00"
+                    value={localPrices[uom] || ''}
+                    onChange={(e) => handlePriceChange(uom, e.target.value)}
                   />
                 </div>
               ))}
@@ -131,7 +170,12 @@ export default function PricesPage() {
         )}
 
         <div className="flex justify-end">
-          <Button size="lg" disabled={!selectedProduct}>
+          <Button
+            size="lg"
+            disabled={!selectedProduct}
+            onClick={handleUpdatePrices}
+          >
+            <Save className="mr-2 h-4 w-4" />
             Update Prices
           </Button>
         </div>

@@ -10,17 +10,21 @@ import {
   liveBillSummaries as initialLiveBillSummaries,
 } from '@/lib/data';
 
+type ProductPrices = Record<string, Record<string, number>>;
+
 interface DataContextType {
   customers: Customer[];
   products: Product[];
   liveBillSummaries: LiveBillSummary[];
   currentBillItems: BillItem[];
+  productPrices: ProductPrices;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   addBillItem: (item: BillItem) => void;
   removeBillItem: (itemId: number) => void;
   clearBill: () => void;
   addLiveBillSummary: (summary: Omit<LiveBillSummary, 'billNo'>) => void;
+  updateProductPrice: (productId: string, uom: string, price: number) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -30,6 +34,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
   const [currentBillItems, setCurrentBillItems] = useState<BillItem[]>([]);
+  const [productPrices, setProductPrices] = useState<ProductPrices>({
+    'P01': { KGS: 250, NOS: 50 },
+    'P02': { KGS: 450, BOX: 3200 },
+  });
+
 
   const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
     setCustomers((prev) => {
@@ -94,6 +103,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const updateProductPrice = (productId: string, uom: string, price: number) => {
+    setProductPrices(prev => ({
+        ...prev,
+        [productId]: {
+            ...prev[productId],
+            [uom]: price,
+        },
+    }));
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -101,12 +120,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         products,
         liveBillSummaries,
         currentBillItems,
+        productPrices,
         addCustomer,
         addProduct,
         addBillItem,
         removeBillItem,
         clearBill,
         addLiveBillSummary,
+        updateProductPrice,
       }}
     >
       {children}
