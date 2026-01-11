@@ -53,7 +53,7 @@ export default function PricesPage() {
   }, [selectedProduct, productPrices]);
 
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId);
+    setSelectedProductId(productId === selectedProductId ? '' : productId);
     setProductPopoverOpen(false);
   };
 
@@ -115,8 +115,8 @@ export default function PricesPage() {
                       {products.map((product) => (
                         <CommandItem
                           key={product.id}
-                          value={`${product.id} ${product.name_en} ${product.name_ta}`}
-                          onSelect={() => handleProductSelect(product.id)}
+                          value={product.id}
+                          onSelect={(currentValue) => handleProductSelect(currentValue)}
                         >
                           <Check
                             className={cn(

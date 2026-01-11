@@ -77,7 +77,7 @@ export default function HistoryPage() {
                   aria-expanded={customerPopoverOpen}
                   className="justify-between"
                 >
-                  {selectedCustomer
+                  {selectedCustomer && selectedCustomerData
                     ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
                     : 'Select customer...'}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -92,15 +92,9 @@ export default function HistoryPage() {
                       {customers.map((customer) => (
                         <CommandItem
                           key={customer.id}
-                          value={`${customer.id} ${customer.name_en} ${customer.name_ta}`}
+                          value={customer.id}
                           onSelect={(currentValue) => {
-                            const customerId =
-                              customers.find(
-                                (c) =>
-                                  `${c.id} ${c.name_en} ${c.name_ta}`.toLowerCase() ===
-                                  currentValue
-                              )?.id || '';
-                            setSelectedCustomer(customerId);
+                            setSelectedCustomer(currentValue === selectedCustomer ? '' : currentValue);
                             setCustomerPopoverOpen(false);
                           }}
                         >
