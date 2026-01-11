@@ -5,7 +5,6 @@ import {
   ClipboardList,
   Fish,
   History,
-  Home,
   IndianRupee,
   Printer,
   Settings,
@@ -17,7 +16,6 @@ import {
 } from 'lucide-react';
 import React from 'react';
 
-import { cn } from '@/lib/utils';
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +35,7 @@ const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
-  { href: '/dashboard/customers', label: 'Customers', roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
