@@ -37,7 +37,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
-import { BillItem } from '@/lib/data';
+import { BillItem, LiveBillSummary } from '@/lib/data';
 import {
   Popover,
   PopoverContent,
@@ -58,38 +58,79 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 
 export default function BillingPage() {
-  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem } = useData();
+  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
-  const [date, setDate] = React.useState<Date>();
+  const [date, setDate] = React.useState<Date | undefined>(new Date());
 
   const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
-  const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>('');
 
   const [productPopoverOpen, setProductPopoverOpen] = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<string>('');
+  const [selectedProductId, setSelectedProductId] = React.useState<string>('');
+
+  // Form state for new item
+  const [qty, setQty] = useState('');
+  const [rate, setRate] = useState('');
+  const [uom, setUom] = useState('KGS');
+
 
   const handleAddItem = () => {
-    // This is a mock function. In a real app, this would use form data.
-    const productInfo = products.find((p) => p.id === selectedProduct);
+    const productInfo = products.find((p) => p.id === selectedProductId);
+    if (!productInfo || !qty || !rate) {
+        // Maybe show a toast message
+        return;
+    }
+    
+    const qtyNum = parseFloat(qty);
+    const rateNum = parseFloat(rate);
+
     const newItem: BillItem = {
       id: currentBillItems.length > 0 ? Math.max(...currentBillItems.map(item => item.id)) + 1 : 1,
-      product: productInfo ? productInfo.name_ta : 'இறால்',
-      uom: 'KGS',
-      qty: 2,
-      rate: 1200,
-      amount: 2400,
-      user: 'Admin',
-      stall: '1',
+      product: productInfo.name_ta,
+      uom: uom,
+      qty: qtyNum,
+      rate: rateNum,
+      amount: qtyNum * rateNum,
+      user: 'Admin', // This should be dynamic based on logged in user
+      stall: '1', // This should be dynamic
     };
     addBillItem(newItem);
+    // Reset fields
+    setQty('');
+    setRate('');
+    if (!isProductLocked) {
+        setSelectedProductId('');
+    }
   };
 
   const handleNewBill = () => {
     clearBill();
     setDate(new Date());
-    setSelectedCustomer('');
-    setSelectedProduct('');
-    // You might want to reset other form fields here as well
+    setSelectedCustomerId('');
+    setSelectedProductId('');
+    setQty('');
+    setRate('');
+  };
+  
+  const handleSaveBill = () => {
+    const customer = customers.find(c => c.id === selectedCustomerId);
+    if (!customer || currentBillItems.length === 0) {
+      // Add user feedback, e.g. a toast
+      console.error("Cannot save bill: No customer selected or no items in bill.");
+      return;
+    }
+
+    const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
+
+    const newBillSummary: Omit<LiveBillSummary, 'billNo'> = {
+        customerName: `${customer.name_en} (${customer.name_ta})`,
+        amount: totalAmount,
+        createdBy: 'Admin', // Should be dynamic
+        stall: '1', // Should be dynamic
+    };
+
+    addLiveBillSummary(newBillSummary);
+    handleNewBill(); // Clear everything for the next bill
   };
 
   const totalAmount = currentBillItems.reduce(
@@ -97,10 +138,10 @@ export default function BillingPage() {
     0
   );
   const selectedCustomerData = customers.find(
-    (c) => c.id.toLowerCase() === selectedCustomer.toLowerCase()
+    (c) => c.id === selectedCustomerId
   );
   const selectedProductData = products.find(
-    (p) => p.id.toLowerCase() === selectedProduct.toLowerCase()
+    (p) => p.id === selectedProductId
   );
 
   return (
@@ -159,7 +200,7 @@ export default function BillingPage() {
                     aria-expanded={customerPopoverOpen}
                     className="justify-between"
                   >
-                    {selectedCustomer
+                    {selectedCustomerId && selectedCustomerData
                       ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
                       : 'Select customer...'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -174,23 +215,16 @@ export default function BillingPage() {
                         {customers.map((customer) => (
                           <CommandItem
                             key={customer.id}
-                            value={`${customer.id} ${customer.name_en} ${customer.name_ta}`}
+                            value={customer.id}
                             onSelect={(currentValue) => {
-                              const customerId =
-                                customers.find(
-                                  (c) =>
-                                    `${c.id} ${c.name_en} ${c.name_ta}`.toLowerCase() ===
-                                    currentValue
-                                )?.id || '';
-                              setSelectedCustomer(customerId);
+                              setSelectedCustomerId(currentValue === selectedCustomerId ? "" : currentValue);
                               setCustomerPopoverOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 'mr-2 h-4 w-4',
-                                selectedCustomer.toLowerCase() ===
-                                  customer.id.toLowerCase()
+                                selectedCustomerId === customer.id
                                   ? 'opacity-100'
                                   : 'opacity-0'
                               )}
@@ -242,7 +276,7 @@ export default function BillingPage() {
                       className="w-full justify-between"
                       disabled={isProductLocked}
                     >
-                      {selectedProduct
+                      {selectedProductId && selectedProductData
                         ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
                         : 'Select product...'}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -257,23 +291,16 @@ export default function BillingPage() {
                           {products.map((product) => (
                             <CommandItem
                               key={product.id}
-                              value={`${product.id} ${product.name_en} ${product.name_ta}`}
+                              value={product.id}
                               onSelect={(currentValue) => {
-                                const productId =
-                                  products.find(
-                                    (p) =>
-                                      `${p.id} ${p.name_en} ${p.name_ta}`.toLowerCase() ===
-                                      currentValue
-                                  )?.id || '';
-                                setSelectedProduct(productId);
+                                setSelectedProductId(currentValue === selectedProductId ? '' : currentValue);
                                 setProductPopoverOpen(false);
                               }}
                             >
                               <Check
                                 className={cn(
                                   'mr-2 h-4 w-4',
-                                  selectedProduct.toLowerCase() ===
-                                    product.id.toLowerCase()
+                                  selectedProductId === product.id
                                     ? 'opacity-100'
                                     : 'opacity-0'
                                 )}
@@ -305,7 +332,7 @@ export default function BillingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="uom">UOM</Label>
-              <Select defaultValue="KGS">
+              <Select value={uom} onValueChange={setUom}>
                 <SelectTrigger id="uom">
                   <SelectValue placeholder="Select" />
                 </SelectTrigger>
@@ -319,11 +346,11 @@ export default function BillingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="qty">Qty</Label>
-              <Input id="qty" type="number" placeholder="0.00" />
+              <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={e => setQty(e.target.value)} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="rate">Rate (₹)</Label>
-              <Input id="rate" type="number" placeholder="0.00" />
+              <Input id="rate" type="number" placeholder="0.00" value={rate} onChange={e => setRate(e.target.value)} />
             </div>
             <div className="md:col-span-6 lg:col-span-1">
               <Button onClick={handleAddItem} className="w-full" size="sm">
@@ -406,7 +433,7 @@ export default function BillingPage() {
             <span className="font-bold font-mono">₹1700.00</span>
           </div>
           <div className="flex gap-2">
-            <Button size="lg" variant="outline">
+            <Button size="lg" variant="outline" onClick={handleSaveBill}>
               <Save className="mr-2 h-4 w-4" />
               Save Bill
             </Button>

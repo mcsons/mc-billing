@@ -20,6 +20,7 @@ interface DataContextType {
   addBillItem: (item: BillItem) => void;
   removeBillItem: (itemId: number) => void;
   clearBill: () => void;
+  addLiveBillSummary: (summary: Omit<LiveBillSummary, 'billNo'>) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -34,7 +35,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setCustomers((prev) => {
       let newId = customer.id;
       if (!newId) {
-        // Find the highest numeric part of the existing IDs
         const maxId = prev
           .map(c => parseInt(c.id.replace('C', ''), 10))
           .filter(num => !isNaN(num))
@@ -79,6 +79,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setCurrentBillItems([]);
   }
 
+  const addLiveBillSummary = (summary: Omit<LiveBillSummary, 'billNo'>) => {
+    setLiveBillSummaries(prev => {
+        const maxBillNo = prev
+            .map(b => parseInt(b.billNo.replace('B', ''), 10))
+            .filter(num => !isNaN(num))
+            .reduce((max, num) => Math.max(max, num), 1236); // Starting from after the initial data
+        const newBillNo = `B${maxBillNo + 1}`;
+        const newSummary: LiveBillSummary = {
+            ...summary,
+            billNo: newBillNo,
+        };
+        return [newSummary, ...prev];
+    });
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -90,7 +105,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addProduct,
         addBillItem,
         removeBillItem,
-        clearBill
+        clearBill,
+        addLiveBillSummary,
       }}
     >
       {children}
