@@ -38,7 +38,7 @@ export default function PricesPage() {
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [localPrices, setLocalPrices] = useState<LocalPrices>({});
 
-  const selectedProduct = products.find((p) => p.id === selectedProductId);
+  const selectedProduct = products.find((p) => p.id.toLowerCase() === selectedProductId.toLowerCase());
 
   useEffect(() => {
     if (selectedProduct) {
@@ -53,7 +53,7 @@ export default function PricesPage() {
   }, [selectedProduct, productPrices]);
 
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId === selectedProductId ? '' : productId);
+    setSelectedProductId(productId.toLowerCase() === selectedProductId.toLowerCase() ? '' : productId);
     setProductPopoverOpen(false);
   };
 
@@ -121,7 +121,7 @@ export default function PricesPage() {
                           <Check
                             className={cn(
                               'mr-2 h-4 w-4',
-                              selectedProductId === product.id
+                              selectedProductId.toLowerCase() === product.id.toLowerCase()
                                 ? 'opacity-100'
                                 : 'opacity-0'
                             )}

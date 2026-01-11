@@ -148,15 +148,16 @@ export default function BillingPage() {
     0
   );
   const selectedCustomerData = customers.find(
-    (c) => c.id === selectedCustomerId
+    (c) => c.id.toLowerCase() === selectedCustomerId.toLowerCase()
   );
   const selectedProductData = products.find(
-    (p) => p.id === selectedProductId
+    (p) => p.id.toLowerCase() === selectedProductId.toLowerCase()
   );
   
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId);
-    const product = products.find(p => p.id === productId);
+    const newProductId = productId.toLowerCase() === selectedProductId.toLowerCase() ? '' : productId;
+    setSelectedProductId(newProductId);
+    const product = products.find(p => p.id.toLowerCase() === newProductId.toLowerCase());
     if (product && product.uom_allowed.length > 0) {
       setUom(product.uom_allowed[0]);
     }
@@ -220,7 +221,7 @@ export default function BillingPage() {
                     aria-expanded={customerPopoverOpen}
                     className="justify-between"
                   >
-                    {selectedCustomerId && selectedCustomerData
+                    {selectedCustomerData
                       ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
                       : 'Select customer...'}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -237,14 +238,14 @@ export default function BillingPage() {
                             key={customer.id}
                             value={customer.id}
                             onSelect={(currentValue) => {
-                              setSelectedCustomerId(currentValue === selectedCustomerId ? "" : currentValue);
+                              setSelectedCustomerId(currentValue.toLowerCase() === selectedCustomerId.toLowerCase() ? "" : currentValue);
                               setCustomerPopoverOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 'mr-2 h-4 w-4',
-                                selectedCustomerId === customer.id
+                                selectedCustomerId.toLowerCase() === customer.id.toLowerCase()
                                   ? 'opacity-100'
                                   : 'opacity-0'
                               )}
@@ -296,7 +297,7 @@ export default function BillingPage() {
                       className="w-full justify-between"
                       disabled={isProductLocked}
                     >
-                      {selectedProductId && selectedProductData
+                      {selectedProductData
                         ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
                         : 'Select product...'}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -313,13 +314,13 @@ export default function BillingPage() {
                               key={product.id}
                               value={product.id}
                               onSelect={(currentValue) => {
-                                handleProductSelect(currentValue === selectedProductId ? '' : currentValue)
+                                handleProductSelect(currentValue)
                               }}
                             >
                               <Check
                                 className={cn(
                                   'mr-2 h-4 w-4',
-                                  selectedProductId === product.id
+                                  selectedProductId.toLowerCase() === product.id.toLowerCase()
                                     ? 'opacity-100'
                                     : 'opacity-0'
                                 )}
