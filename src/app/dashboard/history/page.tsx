@@ -37,9 +37,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { liveBillSummaries, customers } from '@/lib/data';
+import { useData } from '@/context/DataContext';
 
 export default function HistoryPage() {
+  const { liveBillSummaries, customers } = useData();
   const [date, setDate] = useState<Date | undefined>(new Date());
   const router = useRouter();
   const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
@@ -48,8 +49,10 @@ export default function HistoryPage() {
   const handleEditBill = (billNo: string) => {
     router.push(`/dashboard?billNo=${billNo}`);
   };
-  
-  const selectedCustomerData = customers.find(c => c.id.toLowerCase() === selectedCustomer.toLowerCase());
+
+  const selectedCustomerData = customers.find(
+    (c) => c.id.toLowerCase() === selectedCustomer.toLowerCase()
+  );
 
   return (
     <Card>
