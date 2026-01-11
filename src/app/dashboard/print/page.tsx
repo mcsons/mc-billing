@@ -40,9 +40,13 @@ function PrintPageContent() {
         setBillData(JSON.parse(decodedData));
       } catch (error) {
         console.error('Failed to parse bill data:', error);
+        // Optionally, redirect or show an error message
+        router.push('/dashboard');
       }
+    } else {
+        router.push('/dashboard');
     }
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   if (!billData) {
     return (
@@ -76,7 +80,7 @@ function PrintPageContent() {
             Print
           </Button>
         </div>
-        <Card className="print:shadow-none print:border-none">
+        <Card className="print:shadow-none print:border-none print:bg-white">
           <CardContent className="p-6 md:p-8" id="print-area">
             <header className="text-center mb-6">
               <h1 className="text-2xl font-bold font-headline text-primary">
@@ -169,6 +173,7 @@ function PrintPageContent() {
         @media print {
           body {
             -webkit-print-color-adjust: exact;
+            background-color: #fff;
           }
           .print\\:hidden {
             display: none;
@@ -178,6 +183,12 @@ function PrintPageContent() {
           }
           .print\\:border-none {
             border: none;
+          }
+          .print\\:bg-white {
+            background-color: #fff !important;
+          }
+           .bg-gray-100 {
+            background-color: #fff !important;
           }
           @page {
             size: auto;
