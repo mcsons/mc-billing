@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import {
     Card,
     CardContent,
@@ -18,12 +19,15 @@ import {
   import { Button } from '@/components/ui/button';
   import { PlusCircle } from 'lucide-react';
 import { useData } from '@/context/DataContext';
+import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
   
   
   export default function UsersPage() {
     const { users } = useData();
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     return (
+        <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -32,7 +36,7 @@ import { useData } from '@/context/DataContext';
                 Add, edit, or remove users. (Creator access only)
                 </CardDescription>
             </div>
-            <Button>
+            <Button onClick={() => setIsDialogOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4"/>
                 New User
             </Button>
@@ -68,6 +72,7 @@ import { useData } from '@/context/DataContext';
           </Table>
         </CardContent>
       </Card>
+      <AddUserDialog isOpen={isDialogOpen} onOpenChange={setIsDialogOpen} />
+      </>
     );
   }
-  

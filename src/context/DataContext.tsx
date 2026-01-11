@@ -31,6 +31,7 @@ interface DataContextType {
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
+  addUser: (user: Omit<User, 'id' | 'status'>) => void;
   addBillItem: (item: BillItem) => void;
   removeBillItem: (itemId: number) => void;
   clearBill: () => void;
@@ -111,6 +112,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         id: newId,
       };
       return [...prev, newProduct];
+    });
+  };
+
+  const addUser = (user: Omit<User, 'id' | 'status'>) => {
+    setUsers((prev) => {
+        const maxId = prev
+            .map(u => parseInt(u.id.replace('U', ''), 10))
+            .filter(num => !isNaN(num))
+            .reduce((max, num) => Math.max(max, num), 0);
+        const newId = `U${(maxId + 1).toString().padStart(2, '0')}`;
+        
+        const newUser: User = {
+            ...user,
+            id: newId,
+            status: 'Active',
+        };
+        return [...prev, newUser];
     });
   };
 
@@ -219,6 +237,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         logout,
         addCustomer,
         addProduct,
+        addUser,
         addBillItem,
         removeBillItem,
         clearBill,
