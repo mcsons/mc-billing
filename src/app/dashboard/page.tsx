@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -58,7 +59,8 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 
 export default function BillingPage() {
-  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices } = useData();
+  const searchParams = useSearchParams();
+  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices, liveBillSummaries, setCurrentBillItems, updateLiveBillSummary } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
   const [date, setDate] = React.useState<Date | undefined>(new Date());
 
@@ -67,11 +69,31 @@ export default function BillingPage() {
 
   const [productPopoverOpen, setProductPopoverOpen] = React.useState(false);
   const [selectedProductId, setSelectedProductId] = React.useState<string>('');
+  
+  const [editingBillNo, setEditingBillNo] = useState<string | null>(null);
 
   // Form state for new item
   const [qty, setQty] = useState('');
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
+
+
+  useEffect(() => {
+    const billNo = searchParams.get('billNo');
+    if (billNo) {
+      const billToEdit = liveBillSummaries.find(b => b.billNo === billNo);
+      if (billToEdit) {
+        setEditingBillNo(billNo);
+        const customer = customers.find(c => billToEdit.customerName.includes(c.name_en));
+        setSelectedCustomerId(customer?.id || '');
+        // For simplicity, we are not loading bill items.
+        // In a real app, you would fetch and set the bill items here.
+        // setCurrentBillItems(billToEdit.items); 
+      }
+    } else {
+      handleNewBill();
+    }
+  }, [searchParams, liveBillSummaries, customers, setCurrentBillItems]);
 
 
   useEffect(() => {
@@ -120,6 +142,7 @@ export default function BillingPage() {
     setSelectedProductId('');
     setQty('');
     setRate('');
+    setEditingBillNo(null);
   };
   
   const handleSaveBill = () => {
@@ -132,14 +155,25 @@ export default function BillingPage() {
 
     const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
 
-    const newBillSummary: Omit<LiveBillSummary, 'billNo'> = {
-        customerName: `${customer.name_en} (${customer.name_ta})`,
-        amount: totalAmount,
-        createdBy: 'Admin', // Should be dynamic
-        stall: '1', // Should be dynamic
-    };
+    if (editingBillNo) {
+        const updatedSummary: LiveBillSummary = {
+            billNo: editingBillNo,
+            customerName: `${customer.name_en} (${customer.name_ta})`,
+            amount: totalAmount,
+            createdBy: 'Admin', // Should be dynamic
+            stall: '1', // Should be dynamic
+        };
+        updateLiveBillSummary(updatedSummary);
+    } else {
+        const newBillSummary: Omit<LiveBillSummary, 'billNo'> = {
+            customerName: `${customer.name_en} (${customer.name_ta})`,
+            amount: totalAmount,
+            createdBy: 'Admin', // Should be dynamic
+            stall: '1', // Should be dynamic
+        };
+        addLiveBillSummary(newBillSummary);
+    }
 
-    addLiveBillSummary(newBillSummary);
     handleNewBill(); // Clear everything for the next bill
   };
 
@@ -169,7 +203,7 @@ export default function BillingPage() {
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
           <div>
-            <CardTitle className="font-headline">Create Bill</CardTitle>
+            <CardTitle className="font-headline">{editingBillNo ? `Editing Bill ${editingBillNo}`: 'Create Bill'}</CardTitle>
             <CardDescription>
               Select customer, add products, and generate a bill. Today is{' '}
               {new Date().toLocaleDateString()}.
@@ -236,7 +270,7 @@ export default function BillingPage() {
                           <CommandItem
                             key={customer.id}
                             value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
-                            onSelect={() => {
+                            onSelect={(currentValue) => {
                               setSelectedCustomerId(customer.id === selectedCustomerId ? '' : customer.id);
                               setCustomerPopoverOpen(false);
                             }}
@@ -312,7 +346,7 @@ export default function BillingPage() {
                             <CommandItem
                               key={product.id}
                               value={`${product.name_en} ${product.name_ta} ${product.id}`}
-                              onSelect={() => {
+                              onSelect={(currentValue) => {
                                 handleProductSelect(product.id === selectedProductId ? '' : product.id)
                               }}
                             >
@@ -465,3 +499,5 @@ export default function BillingPage() {
     </div>
   );
 }
+
+    

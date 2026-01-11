@@ -25,6 +25,8 @@ interface DataContextType {
   clearBill: () => void;
   addLiveBillSummary: (summary: Omit<LiveBillSummary, 'billNo'>) => void;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
+  setCurrentBillItems: React.Dispatch<React.SetStateAction<BillItem[]>>;
+  updateLiveBillSummary: (summary: LiveBillSummary) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -103,6 +105,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const updateLiveBillSummary = (summary: LiveBillSummary) => {
+    setLiveBillSummaries(prev => {
+        const index = prev.findIndex(b => b.billNo === summary.billNo);
+        if (index !== -1) {
+            const newSummaries = [...prev];
+            newSummaries[index] = summary;
+            return newSummaries;
+        }
+        return prev;
+    });
+  };
+
   const updateProductPrice = (productId: string, uom: string, price: number) => {
     setProductPrices(prev => ({
         ...prev,
@@ -128,6 +142,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         clearBill,
         addLiveBillSummary,
         updateProductPrice,
+        setCurrentBillItems,
+        updateLiveBillSummary,
       }}
     >
       {children}
@@ -142,3 +158,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    
