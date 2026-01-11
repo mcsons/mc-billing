@@ -13,6 +13,7 @@ import {
   UserCog,
   Users,
 } from 'lucide-react';
+import React from 'react';
 
 import { cn } from '@/lib/utils';
 import {
@@ -24,7 +25,6 @@ import {
   SidebarMenuButton,
   SidebarMenuSub,
   SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ const currentUserRole = 'ADMIN';
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   const isMenuItemActive = (href: string, exact = false) => {
     if (exact) {
@@ -56,7 +57,11 @@ export function DashboardSidebar() {
     return pathname.startsWith(href);
   };
   
-  const isSettingsActive = isMenuItemActive('/dashboard/settings');
+  React.useEffect(() => {
+    if (isMenuItemActive('/dashboard/settings')) {
+      setIsSettingsOpen(true);
+    }
+  }, [pathname]);
 
   return (
       <Sidebar>
@@ -82,11 +87,11 @@ export function DashboardSidebar() {
                 )
             )}
             <SidebarMenuItem>
-                <SidebarMenuButton data-state={isSettingsActive ? 'open' : 'closed'}>
+                <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} data-state={isSettingsOpen ? 'open' : 'closed'}>
                     <Settings />
                     <span>Settings</span>
                 </SidebarMenuButton>
-                {isSettingsActive && (
+                {isSettingsOpen && (
                     <SidebarMenuSub>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
