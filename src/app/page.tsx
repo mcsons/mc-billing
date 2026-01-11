@@ -10,6 +10,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 function CompanyHeader() {
   return (
@@ -24,6 +32,12 @@ function CompanyHeader() {
     </div>
   );
 }
+
+const demoUsers = [
+  { role: 'Creator', user: 'creator', pass: 'password' },
+  { role: 'Admin', user: 'admin', pass: 'password' },
+  { role: 'Manager', user: 'manager', pass: 'password' },
+]
 
 export default function LoginPage() {
   return (
@@ -62,6 +76,31 @@ export default function LoginPage() {
               <Link href="/dashboard">Log in</Link>
             </Button>
           </div>
+        </CardContent>
+      </Card>
+      <Card className="w-full max-w-sm mt-6">
+        <CardHeader>
+            <CardTitle className="text-lg">Demo Credentials</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Username</TableHead>
+                        <TableHead>Password</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {demoUsers.map(user => (
+                        <TableRow key={user.role}>
+                            <TableCell>{user.role}</TableCell>
+                            <TableCell>{user.user}</TableCell>
+                            <TableCell>{user.pass}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
         </CardContent>
       </Card>
     </main>
