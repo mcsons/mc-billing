@@ -10,6 +10,7 @@ import {
   IndianRupee,
   Printer,
   Settings,
+  User,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -37,6 +38,7 @@ const menuItems = [
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
+  { href: '/dashboard/profile', label: 'Profile', icon: User, roles: ['CREATOR', 'ADMIN', 'MANAGER']},
 ];
 
 const settingsSubItems = [
@@ -79,7 +81,7 @@ export function DashboardSidebar() {
                 (!item.roles || item.roles.includes(currentUserRole)) && (
                     <SidebarMenuItem key={item.label}>
                         <Link href={item.href}>
-                            <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard')}>
+                            <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href === '/dashboard/profile')}>
                                 <item.icon />
                                 <span>{item.label}</span>
                             </SidebarMenuButton>
