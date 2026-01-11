@@ -37,7 +37,8 @@ import {
   PlusCircle,
   Search,
   Unlock,
-  Printer
+  Printer,
+  FilePlus,
 } from 'lucide-react';
 import { liveHistoryItems, BillItem } from '@/lib/data';
 import {
@@ -70,16 +71,28 @@ export default function BillingPage() {
     setCurrentBillItems([...currentBillItems, newItem]);
   };
   
+  const handleNewBill = () => {
+    setCurrentBillItems([]);
+    setDate(new Date());
+    // You might want to reset other form fields here as well
+  };
+
   const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
       <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">Create Bill</CardTitle>
-          <CardDescription>
-            Select customer, add products, and generate a bill. Today is {new Date().toLocaleDateString()}.
-          </CardDescription>
+        <CardHeader className="flex flex-row justify-between items-center">
+            <div>
+                <CardTitle className="font-headline">Create Bill</CardTitle>
+                <CardDescription>
+                    Select customer, add products, and generate a bill. Today is {new Date().toLocaleDateString()}.
+                </CardDescription>
+            </div>
+            <Button variant="outline" onClick={handleNewBill}>
+                <FilePlus className="mr-2 h-4 w-4" />
+                New Bill
+            </Button>
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 md:grid-cols-3">
@@ -192,7 +205,7 @@ export default function BillingPage() {
               <Input id="rate" type="number" placeholder="0.00" />
             </div>
             <div className="md:col-span-6 lg:col-span-1">
-              <Button onClick={handleAddItem} className="w-full">
+              <Button onClick={handleAddItem} className="w-full" size="sm">
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Add
               </Button>
