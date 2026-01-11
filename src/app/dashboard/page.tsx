@@ -43,7 +43,7 @@ import {
   Check,
   Save,
 } from 'lucide-react';
-import { liveHistoryItems, BillItem, customers, products } from '@/lib/data';
+import { liveBillSummaries, BillItem, customers, products } from '@/lib/data';
 import {
     Popover,
     PopoverContent,
@@ -379,29 +379,27 @@ export default function BillingPage() {
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Live Bill History</CardTitle>
-              <CardDescription>All items entered today. Double-click a row to edit.</CardDescription>
+              <CardDescription>All bills created today. Double-click a row to edit.</CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>UOM</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Bill No</TableHead>
+                    <TableHead>Customer</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>User</TableHead>
+                    <TableHead>Created By</TableHead>
                     <TableHead>Stall</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {liveHistoryItems.map((item) => (
-                    <TableRow key={item.id} className="cursor-pointer">
-                      <TableCell className="font-medium">{item.product}</TableCell>
-                      <TableCell>{item.uom}</TableCell>
-                      <TableCell className="text-right">{item.qty.toFixed(3)}</TableCell>
-                      <TableCell className="text-right">₹{item.amount.toFixed(2)}</TableCell>
-                      <TableCell>{item.user}</TableCell>
-                      <TableCell>{item.stall}</TableCell>
+                  {liveBillSummaries.map((bill) => (
+                    <TableRow key={bill.billNo} className="cursor-pointer">
+                      <TableCell className="font-medium">{bill.billNo}</TableCell>
+                      <TableCell>{bill.customerName}</TableCell>
+                      <TableCell className="text-right">₹{bill.amount.toFixed(2)}</TableCell>
+                      <TableCell>{bill.createdBy}</TableCell>
+                      <TableCell>{bill.stall}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

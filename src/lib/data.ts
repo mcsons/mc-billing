@@ -23,6 +23,14 @@ export type BillItem = {
   stall: string;
 };
 
+export type LiveBillSummary = {
+  billNo: string;
+  customerName: string;
+  amount: number;
+  createdBy: string;
+  stall: string;
+}
+
 export const customers: Customer[] = [
   { id: 'C001', name_en: 'Retail Shop A', name_ta: 'சில்லறை கடை அ', phone: '9876543210' },
   { id: 'C002', name_en: 'Hotel B', name_ta: 'ஹோட்டல் ஆ', phone: '9876543211' },
@@ -36,6 +44,12 @@ export const products: Product[] = [
   { id: 'P03', name_en: 'Crab', name_ta: 'நண்டு', uom_allowed: ['KGS', 'NOS'] },
   { id: 'P04', name_en: 'Sardine', name_ta: 'மத்தி', uom_allowed: ['KGS', 'BOX'] },
   { id: 'P05', name_en: 'Mackerel', name_ta: 'காணாங்கெளுத்தி', uom_allowed: ['KGS', 'NOS'] },
+];
+
+export const liveBillSummaries: LiveBillSummary[] = [
+    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 8200, createdBy: 'Admin', stall: '1' },
+    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 15500, createdBy: 'Manager', stall: '2' },
+    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 4850, createdBy: 'Admin', stall: '1' },
 ];
 
 export const liveHistoryItems: BillItem[] = [
