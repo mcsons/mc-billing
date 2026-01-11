@@ -18,6 +18,7 @@ interface DataContextType {
   addCustomer: (customer: Customer) => void;
   addProduct: (product: Product) => void;
   addBillItem: (item: BillItem) => void;
+  removeBillItem: (itemId: number) => void;
   clearBill: () => void;
 }
 
@@ -41,6 +42,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setCurrentBillItems(prev => [...prev, item]);
   }
 
+  const removeBillItem = (itemId: number) => {
+    setCurrentBillItems(prev => prev.filter(item => item.id !== itemId));
+  }
+
   const clearBill = () => {
     setCurrentBillItems([]);
   }
@@ -55,6 +60,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addCustomer,
         addProduct,
         addBillItem,
+        removeBillItem,
         clearBill
       }}
     >

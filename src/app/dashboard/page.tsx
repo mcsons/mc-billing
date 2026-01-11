@@ -35,6 +35,7 @@ import {
   ChevronsUpDown,
   Check,
   Save,
+  Trash2,
 } from 'lucide-react';
 import { BillItem } from '@/lib/data';
 import {
@@ -57,7 +58,7 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 
 export default function BillingPage() {
-  const { customers, products, addBillItem, currentBillItems, clearBill } = useData();
+  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem } = useData();
   const [isProductLocked, setIsProductLocked] = useState(false);
   const [date, setDate] = React.useState<Date>();
 
@@ -71,7 +72,7 @@ export default function BillingPage() {
     // This is a mock function. In a real app, this would use form data.
     const productInfo = products.find((p) => p.id === selectedProduct);
     const newItem: BillItem = {
-      id: currentBillItems.length + 1,
+      id: currentBillItems.length > 0 ? Math.max(...currentBillItems.map(item => item.id)) + 1 : 1,
       product: productInfo ? productInfo.name_ta : 'இறால்',
       uom: 'KGS',
       qty: 2,
@@ -351,13 +352,14 @@ export default function BillingPage() {
                 <TableHead className="text-right">Qty</TableHead>
                 <TableHead className="text-right">Rate (₹)</TableHead>
                 <TableHead className="text-right">Amount (₹)</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {currentBillItems.length > 0 ? (
-                currentBillItems.map((item) => (
+                currentBillItems.map((item, index) => (
                   <TableRow key={item.id}>
-                    <TableCell>{item.id}</TableCell>
+                    <TableCell>{index + 1}</TableCell>
                     <TableCell className="font-medium">{item.product}</TableCell>
                     <TableCell>{item.uom}</TableCell>
                     <TableCell className="text-right">
@@ -369,11 +371,17 @@ export default function BillingPage() {
                     <TableCell className="text-right">
                       {item.amount.toFixed(2)}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => removeBillItem(item.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete item</span>
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center">
+                  <TableCell colSpan={7} className="text-center">
                     No items added yet.
                   </TableCell>
                 </TableRow>
