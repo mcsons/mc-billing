@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -14,6 +13,7 @@ import {
   UserCog,
   Users,
   Wallet,
+  ShieldCheck,
 } from 'lucide-react';
 import React from 'react';
 
@@ -37,10 +37,11 @@ const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
-  { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/customers', label: 'Customers', roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
+  { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
   { href: '/dashboard/profile', label: 'Profile', icon: User, roles: ['CREATOR', 'ADMIN', 'MANAGER']},
 ];
 
