@@ -92,9 +92,11 @@ export default function HistoryPage() {
                       {customers.map((customer) => (
                         <CommandItem
                           key={customer.id}
-                          value={customer.id}
-                          onSelect={(currentValue) => {
-                            setSelectedCustomer(currentValue.toLowerCase() === selectedCustomer.toLowerCase() ? '' : currentValue);
+                          value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
+                          onSelect={() => {
+                            setSelectedCustomer(
+                              customer.id === selectedCustomer ? '' : customer.id
+                            );
                             setCustomerPopoverOpen(false);
                           }}
                         >

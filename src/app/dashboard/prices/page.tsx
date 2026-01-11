@@ -53,7 +53,7 @@ export default function PricesPage() {
   }, [selectedProduct, productPrices]);
 
   const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId.toLowerCase() === selectedProductId.toLowerCase() ? '' : productId);
+    setSelectedProductId(productId);
     setProductPopoverOpen(false);
   };
 
@@ -115,8 +115,8 @@ export default function PricesPage() {
                       {products.map((product) => (
                         <CommandItem
                           key={product.id}
-                          value={product.id}
-                          onSelect={(currentValue) => handleProductSelect(currentValue)}
+                          value={`${product.name_en} ${product.name_ta} ${product.id}`}
+                          onSelect={() => handleProductSelect(product.id === selectedProductId ? '' : product.id)}
                         >
                           <Check
                             className={cn(

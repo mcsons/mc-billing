@@ -155,9 +155,8 @@ export default function BillingPage() {
   );
   
   const handleProductSelect = (productId: string) => {
-    const newProductId = productId.toLowerCase() === selectedProductId.toLowerCase() ? '' : productId;
-    setSelectedProductId(newProductId);
-    const product = products.find(p => p.id.toLowerCase() === newProductId.toLowerCase());
+    setSelectedProductId(productId);
+    const product = products.find(p => p.id === productId);
     if (product && product.uom_allowed.length > 0) {
       setUom(product.uom_allowed[0]);
     }
@@ -236,9 +235,9 @@ export default function BillingPage() {
                         {customers.map((customer) => (
                           <CommandItem
                             key={customer.id}
-                            value={customer.id}
-                            onSelect={(currentValue) => {
-                              setSelectedCustomerId(currentValue.toLowerCase() === selectedCustomerId.toLowerCase() ? "" : currentValue);
+                            value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
+                            onSelect={() => {
+                              setSelectedCustomerId(customer.id === selectedCustomerId ? '' : customer.id);
                               setCustomerPopoverOpen(false);
                             }}
                           >
@@ -312,9 +311,9 @@ export default function BillingPage() {
                           {products.map((product) => (
                             <CommandItem
                               key={product.id}
-                              value={product.id}
-                              onSelect={(currentValue) => {
-                                handleProductSelect(currentValue)
+                              value={`${product.name_en} ${product.name_ta} ${product.id}`}
+                              onSelect={() => {
+                                handleProductSelect(product.id === selectedProductId ? '' : product.id)
                               }}
                             >
                               <Check
