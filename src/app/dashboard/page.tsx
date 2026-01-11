@@ -41,6 +41,7 @@ import {
   FilePlus,
   ChevronsUpDown,
   Check,
+  Save,
 } from 'lucide-react';
 import { liveHistoryItems, BillItem, customers, products } from '@/lib/data';
 import {
@@ -361,10 +362,16 @@ export default function BillingPage() {
                     <span className="font-semibold">Balance:</span>
                     <span className="font-bold font-mono">₹1700.00</span>
                 </div>
-                <Button size="lg">
-                    <Printer className="mr-2 h-4 w-4"/>
-                    Print Bill
-                </Button>
+                <div className="flex gap-2">
+                    <Button size="lg" variant="outline">
+                        <Save className="mr-2 h-4 w-4"/>
+                        Save Bill
+                    </Button>
+                    <Button size="lg">
+                        <Printer className="mr-2 h-4 w-4"/>
+                        Print Bill
+                    </Button>
+                </div>
             </CardFooter>
           </Card>
         </TabsContent>
