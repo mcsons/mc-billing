@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Card,
   CardContent,
@@ -32,6 +33,11 @@ import { liveBillSummaries } from '@/lib/data';
 
 export default function HistoryPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
+  const router = useRouter();
+
+  const handleEditBill = (billNo: string) => {
+    router.push(`/dashboard?billNo=${billNo}`);
+  };
 
   return (
     <Card>
@@ -92,7 +98,7 @@ export default function HistoryPage() {
           </TableHeader>
           <TableBody>
             {liveBillSummaries.map((bill) => (
-                <TableRow key={bill.billNo} className="cursor-pointer" onDoubleClick={() => console.log(`Editing bill ${bill.billNo}`)}>
+                <TableRow key={bill.billNo} className="cursor-pointer" onDoubleClick={() => handleEditBill(bill.billNo)}>
                     <TableCell className="font-medium">{bill.billNo}</TableCell>
                     <TableCell>{bill.customerName}</TableCell>
                     <TableCell className="text-right">₹{bill.amount.toFixed(2)}</TableCell>
