@@ -18,10 +18,20 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { useData } from '@/context/DataContext';
+import { useRouter } from 'next/navigation';
 
 
 export function UserNav() {
+  const router = useRouter();
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
+  const { currentUser, logout } = useData();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -36,16 +46,16 @@ export function UserNav() {
                         data-ai-hint={userAvatar.imageHint}
                     />
                 )}
-                <AvatarFallback>U</AvatarFallback>
+                <AvatarFallback>{currentUser?.username.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Admin</p>
+            <p className="text-sm font-medium leading-none">{currentUser?.username}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@mcandsons.com
+              {currentUser?.role}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -59,11 +69,9 @@ export function UserNav() {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-            <Link href="/">
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </Link>
+        <DropdownMenuItem onClick={handleLogout}>
+            <LogOut className="mr-2 h-4 w-4" />
+            <span>Log out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,4 +1,7 @@
+'use client';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,6 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useData } from '@/context/DataContext';
+import { useToast } from '@/hooks/use-toast';
+import { User, users as demoUsers } from '@/lib/data';
+
 
 function CompanyHeader() {
   return (
@@ -33,13 +40,31 @@ function CompanyHeader() {
   );
 }
 
-const demoUsers = [
-  { role: 'Creator', user: 'creator', pass: 'password' },
-  { role: 'Admin', user: 'admin', pass: 'password' },
-  { role: 'Manager', user: 'manager', pass: 'password' },
-]
-
 export default function LoginPage() {
+  const router = useRouter();
+  const { login } = useData();
+  const { toast } = useToast();
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('password');
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const user = login(username, password);
+    if (user) {
+      toast({
+        title: 'Login Successful',
+        description: `Welcome back, ${user.username}!`,
+      });
+      router.push('/dashboard');
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Login Failed',
+        description: 'Invalid username or password.',
+      });
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted p-4">
       <div className="flex flex-col items-center gap-2 mb-6 text-primary">
@@ -55,7 +80,7 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4">
+          <form onSubmit={handleLogin} className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="username">Username</Label>
               <Input
@@ -63,19 +88,26 @@ export default function LoginPage() {
                 type="text"
                 placeholder="admin"
                 required
-                defaultValue="admin"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
               </div>
-              <Input id="password" type="password" required defaultValue="password" />
+              <Input 
+                id="password" 
+                type="password" 
+                required 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-            <Button asChild type="submit" className="w-full">
-              <Link href="/dashboard">Log in</Link>
+            <Button type="submit" className="w-full">
+              Log in
             </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
       <Card className="w-full max-w-sm mt-6">
@@ -95,8 +127,8 @@ export default function LoginPage() {
                     {demoUsers.map(user => (
                         <TableRow key={user.role}>
                             <TableCell>{user.role}</TableCell>
-                            <TableCell>{user.user}</TableCell>
-                            <TableCell>{user.pass}</TableCell>
+                            <TableCell>{user.username}</TableCell>
+                            <TableCell>{user.password}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>

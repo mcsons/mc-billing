@@ -6,22 +6,29 @@ import {
   BillItem,
   LiveBillSummary,
   Payment,
+  User,
   customers as initialCustomers,
   products as initialProducts,
   liveBillSummaries as initialLiveBillSummaries,
+  users as initialUsers,
 } from '@/lib/data';
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
+type UserRole = 'CREATOR' | 'ADMIN' | 'MANAGER';
 
 interface DataContextType {
   customers: Customer[];
   products: Product[];
+  users: User[];
   liveBillSummaries: LiveBillSummary[];
   currentBillItems: BillItem[];
   productPrices: ProductPrices;
   customerBalances: CustomerBalances;
   payments: Payment[];
+  currentUser: User | null;
+  login: (username: string, password?: string) => User | null;
+  logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   addBillItem: (item: BillItem) => void;
@@ -39,8 +46,10 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [users, setUsers] = useState<User[]>(initialUsers);
   const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
   const [currentBillItems, setCurrentBillItems] = useState<BillItem[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [productPrices, setProductPrices] = useState<ProductPrices>({
     'P01': { KGS: 250, NOS: 50 },
     'P02': { KGS: 450, BOX: 3200 },
@@ -52,6 +61,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     'C004': -300,
   });
   const [payments, setPayments] = useState<Payment[]>([]);
+
+  const login = (username: string, password?: string): User | null => {
+    const user = users.find(u => u.username === username && u.password === password);
+    if (user) {
+      setCurrentUser(user);
+      return user;
+    }
+    setCurrentUser(null);
+    return null;
+  };
+  
+  const logout = () => {
+    setCurrentUser(null);
+  };
 
 
   const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
@@ -185,11 +208,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       value={{
         customers,
         products,
+        users,
         liveBillSummaries,
         currentBillItems,
         productPrices,
         customerBalances,
         payments,
+        currentUser,
+        login,
+        logout,
         addCustomer,
         addProduct,
         addBillItem,

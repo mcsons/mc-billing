@@ -1,3 +1,11 @@
+export type User = {
+  id: string;
+  username: string;
+  password?: string;
+  role: 'CREATOR' | 'ADMIN' | 'MANAGER';
+  status: 'Active' | 'Inactive';
+};
+
 export type Customer = {
   id: string;
   name_en: string;
@@ -38,6 +46,13 @@ export type Payment = {
     date: Date;
     notes?: string;
 }
+
+export const users: User[] = [
+  { id: 'U01', username: 'creator', password: 'password', role: 'CREATOR', status: 'Active' },
+  { id: 'U02', username: 'admin', password: 'password', role: 'ADMIN', status: 'Active' },
+  { id: 'U03', username: 'manager', password: 'password', role: 'MANAGER', status: 'Active' },
+];
+
 
 export const customers: Customer[] = [
   { id: 'C001', name_en: 'Retail Shop A', name_ta: 'சில்லறை கடை அ', phone: '9876543210' },

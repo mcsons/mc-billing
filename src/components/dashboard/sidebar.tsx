@@ -31,6 +31,7 @@ import {
   SidebarMenuSubItem
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { useData } from '@/context/DataContext';
 
 const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
@@ -47,12 +48,11 @@ const settingsSubItems = [
     { href: '/dashboard/settings/printer', label: 'Printer', icon: Printer },
 ];
 
-
-// Mock current user role
-const currentUserRole = 'ADMIN';
-
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const { currentUser } = useData();
+  const currentUserRole = currentUser?.role;
+
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   const isMenuItemActive = (href: string, exact = false) => {
@@ -78,18 +78,20 @@ export function DashboardSidebar() {
         <SidebarContent>
           <SidebarMenu>
             {menuItems.map((item) => 
-                (!item.roles || item.roles.includes(currentUserRole)) && (
+                (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
                     <SidebarMenuItem key={item.label}>
-                        <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
-                            <Link href={item.href}>
+                        <Link href={item.href}>
+                            <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
+                                <span>
                                 <item.icon />
                                 <span>{item.label}</span>
-                            </Link>
-                        </SidebarMenuButton>
+                                </span>
+                            </SidebarMenuButton>
+                        </Link>
                     </SidebarMenuItem>
                 )
             )}
-            {(currentUserRole === 'CREATOR' || currentUserRole === 'ADMIN') && (
+            {currentUserRole && (currentUserRole === 'CREATOR' || currentUserRole === 'ADMIN') && (
             <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} isActive={isMenuItemActive('/dashboard/settings')} data-state={isSettingsOpen ? 'open' : 'closed'}>
                     <Settings />

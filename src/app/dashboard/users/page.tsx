@@ -1,3 +1,4 @@
+'use client';
 import {
     Card,
     CardContent,
@@ -16,15 +17,12 @@ import {
   import { Badge } from '@/components/ui/badge';
   import { Button } from '@/components/ui/button';
   import { PlusCircle } from 'lucide-react';
+import { useData } from '@/context/DataContext';
   
-  const users = [
-    { id: 'U01', username: 'creator', role: 'CREATOR', status: 'Active' },
-    { id: 'U02', username: 'admin', role: 'ADMIN', status: 'Active' },
-    { id: 'U03', username: 'manager1', role: 'MANAGER', status: 'Active' },
-    { id: 'U04', username: 'manager2', role: 'MANAGER', status: 'Inactive' },
-  ];
   
   export default function UsersPage() {
+    const { users } = useData();
+
     return (
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
