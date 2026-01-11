@@ -26,6 +26,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarTrigger,
+  SidebarMenuSubItem
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 
@@ -77,11 +78,11 @@ export function DashboardSidebar() {
             {menuItems.map((item) => 
                 (!item.roles || item.roles.includes(currentUserRole)) && (
                     <SidebarMenuItem key={item.label}>
-                        <Link href={item.href} legacyBehavior passHref>
-                        <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard')}>
-                            <item.icon />
-                            <span>{item.label}</span>
-                        </SidebarMenuButton>
+                        <Link href={item.href}>
+                            <SidebarMenuButton isActive={isMenuItemActive(item.href, item.href === '/dashboard')}>
+                                <item.icon />
+                                <span>{item.label}</span>
+                            </SidebarMenuButton>
                         </Link>
                     </SidebarMenuItem>
                 )
@@ -95,7 +96,7 @@ export function DashboardSidebar() {
                     <SidebarMenuSub>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} legacyBehavior passHref>
+                                <Link href={subItem.href}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
