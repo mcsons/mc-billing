@@ -27,15 +27,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
-import {
   Lock,
   PlusCircle,
-  Search,
   Unlock,
   Printer,
   FilePlus,
@@ -43,7 +36,7 @@ import {
   Check,
   Save,
 } from 'lucide-react';
-import { liveBillSummaries, BillItem, customers, products } from '@/lib/data';
+import { BillItem, customers, products } from '@/lib/data';
 import {
     Popover,
     PopoverContent,
@@ -310,104 +303,64 @@ export default function BillingPage() {
         </CardContent>
       </Card>
       
-      <Tabs defaultValue="current-bill">
-        <TabsList>
-          <TabsTrigger value="current-bill">Current Bill</TabsTrigger>
-          <TabsTrigger value="live-history">Live History (Today)</TabsTrigger>
-        </TabsList>
-        <TabsContent value="current-bill">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Current Bill</CardTitle>
-              <CardDescription>Items added for the selected customer.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <TableHead>S/N</TableHead>
-                        <TableHead>Product (பெயர்)</TableHead>
-                        <TableHead>UOM</TableHead>
-                        <TableHead className="text-right">Qty</TableHead>
-                        <TableHead className="text-right">Rate (₹)</TableHead>
-                        <TableHead className="text-right">Amount (₹)</TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {currentBillItems.length > 0 ? currentBillItems.map((item) => (
-                        <TableRow key={item.id}>
-                        <TableCell>{item.id}</TableCell>
-                        <TableCell className="font-medium">{item.product}</TableCell>
-                        <TableCell>{item.uom}</TableCell>
-                        <TableCell className="text-right">{item.qty.toFixed(3)}</TableCell>
-                        <TableCell className="text-right">{item.rate.toFixed(2)}</TableCell>
-                        <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
-                        </TableRow>
-                    )) : (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center">No items added yet.</TableCell>
-                        </TableRow>
-                    )}
-                    </TableBody>
-                </Table>
-            </CardContent>
-            <CardFooter className="flex flex-col items-end gap-4">
-                <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg">
-                    <span className="font-semibold">Total:</span>
-                    <span className="font-bold font-mono">₹{totalAmount.toFixed(2)}</span>
-                    <span className="font-semibold">Prev Balance:</span>
-                    <span className="font-mono">₹500.00</span>
-                     <span className="font-semibold">Paid:</span>
-                    <Input className="max-w-32 text-right font-mono" placeholder="₹1000.00" />
-                    <span className="font-semibold">Balance:</span>
-                    <span className="font-bold font-mono">₹1700.00</span>
-                </div>
-                <div className="flex gap-2">
-                    <Button size="lg" variant="outline">
-                        <Save className="mr-2 h-4 w-4"/>
-                        Save Bill
-                    </Button>
-                    <Button size="lg">
-                        <Printer className="mr-2 h-4 w-4"/>
-                        Print Bill
-                    </Button>
-                </div>
-            </CardFooter>
-          </Card>
-        </TabsContent>
-        <TabsContent value="live-history">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Live Bill History</CardTitle>
-              <CardDescription>All bills created today. Double-click a row to edit.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline">Current Bill</CardTitle>
+            <CardDescription>Items added for the selected customer.</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Bill No</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Created By</TableHead>
-                    <TableHead>Stall</TableHead>
-                  </TableRow>
+                <TableRow>
+                    <TableHead>S/N</TableHead>
+                    <TableHead>Product (பெயர்)</TableHead>
+                    <TableHead>UOM</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Rate (₹)</TableHead>
+                    <TableHead className="text-right">Amount (₹)</TableHead>
+                </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {liveBillSummaries.map((bill) => (
-                    <TableRow key={bill.billNo} className="cursor-pointer">
-                      <TableCell className="font-medium">{bill.billNo}</TableCell>
-                      <TableCell>{bill.customerName}</TableCell>
-                      <TableCell className="text-right">₹{bill.amount.toFixed(2)}</TableCell>
-                      <TableCell>{bill.createdBy}</TableCell>
-                      <TableCell>{bill.stall}</TableCell>
+                {currentBillItems.length > 0 ? currentBillItems.map((item) => (
+                    <TableRow key={item.id}>
+                    <TableCell>{item.id}</TableCell>
+                    <TableCell className="font-medium">{item.product}</TableCell>
+                    <TableCell>{item.uom}</TableCell>
+                    <TableCell className="text-right">{item.qty.toFixed(3)}</TableCell>
+                    <TableCell className="text-right">{item.rate.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
                     </TableRow>
-                  ))}
+                )) : (
+                    <TableRow>
+                        <TableCell colSpan={6} className="text-center">No items added yet.</TableCell>
+                    </TableRow>
+                )}
                 </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </Table>
+        </CardContent>
+        <CardFooter className="flex flex-col items-end gap-4">
+            <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg">
+                <span className="font-semibold">Total:</span>
+                <span className="font-bold font-mono">₹{totalAmount.toFixed(2)}</span>
+                <span className="font-semibold">Prev Balance:</span>
+                <span className="font-mono">₹500.00</span>
+                    <span className="font-semibold">Paid:</span>
+                <Input className="max-w-32 text-right font-mono" placeholder="₹1000.00" />
+                <span className="font-semibold">Balance:</span>
+                <span className="font-bold font-mono">₹1700.00</span>
+            </div>
+            <div className="flex gap-2">
+                <Button size="lg" variant="outline">
+                    <Save className="mr-2 h-4 w-4"/>
+                    Save Bill
+                </Button>
+                <Button size="lg">
+                    <Printer className="mr-2 h-4 w-4"/>
+                    Print Bill
+                </Button>
+            </div>
+        </CardFooter>
+        </Card>
     </div>
   );
 }
