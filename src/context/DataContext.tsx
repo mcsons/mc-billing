@@ -15,8 +15,8 @@ interface DataContextType {
   products: Product[];
   liveBillSummaries: LiveBillSummary[];
   currentBillItems: BillItem[];
-  addCustomer: (customer: Customer) => void;
-  addProduct: (product: Product) => void;
+  addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
+  addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   addBillItem: (item: BillItem) => void;
   removeBillItem: (itemId: number) => void;
   clearBill: () => void;
@@ -30,12 +30,41 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
   const [currentBillItems, setCurrentBillItems] = useState<BillItem[]>([]);
 
-  const addCustomer = (customer: Customer) => {
-    setCustomers((prev) => [...prev, customer]);
+  const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
+    setCustomers((prev) => {
+      let newId = customer.id;
+      if (!newId) {
+        // Find the highest numeric part of the existing IDs
+        const maxId = prev
+          .map(c => parseInt(c.id.replace('C', ''), 10))
+          .filter(num => !isNaN(num))
+          .reduce((max, num) => Math.max(max, num), 0);
+        newId = `C${(maxId + 1).toString().padStart(3, '0')}`;
+      }
+      const newCustomer: Customer = {
+        ...customer,
+        id: newId,
+      };
+      return [...prev, newCustomer];
+    });
   };
 
-  const addProduct = (product: Product) => {
-    setProducts((prev) => [...prev, product]);
+  const addProduct = (product: Omit<Product, 'id'> & { id?: string }) => {
+    setProducts((prev) => {
+      let newId = product.id;
+      if (!newId) {
+        const maxId = prev
+          .map(p => parseInt(p.id.replace('P', ''), 10))
+          .filter(num => !isNaN(num))
+          .reduce((max, num) => Math.max(max, num), 0);
+        newId = `P${(maxId + 1).toString().padStart(2, '0')}`;
+      }
+      const newProduct: Product = {
+        ...product,
+        id: newId,
+      };
+      return [...prev, newProduct];
+    });
   };
 
   const addBillItem = (item: BillItem) => {

@@ -27,7 +27,8 @@ export function AddProductDialog({
   isOpen,
   onOpenChange,
 }: AddProductDialogProps) {
-  const { addProduct, products } = useData();
+  const { addProduct } = useData();
+  const [id, setId] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [nameTa, setNameTa] = useState('');
   const [uoms, setUoms] = useState<Set<Uom>>(new Set());
@@ -45,16 +46,16 @@ export function AddProductDialog({
   };
 
   const handleSubmit = () => {
-    const newId = `P${(products.length + 1).toString().padStart(2, '0')}`;
-    const newProduct: Product = {
-      id: newId,
+    const newProduct: Omit<Product, 'id' | 'uom_allowed'> & { id?: string, uom_allowed: Uom[] } = {
+      id: id || undefined,
       name_en: nameEn,
       name_ta: nameTa,
-      uom_allowed: Array.from(uoms) as any, // casting as lib/data has specific array
+      uom_allowed: Array.from(uoms),
     };
     addProduct(newProduct);
     onOpenChange(false);
     // Reset form
+    setId('');
     setNameEn('');
     setNameTa('');
     setUoms(new Set());
@@ -66,10 +67,22 @@ export function AddProductDialog({
         <DialogHeader>
           <DialogTitle>Add New Product</DialogTitle>
           <DialogDescription>
-            Enter the details for the new product.
+            Enter the details for the new product. Leave ID blank to auto-generate.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+             <Label htmlFor="id" className="text-right">
+              ID (Optional)
+            </Label>
+            <Input
+              id="id"
+              value={id}
+              onChange={(e) => setId(e.target.value.toUpperCase())}
+              className="col-span-3"
+              placeholder="e.g., P10"
+            />
+          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name_en" className="text-right">
               Name (English)
