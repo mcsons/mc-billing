@@ -133,6 +133,16 @@ service cloud.firestore {
     match /products/{productId} {
       allow read, write: if isSignedIn();
     }
+    
+    /**
+     * @description Manages customer payment records. Any authenticated user can
+     *   read and create payments.
+     * @path /payments/{paymentId}
+     * @principle Allows collaborative data management for all signed-in users.
+     */
+    match /payments/{paymentId} {
+      allow read, create: if isSignedIn();
+    }
 
     /**
      * @description Manages customer balance information. Any authenticated user
@@ -209,7 +219,7 @@ service cloud.firestore {
      * @path /billArchives/{billId}
      * @allow Any authenticated user reads an archived bill. (auth != null, get)
      * @deny A regular user attempts to create an archived bill. (auth.isAdmin == false, create)
-     * @deny A regular user attempts to delete an archived bill. (auth.isAdmin == false, delete)
+     deny A regular user attempts to delete an archived bill. (auth.isAdmin == false, delete)
      * @principle Segregates historical data and protects it from modification by non-admins.
      */
     match /billArchives/{billId} {
