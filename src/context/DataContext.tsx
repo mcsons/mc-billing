@@ -99,7 +99,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   
   const { data: pricesData } = useCollection<any>(useMemoFirebase(() => firestore ? collection(firestore, 'productPrices') : null, [firestore]));
   const productPrices = useMemo(() => {
-    return (pricesData || []).reduce((acc, price) => {
+    if (!pricesData) return {};
+    return pricesData.reduce((acc, price) => {
         if (!acc[price.productId]) {
             acc[price.productId] = {};
         }
@@ -113,47 +114,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (isUserLoading || !firebaseUser) return null;
     return users.find(u => u.id === firebaseUser.uid) || null;
   }, [firebaseUser, isUserLoading, users]);
-
-
-  // Seed initial creator user if not present
-  useEffect(() => {
-    if (firestore && auth) {
-      const seedCreator = async () => {
-        const creatorEmail = "creator@mcandsons.com";
-        const creatorPassword = "password";
-
-        try {
-          // Attempt to create the auth user. This will fail if the user already exists, which is fine.
-          const userCredential = await createUserWithEmailAndPassword(auth, creatorEmail, creatorPassword);
-          console.log("Creator auth user created successfully.");
-
-          // If auth user creation was successful, ensure the Firestore document exists.
-          const userDocRef = doc(firestore, "users", userCredential.user.uid);
-          const creatorData = {
-            id: userCredential.user.uid,
-            username: "creator",
-            role: "CREATOR",
-            status: "Active",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          };
-          await setDocumentNonBlocking(userDocRef, creatorData, {});
-          console.log("Creator Firestore document created/verified.");
-
-        } catch (error: any) {
-          if (error.code === 'auth/email-already-in-use') {
-            // This is expected if the app has run before. We can proceed.
-            console.log("Creator auth user already exists. Proceeding.");
-          } else {
-            // For other errors, log them for debugging.
-            console.error("Error seeding creator user:", error);
-          }
-        }
-      };
-      
-      seedCreator();
-    }
-  }, [firestore, auth]);
 
 
   const customerBalances = useMemo(() => {
@@ -265,7 +225,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
-    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER', password?: string}) => {
+    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string}) => {
     if (!firestore || !auth) {
         toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
         return;
@@ -275,8 +235,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     
-    // In a real-world secure app, this would be a Cloud Function call.
-    // For this environment, we'll create the user directly.
     try {
         const email = `${user.username.toLowerCase()}@mcandsons.com`;
         const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);

@@ -23,8 +23,10 @@ import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
   
   
   export default function UsersPage() {
-    const { users } = useData();
+    const { users, currentUser } = useData();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+    const canManageUsers = currentUser?.role === 'CREATOR';
 
     return (
         <>
@@ -36,10 +38,12 @@ import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
                 Add, edit, or remove users. (Creator access only)
                 </CardDescription>
             </div>
-            <Button onClick={() => setIsDialogOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4"/>
-                New User
-            </Button>
+            {canManageUsers && (
+              <Button onClick={() => setIsDialogOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4"/>
+                  New User
+              </Button>
+            )}
         </CardHeader>
         <CardContent>
           <Table>

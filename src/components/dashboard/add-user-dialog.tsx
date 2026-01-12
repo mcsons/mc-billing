@@ -26,13 +26,13 @@ interface AddUserDialogProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-type UserRole = 'ADMIN' | 'MANAGER';
+type UserRole = 'ADMIN' | 'MANAGER' | 'CREATOR';
 
 export function AddUserDialog({
   isOpen,
   onOpenChange,
 }: AddUserDialogProps) {
-  const { addUser } = useData();
+  const { addUser, currentUser } = useData();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('MANAGER');
@@ -55,6 +55,9 @@ export function AddUserDialog({
     setPassword('');
     setRole('MANAGER');
   };
+
+  const canCreateCreator = currentUser?.role === 'CREATOR';
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -98,6 +101,7 @@ export function AddUserDialog({
                     <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
+                    {canCreateCreator && <SelectItem value="CREATOR">Creator</SelectItem>}
                     <SelectItem value="ADMIN">Admin</SelectItem>
                     <SelectItem value="MANAGER">Manager</SelectItem>
                 </SelectContent>
