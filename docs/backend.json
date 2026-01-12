@@ -143,6 +143,19 @@
         "updatedAt"
       ]
     },
+    "Uom": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Uom",
+      "type": "object",
+      "description": "Represents a Unit of Measure.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the Unit of Measure (e.g., KGS, BOX)."
+        }
+      },
+      "required": ["name"]
+    },
     "CustomerBalance": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CustomerBalance",
@@ -460,6 +473,22 @@
             {
               "name": "productId",
               "description": "Unique identifier for the product."
+            }
+          ]
+        }
+      },
+       {
+        "path": "/uoms/{uomId}",
+        "definition": {
+          "entityName": "Uom",
+          "schema": {
+            "$ref": "#/backend/entities/Uom"
+          },
+          "description": "Stores the available Units of Measure.",
+          "params": [
+            {
+              "name": "uomId",
+              "description": "Unique identifier for the UOM (e.g., 'KGS')."
             }
           ]
         }

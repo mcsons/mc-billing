@@ -160,6 +160,16 @@ service cloud.firestore {
     }
 
     /**
+     * @description Manages Units of Measure (UOMs). Any authenticated user can manage them.
+     * @path /uoms/{uomId}
+     * @allow An authenticated user can read or write UOMs.
+     * @principle Allows collaborative data management for all signed-in users.
+     */
+    match /uoms/{uomId} {
+      allow read, write: if isSignedIn();
+    }
+
+    /**
      * @description Manages active billing documents. Any authenticated user can read
      *   all bills and create new ones. Only the original creator can modify or delete a bill.
      * @path /bills/{billId}
