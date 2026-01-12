@@ -117,39 +117,40 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   // Seed initial creator user if not present
   useEffect(() => {
-    if (firestore) {
+    if (firestore && auth) {
       const seedCreator = async () => {
-        const usersQuery = query(collection(firestore, "users"), where("role", "==", "CREATOR"));
-        const querySnapshot = await getDocs(usersQuery);
-        if (querySnapshot.empty) {
-          console.log("No creator user found, seeding initial creator.");
-          const creatorEmail = "creator@mcandsons.com";
+        const creatorEmail = "creator@mcandsons.com";
+        const creatorPassword = "password";
+
+        try {
+          // Attempt to create the auth user. This will fail if the user already exists, which is fine.
+          const userCredential = await createUserWithEmailAndPassword(auth, creatorEmail, creatorPassword);
+          console.log("Creator auth user created successfully.");
+
+          // If auth user creation was successful, ensure the Firestore document exists.
+          const userDocRef = doc(firestore, "users", userCredential.user.uid);
           const creatorData = {
+            id: userCredential.user.uid,
             username: "creator",
             role: "CREATOR",
             status: "Active",
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           };
-          // This will create the user in Firestore. The Auth user is created on first login.
-          // In a real app, you'd have a secure way to create the first user.
-          // For this environment, we rely on `signInWithEmailAndPassword` to create if doesn't exist.
-          // A proper implementation would use a Cloud Function.
-          try {
-             const userCredential = await createUserWithEmailAndPassword(auth, creatorEmail, "password");
-             await setDocumentNonBlocking(doc(firestore, "users", userCredential.user.uid), {
-                ...creatorData,
-                id: userCredential.user.uid,
-             }, {});
-          } catch (error: any) {
-             if (error.code === 'auth/email-already-in-use') {
-                console.log("Creator auth user already exists.");
-             } else {
-                console.error("Error seeding creator auth user:", error);
-             }
+          await setDocumentNonBlocking(userDocRef, creatorData, {});
+          console.log("Creator Firestore document created/verified.");
+
+        } catch (error: any) {
+          if (error.code === 'auth/email-already-in-use') {
+            // This is expected if the app has run before. We can proceed.
+            console.log("Creator auth user already exists. Proceeding.");
+          } else {
+            // For other errors, log them for debugging.
+            console.error("Error seeding creator user:", error);
           }
         }
       };
+      
       seedCreator();
     }
   }, [firestore, auth]);
