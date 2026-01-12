@@ -9,15 +9,16 @@ import {
   Payment,
   User,
   Transaction,
+  Uom,
   customers as initialCustomers,
   products as initialProducts,
   liveBillSummaries as initialLiveBillSummaries,
   users as initialUsers,
   liveHistoryItems,
   samplePayments,
-  samplePayments as initialPayments,
+  initialUoms,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, subDays, endOfDay } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
@@ -27,6 +28,7 @@ interface DataContextType {
   customers: Customer[];
   products: Product[];
   users: User[];
+  uoms: Uom[];
   liveBillSummaries: LiveBillSummary[];
   productPrices: ProductPrices;
   customerBalances: CustomerBalances;
@@ -41,6 +43,7 @@ interface DataContextType {
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'>) => void;
+  addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
@@ -67,6 +70,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [users, setUsers] = useState<User[]>(initialUsers);
+  const [uoms, setUoms] = useState<Uom[]>(initialUoms);
   const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [productPrices, setProductPrices] = useState<ProductPrices>({
@@ -88,15 +92,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             return {
                 customerId: customer?.id,
                 amount: bill.amount,
-                type: 'bill'
+                type: 'bill' as const,
+                date: bill.date || new Date(0)
             }
         }),
-        ...initialPayments.map(payment => ({
+        ...samplePayments.map(payment => ({
             customerId: payment.customerId,
             amount: payment.amount,
-            type: 'payment'
+            type: 'payment' as const,
+            date: payment.date
         }))
-    ];
+    ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
     allTransactions.forEach(tx => {
         if (tx.customerId && balances[tx.customerId] !== undefined) {
@@ -198,6 +204,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         };
         return [...prev, newUser];
     });
+  };
+  
+  const addUom = (uom: Uom) => {
+    setUoms(prev => [...prev, uom]);
   };
 
   const updateLiveBill = (billNo: string, items: BillItem[]) => {
@@ -353,39 +363,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     dateRange: { from: Date, to: Date }
   ): { transactions: Transaction[], openingBalance: number } => {
     
-    // 1. Calculate Opening Balance
     const fromDateStart = startOfDay(dateRange.from);
+    const toDateEnd = endOfDay(dateRange.to);
 
-    const priorBills = liveBillSummaries.filter(b => {
-      const customer = customers.find(c => b.customerName.includes(c.name_en));
-      return customer?.id === customerId && b.date && b.date < fromDateStart;
+    const allBills = liveBillSummaries.filter(b => {
+        const cId = getCustomerIdFromName(b.customerName);
+        return cId === customerId && b.date;
     });
 
-    const priorPayments = payments.filter(p => 
-      p.customerId === customerId && p.date < fromDateStart
-    );
+    const allPayments = payments.filter(p => p.customerId === customerId);
+
+    const priorBills = allBills.filter(b => b.date! < fromDateStart);
+    const priorPayments = allPayments.filter(p => p.date < fromDateStart);
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
     const openingBalance = totalPriorBilled - totalPriorPaid;
-
-    // 2. Get transactions within the date range
-    const customerData = customers.find(c => c.id === customerId);
-    const interval = { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) };
     
-    const billsInRange = liveBillSummaries.filter(b => 
-      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, interval)
-    );
-    const paymentsInRange = payments.filter(p => 
-      p.customerId === customerId && isWithinInterval(p.date, interval)
-    );
+    const interval = { start: fromDateStart, end: toDateEnd };
+    
+    const billsInRange = allBills.filter(b => isWithinInterval(b.date!, interval));
+    const paymentsInRange = allPayments.filter(p => isWithinInterval(p.date, interval));
 
-    // 3. Map to a unified transaction format
     const mappedBills: Transaction[] = billsInRange.map(b => ({
       date: b.date!,
       description: `Bill No: ${b.billNo}`,
       billedAmount: b.amount,
-      balance: 0, // will be calculated later
+      balance: 0,
       type: 'bill',
     }));
 
@@ -393,11 +397,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       date: p.date,
       description: p.notes || 'Payment Received',
       receivedAmount: p.amount,
-      balance: 0, // will be calculated later
+      balance: 0,
       type: 'payment',
     }));
 
-    // 4. Merge, sort, and calculate running balance
     const sortedTransactions = [...mappedBills, ...mappedPayments].sort((a, b) => a.date.getTime() - b.date.getTime());
 
     let currentBalance = openingBalance;
@@ -419,6 +422,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         customers,
         products,
         users,
+        uoms,
         liveBillSummaries,
         productPrices,
         customerBalances,
@@ -433,6 +437,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         editProduct,
         deleteProduct,
         addUser,
+        addUom,
         removeBillItem,
         createOrUpdateLiveBill,
         deleteBills,

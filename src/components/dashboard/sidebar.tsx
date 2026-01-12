@@ -13,6 +13,7 @@ import {
   Users,
   Wallet,
   ShieldCheck,
+  Cuboid,
 } from 'lucide-react';
 import React from 'react';
 
@@ -47,6 +48,7 @@ const menuItems = [
 
 const settingsSubItems = [
     { href: '/dashboard/settings/printer', label: 'Printer', icon: Printer },
+    { href: '/dashboard/settings/uom', label: 'UOM', icon: Cuboid },
 ];
 
 export function DashboardSidebar() {

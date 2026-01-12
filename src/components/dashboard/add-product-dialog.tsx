@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useData } from '@/context/DataContext';
-import { Product } from '@/lib/data';
+import { Product, Uom } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
 interface AddProductDialogProps {
@@ -22,15 +22,12 @@ interface AddProductDialogProps {
   productToEdit?: Product | null;
 }
 
-const UOM_OPTIONS = ['KGS', 'BOX', 'NOS', 'ITEMS'] as const;
-type Uom = typeof UOM_OPTIONS[number];
-
 export function AddProductDialog({
   isOpen,
   onOpenChange,
   productToEdit,
 }: AddProductDialogProps) {
-  const { addProduct, editProduct } = useData();
+  const { addProduct, editProduct, uoms: UOM_OPTIONS } = useData();
   const { toast } = useToast();
   
   const [id, setId] = useState('');

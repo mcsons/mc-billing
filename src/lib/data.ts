@@ -15,7 +15,7 @@ export type Customer = {
   phone: string;
 };
 
-export type Uom = 'BOX' | 'KGS' | 'ITEMS' | 'NOS';
+export type Uom = string;
 
 export type Product = {
   id: string;
@@ -76,6 +76,8 @@ export const customers: Customer[] = [
   { id: 'C003', name_en: 'Catering Service C', name_ta: 'சமையல் சேவை இ', phone: '9876543212' },
   { id: 'C004', name_en: 'Exporter D', name_ta: 'ஏற்றுமதியாளர் ஈ', phone: '9876543213' },
 ];
+
+export const initialUoms: Uom[] = ['KGS', 'BOX', 'NOS', 'ITEMS'];
 
 export const products: Product[] = [
   { id: 'P01', name_en: 'Tuna', name_ta: 'டூனா', uom_allowed: ['KGS', 'NOS'] },
