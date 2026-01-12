@@ -26,7 +26,8 @@
  *   original creator (as defined by the `createdBy` field) can modify or delete it.
  *   This protects the integrity of billing records.
  * - User Data Privacy: Users can only read their own data from the `/users`
- *   collection. Listing all users is restricted to admins to prevent data leakage.
+ *   collection. Listing all users is now allowed for any signed-in user to
+ *   facilitate collaboration within the app, but creation/modification is still restricted.
  *
  * Denormalization for Authorization:
  * Authorization decisions rely on denormalized fields to avoid costly `get()` calls.
@@ -100,9 +101,7 @@ service cloud.firestore {
      * @principle Allows collaborative data management for all signed-in users.
      */
     match /customers/{customerId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**
@@ -117,7 +116,7 @@ service cloud.firestore {
      */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
+      allow list: if isSignedIn(); // Allow any logged-in user to see the list of users
       allow create: if isAdmin() && request.resource.data.userId == userId;
       allow update: if isAdmin() && resource != null && isImmutable('userId');
       allow delete: if isAdmin() && resource != null;
@@ -132,9 +131,7 @@ service cloud.firestore {
      * @principle Allows collaborative data management for all signed-in users.
      */
     match /products/{productId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**
@@ -147,10 +144,7 @@ service cloud.firestore {
      *   customerId matches its path ID.
      */
     match /customerBalances/{customerId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.customerId == customerId;
-      allow update: if isSignedIn() && resource != null && isImmutable('customerId');
-      allow delete: if isSignedIn() && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**
@@ -162,9 +156,7 @@ service cloud.firestore {
      * @principle Allows collaborative data management for all signed-in users.
      */
     match /productPrices/{productPriceId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isSignedIn() && resource != null;
+      allow read, write: if isSignedIn();
     }
 
     /**

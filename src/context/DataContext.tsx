@@ -58,7 +58,6 @@ interface DataContextType {
     customerId: string, 
     dateRange: { from: Date, to: Date }
   ) => { transactions: Transaction[], openingBalance: number };
-  auth: any;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -112,35 +111,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return acc;
     }, {} as ProductPrices);
   }, [pricesData]);
-
-  // Effect to create user document in Firestore on first login
-  useEffect(() => {
-    if (firebaseUser && firestore) {
-      const userRef = doc(firestore, 'users', firebaseUser.uid);
-      getDoc(userRef).then(docSnap => {
-        if (!docSnap.exists()) {
-          // This is the first time this user is logging in.
-          // Let's create their user document in Firestore.
-          const isFirstUserEver = users.length === 0;
-          const newUser: User = {
-            id: firebaseUser.uid,
-            username: firebaseUser.email?.split('@')[0] || 'unknown',
-            // The first user becomes the Creator
-            role: isFirstUserEver ? 'CREATOR' : 'MANAGER',
-            status: 'Active'
-          };
-          setDoc(userRef, newUser).then(() => {
-             // If they are the creator, also add them to the roles_admin collection
-             if (newUser.role === 'CREATOR') {
-                const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
-                setDoc(adminRoleRef, { uid: firebaseUser.uid });
-             }
-          });
-        }
-      });
-    }
-  }, [firebaseUser, firestore, users.length]);
-
 
   const currentUser = useMemo(() => {
     if (isUserLoading || !firebaseUser) return null;
@@ -507,7 +477,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         getBillItems,
         getBill,
         getCustomerLedger,
-        auth,
       }}
     >
       {children}
