@@ -53,6 +53,16 @@ export type Payment = {
     notes?: string;
 }
 
+export type Transaction = {
+  date: Date;
+  description: string;
+  billedAmount?: number;
+  receivedAmount?: number;
+  balance: number;
+  type: 'bill' | 'payment';
+};
+
+
 export const users: User[] = [
   { id: 'U01', username: 'creator', password: 'password', role: 'CREATOR', status: 'Active' },
   { id: 'U02', username: 'admin', password: 'password', role: 'ADMIN', status: 'Active' },
@@ -76,15 +86,18 @@ export const products: Product[] = [
 ];
 
 export const liveBillSummaries: LiveBillSummary[] = [
-    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 2200, createdBy: 'Admin', stall: '1', date: new Date() },
-    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 6000, createdBy: 'Manager', stall: '2', date: new Date() },
-    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 2475, createdBy: 'Admin', stall: '1', date: new Date() },
+    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 2200, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 7) },
+    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 6000, createdBy: 'Manager', stall: '2', date: subDays(new Date(), 6) },
+    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 2475, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 5) },
+    { billNo: 'B1237', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 3500, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 2) },
+
 ];
 
 export const liveHistoryItems: Record<string, BillItem[]> = {
     'B1234': [{ id: 1, productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 10, rate: 220, amount: 2200, user: 'Admin', stall: '1' }],
     'B1235': [{ id: 2, productId: 'P02', product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, user: 'Manager', stall: '2' }],
     'B1236': [{ id: 3, productId: 'P03', product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, user: 'Admin', stall: '1' }],
+    'B1237': [{ id: 4, productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 14, rate: 250, amount: 3500, user: 'Admin', stall: '1' }],
 };
 
 export const samplePayments: Payment[] = [

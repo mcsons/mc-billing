@@ -8,13 +8,16 @@ import {
   LiveBillSummary,
   Payment,
   User,
+  Transaction,
   customers as initialCustomers,
   products as initialProducts,
   liveBillSummaries as initialLiveBillSummaries,
   users as initialUsers,
   liveHistoryItems,
   samplePayments,
+  samplePayments as initialPayments,
 } from '@/lib/data';
+import { isWithinInterval, startOfDay, subDays } from 'date-fns';
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
@@ -51,6 +54,10 @@ interface DataContextType {
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
   getBillItems: (billNo: string) => BillItem[];
   getBill: (billNo: string) => LiveBillSummary | undefined;
+  getCustomerLedger: (
+    customerId: string, 
+    dateRange: { from: Date, to: Date }
+  ) => { transactions: Transaction[], openingBalance: number };
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -69,11 +76,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     'P04': { KGS: 180, BOX: 1500 },
     'P05': { KGS: 200, NOS: 40 },
   });
-  const [customerBalances, setCustomerBalances] = useState<CustomerBalances>({
-    'C001': 500,
-    'C002': 1200,
-    'C003': 0,
-    'C004': -300,
+  const [customerBalances, setCustomerBalances] = useState<CustomerBalances>(() => {
+    const balances: CustomerBalances = {};
+    initialCustomers.forEach(c => balances[c.id] = 0);
+
+    initialLiveBillSummaries.forEach(bill => {
+        const customer = initialCustomers.find(c => bill.customerName.includes(c.name_en));
+        if (customer) {
+            balances[customer.id] = (balances[customer.id] || 0) + bill.amount;
+        }
+    });
+    
+    initialPayments.forEach(payment => {
+        if(balances[payment.customerId] !== undefined) {
+            balances[payment.customerId] -= payment.amount;
+        }
+    });
+
+    return balances;
   });
   const [payments, setPayments] = useState<Payment[]>(samplePayments);
 
@@ -197,11 +217,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
   
   const findBillForCustomerToday = (customerId: string) => {
-    // In a real app, you'd also check the date.
-    // For this demo, we assume all live bills are for today.
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return undefined;
-    return liveBillSummaries.find(bill => bill.customerName.includes(customer.name_en));
+    const today = startOfDay(new Date());
+    return liveBillSummaries.find(bill => {
+        if (!bill.date || !bill.customerName.includes(customer.name_en)) return false;
+        return startOfDay(bill.date).getTime() === today.getTime();
+    });
   };
 
   const getBillItems = useCallback((billNo: string) => {
@@ -223,12 +245,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     if (existingBillNo) {
       updateLiveBill(existingBillNo, items);
+      // Logic for paid amount on update isn't fully clear here,
+      // The balance update on edit is handled in updateLiveBill
       return existingBillNo;
     } else {
         const maxBillNo = liveBillSummaries
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
             .filter(num => !isNaN(num))
-            .reduce((max, num) => Math.max(max, num), 1236);
+            .reduce((max, num) => Math.max(max, num), 1237);
         const newBillNo = `B${maxBillNo + 1}`;
 
         const newSummary: LiveBillSummary = {
@@ -254,13 +278,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const deleteBills = (billNos: string[]) => {
         const billsToDelete = liveBillSummaries.filter(b => billNos.includes(b.billNo));
         
-        // Revert customer balances
         const balanceUpdates: CustomerBalances = {};
         billsToDelete.forEach(bill => {
             const customerId = getCustomerIdFromName(bill.customerName);
             if (customerId) {
                 if (!balanceUpdates[customerId]) balanceUpdates[customerId] = 0;
-                balanceUpdates[customerId] -= bill.amount; // Subtract the bill amount
+                balanceUpdates[customerId] -= bill.amount;
             }
         });
 
@@ -272,7 +295,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             return newBalances;
         });
 
-        // Delete bills and items
         setLiveBillSummaries(prev => prev.filter(b => !billNos.includes(b.billNo)));
         setLiveBillItems(prev => {
             const newItems = { ...prev };
@@ -312,6 +334,69 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  const getCustomerLedger = (
+    customerId: string, 
+    dateRange: { from: Date, to: Date }
+  ): { transactions: Transaction[], openingBalance: number } => {
+    
+    // 1. Calculate Opening Balance
+    const fromDateStart = startOfDay(dateRange.from);
+
+    const priorBills = liveBillSummaries.filter(b => {
+      const customer = customers.find(c => b.customerName.includes(c.name_en));
+      return customer?.id === customerId && b.date && b.date < fromDateStart;
+    });
+
+    const priorPayments = payments.filter(p => 
+      p.customerId === customerId && p.date < fromDateStart
+    );
+
+    const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
+    const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
+    const openingBalance = totalPriorBilled - totalPriorPaid;
+
+    // 2. Get transactions within the date range
+    const customerData = customers.find(c => c.id === customerId);
+    const billsInRange = liveBillSummaries.filter(b => 
+      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, dateRange)
+    );
+    const paymentsInRange = payments.filter(p => 
+      p.customerId === customerId && isWithinInterval(p.date, dateRange)
+    );
+
+    // 3. Map to a unified transaction format
+    const mappedBills: Transaction[] = billsInRange.map(b => ({
+      date: b.date!,
+      description: `Bill No: ${b.billNo}`,
+      billedAmount: b.amount,
+      balance: 0, // will be calculated later
+      type: 'bill',
+    }));
+
+    const mappedPayments: Transaction[] = paymentsInRange.map(p => ({
+      date: p.date,
+      description: p.notes || 'Payment Received',
+      receivedAmount: p.amount,
+      balance: 0, // will be calculated later
+      type: 'payment',
+    }));
+
+    // 4. Merge, sort, and calculate running balance
+    const sortedTransactions = [...mappedBills, ...mappedPayments].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let currentBalance = openingBalance;
+    const finalTransactions = sortedTransactions.map(t => {
+      if (t.type === 'bill') {
+        currentBalance += t.billedAmount || 0;
+      } else {
+        currentBalance -= t.receivedAmount || 0;
+      }
+      return { ...t, balance: currentBalance };
+    });
+
+    return { transactions: finalTransactions, openingBalance };
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -340,6 +425,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         findBillForCustomerToday,
         getBillItems,
         getBill,
+        getCustomerLedger,
       }}
     >
       {children}

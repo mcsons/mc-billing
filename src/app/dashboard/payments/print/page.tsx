@@ -11,14 +11,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Customer, Payment } from '@/lib/data';
+import { Customer, Transaction } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 interface PrintData {
     customer?: Customer;
-    payments: Payment[];
+    transactions: Transaction[];
+    openingBalance: number;
     dateRange: { from?: Date, to?: Date };
 }
 
@@ -34,7 +35,7 @@ function PrintPageContent() {
         const decodedData = decodeURIComponent(data);
         const parsedData = JSON.parse(decodedData);
         // Dates will be strings, so we need to convert them back
-        parsedData.payments = parsedData.payments.map((p: Payment) => ({...p, date: new Date(p.date)}));
+        parsedData.transactions = parsedData.transactions.map((t: Transaction) => ({...t, date: new Date(t.date)}));
         if(parsedData.dateRange.from) parsedData.dateRange.from = new Date(parsedData.dateRange.from);
         if(parsedData.dateRange.to) parsedData.dateRange.to = new Date(parsedData.dateRange.to);
 
@@ -58,15 +59,16 @@ function PrintPageContent() {
 
   const {
     customer,
-    payments,
+    transactions,
+    openingBalance,
     dateRange,
   } = printData;
 
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : openingBalance;
 
   return (
     <div className="bg-gray-100 min-h-screen p-4 sm:p-8">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-4 print:hidden">
           <Button variant="outline" onClick={() => router.back()}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -86,7 +88,7 @@ function PrintPageContent() {
               <p className="text-sm text-muted-foreground">
                 No. 1, Fish Market, Palladam Road, Tiruppur-641604
               </p>
-               <h2 className="text-lg font-semibold mt-4">Payment Summary</h2>
+               <h2 className="text-lg font-semibold mt-4">Customer Statement</h2>
             </header>
 
             <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
@@ -98,7 +100,7 @@ function PrintPageContent() {
               </div>
               <div className="text-right">
                 <p>
-                  <span className="font-semibold">Date:</span>{' '}
+                  <span className="font-semibold">Statement Date:</span>{' '}
                   {new Date().toLocaleDateString()}
                 </p>
                 {dateRange.from && dateRange.to && (
@@ -113,18 +115,30 @@ function PrintPageContent() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[120px]">Date</TableHead>
-                  <TableHead>Notes / Description</TableHead>
-                  <TableHead className="text-right">Amount Paid (₹)</TableHead>
+                  <TableHead className="w-[100px]">Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Billed Amount (+)</TableHead>
+                  <TableHead className="text-right">Received Amount (-)</TableHead>
+                  <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>{format(payment.date, 'dd-MM-yyyy')}</TableCell>
-                    <TableCell>{payment.notes || '---'}</TableCell>
+                <TableRow className="font-semibold">
+                    <TableCell colSpan={4}>Opening Balance</TableCell>
+                    <TableCell className="text-right font-mono">{openingBalance.toFixed(2)}</TableCell>
+                </TableRow>
+                {transactions.map((t, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{format(t.date, 'dd-MM-yyyy')}</TableCell>
+                    <TableCell>{t.description}</TableCell>
+                    <TableCell className="text-right font-mono text-green-700">
+                      {t.billedAmount ? t.billedAmount.toFixed(2) : ''}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-red-700">
+                      {t.receivedAmount ? t.receivedAmount.toFixed(2) : ''}
+                    </TableCell>
                     <TableCell className="text-right font-mono">
-                      {payment.amount.toFixed(2)}
+                      {t.balance.toFixed(2)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -134,14 +148,14 @@ function PrintPageContent() {
             <div className="flex justify-end mt-6">
               <div className="w-full max-w-sm space-y-2 text-sm">
                 <div className="flex justify-between border-t pt-2 font-bold text-base">
-                  <span>Total Paid in Period:</span>
-                  <span className="font-mono">₹{totalPaid.toFixed(2)}</span>
+                  <span>Closing Balance:</span>
+                  <span className="font-mono">₹{closingBalance.toFixed(2)}</span>
                 </div>
               </div>
             </div>
 
             <footer className="text-center mt-8 text-xs text-muted-foreground">
-              <p>This is a computer-generated payment summary.</p>
+              <p>This is a computer-generated statement.</p>
             </footer>
           </CardContent>
         </Card>

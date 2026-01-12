@@ -32,7 +32,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { format, isWithinInterval } from 'date-fns';
+import { format } from 'date-fns';
 import {
     Table,
     TableBody,
@@ -41,10 +41,10 @@ import {
     TableHeader,
     TableRow,
   } from '@/components/ui/table';
-import { Payment } from '@/lib/data';
+import { Transaction } from '@/lib/data';
 
 export default function PaymentsPage() {
-  const { customers, customerBalances, addPayment, payments } = useData();
+  const { customers, customerBalances, addPayment, getCustomerLedger } = useData();
   const { toast } = useToast();
 
   // State for Record Payment form
@@ -58,7 +58,8 @@ export default function PaymentsPage() {
   const [historySelectedCustomerId, setHistorySelectedCustomerId] = useState<string>('');
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
-  const [filteredPayments, setFilteredPayments] = useState<Payment[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [openingBalance, setOpeningBalance] = useState<number>(0);
 
 
   const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
@@ -108,32 +109,34 @@ export default function PaymentsPage() {
         toast({ variant: 'destructive', title: 'Customer not selected', description: 'Please select a customer to view history.' });
         return;
     }
-    const results = payments.filter(p => {
-        const isCustomerMatch = p.customerId === historySelectedCustomerId;
-        if (!fromDate || !toDate) {
-            return isCustomerMatch;
-        }
-        return isCustomerMatch && isWithinInterval(p.date, { start: fromDate, end: toDate });
-    });
-    setFilteredPayments(results);
+    if (!fromDate || !toDate) {
+        toast({ variant: 'destructive', title: 'Date range not selected', description: 'Please select a "From" and "To" date.' });
+        return;
+    }
+    
+    const { transactions, openingBalance } = getCustomerLedger(historySelectedCustomerId, { from: fromDate, to: toDate });
+    setFilteredTransactions(transactions);
+    setOpeningBalance(openingBalance);
   };
   
   const handleClearSearch = () => {
       setHistorySelectedCustomerId('');
       setFromDate(undefined);
       setToDate(undefined);
-      setFilteredPayments([]);
+      setFilteredTransactions([]);
+      setOpeningBalance(0);
   };
 
   const handlePrint = () => {
-    if (filteredPayments.length === 0 || !historySelectedCustomerId) {
-        toast({ variant: 'destructive', title: 'Nothing to Print', description: 'Please search for payments first.'});
+    if (filteredTransactions.length === 0 && openingBalance === 0 || !historySelectedCustomerId) {
+        toast({ variant: 'destructive', title: 'Nothing to Print', description: 'Please search for transactions first.'});
         return;
     }
     const customer = customers.find(c => c.id === historySelectedCustomerId);
     const printData = {
         customer,
-        payments: filteredPayments,
+        transactions: filteredTransactions,
+        openingBalance: openingBalance,
         dateRange: { from: fromDate, to: toDate }
     };
     const encodedData = encodeURIComponent(JSON.stringify(printData));
@@ -248,9 +251,9 @@ export default function PaymentsPage() {
         
         <Card>
             <CardHeader>
-                <CardTitle className="font-headline">Payment History</CardTitle>
+                <CardTitle className="font-headline">Customer Statement</CardTitle>
                 <CardDescription>
-                View and print a customer's payment history for a date range.
+                View a customer's transaction history for a date range.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -351,22 +354,38 @@ export default function PaymentsPage() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Date</TableHead>
-                                <TableHead>Notes</TableHead>
-                                <TableHead className="text-right">Amount (₹)</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Billed (+)</TableHead>
+                                <TableHead className="text-right">Received (-)</TableHead>
+                                <TableHead className="text-right">Balance</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredPayments.length > 0 ? (
-                                filteredPayments.map(payment => (
-                                    <TableRow key={payment.id}>
-                                        <TableCell>{format(payment.date, 'dd-MM-yyyy')}</TableCell>
-                                        <TableCell>{payment.notes}</TableCell>
-                                        <TableCell className="text-right font-mono">{payment.amount.toFixed(2)}</TableCell>
+                            {historySelectedCustomerId ? (
+                                filteredTransactions.length > 0 ? (
+                                    <>
+                                        <TableRow className="bg-muted/50">
+                                            <TableCell colSpan={4} className="font-semibold">Opening Balance</TableCell>
+                                            <TableCell className="text-right font-mono font-semibold">{openingBalance.toFixed(2)}</TableCell>
+                                        </TableRow>
+                                        {filteredTransactions.map((t, i) => (
+                                            <TableRow key={i}>
+                                                <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
+                                                <TableCell>{t.description}</TableCell>
+                                                <TableCell className="text-right font-mono text-green-600">{t.billedAmount?.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-mono text-red-600">{t.receivedAmount?.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-mono">{t.balance.toFixed(2)}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </>
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No transactions found for this criteria.</TableCell>
                                     </TableRow>
-                                ))
+                                )
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="text-center h-24">No payments found for this criteria.</TableCell>
+                                    <TableCell colSpan={5} className="h-24 text-center">Select a customer and date range.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>
@@ -374,9 +393,9 @@ export default function PaymentsPage() {
                 </div>
             </CardContent>
             <CardFooter>
-                 <Button size="lg" onClick={handlePrint} disabled={filteredPayments.length === 0}>
+                 <Button size="lg" onClick={handlePrint} disabled={!historySelectedCustomerId || (!filteredTransactions.length && openingBalance === 0)}>
                     <Printer className="mr-2 h-4 w-4" />
-                    Print Summary
+                    Print Statement
                 </Button>
             </CardFooter>
         </Card>
