@@ -1,10 +1,55 @@
+'use client';
 import React from 'react';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
-import { DataProvider } from '@/context/DataContext';
+import { DataProvider, useData } from '@/context/DataContext';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  const { user, isUserLoading } = useUser();
+  const router = useRouter();
+
+  React.useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.push('/');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <div className="text-center">
+          <p className="text-lg font-semibold">Loading Dashboard...</p>
+          <p className="text-muted-foreground">Please wait a moment.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <SidebarProvider>
+      <AlertDialogProvider>
+        <div className="flex min-h-screen w-full flex-col">
+          <div className="flex min-h-screen">
+            <DashboardSidebar />
+            <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
+              <DashboardHeader />
+              <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+                {children}
+              </main>
+            </div>
+          </div>
+        </div>
+        <AlertDialogComponent />
+      </AlertDialogProvider>
+    </SidebarProvider>
+  );
+}
+
 
 export default function DashboardLayout({
   children,
@@ -13,22 +58,7 @@ export default function DashboardLayout({
 }) {
   return (
     <DataProvider>
-      <SidebarProvider>
-        <AlertDialogProvider>
-          <div className="flex min-h-screen w-full flex-col">
-            <div className="flex min-h-screen">
-              <DashboardSidebar />
-              <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
-                <DashboardHeader />
-                <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
-                  {children}
-                </main>
-              </div>
-            </div>
-          </div>
-          <AlertDialogComponent />
-        </AlertDialogProvider>
-      </SidebarProvider>
+      <AuthenticatedLayout>{children}</AuthenticatedLayout>
     </DataProvider>
   );
 }
