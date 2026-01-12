@@ -84,11 +84,9 @@ export function DashboardSidebar() {
                 (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
                     <SidebarMenuItem key={item.label}>
                         <Link href={item.href} passHref asChild>
-                            <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
-                                <a>
+                            <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
                                 <item.icon />
                                 <span>{item.label}</span>
-                                </a>
                             </SidebarMenuButton>
                         </Link>
                     </SidebarMenuItem>
