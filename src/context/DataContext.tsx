@@ -77,7 +77,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const products = useMemo(() => productsData || [], [productsData]);
   
   const usersCollection = useMemoFirebase(() => {
-    // Only fetch if the user is logged in
     if (!firestore || !firebaseUser) return null;
     return collection(firestore, 'users');
   }, [firestore, firebaseUser]);
@@ -128,8 +127,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (!userDoc.exists()) {
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
         
-        // Explicitly check for the creator's email
-        const role = username === 'creator' ? 'CREATOR' : 'MANAGER';
+        // This simplified logic now only handles non-creator users, 
+        // as the creator's role is now explicitly set on the login page.
+        const role = 'MANAGER';
 
         const newUser: User = {
           id: firebaseUser.uid,
@@ -138,16 +138,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           status: 'Active',
         };
 
-        const batch = writeBatch(firestore);
-        batch.set(userDocRef, newUser);
-
-        // If the role is creator, add them to the admin roles
-        if (role === 'CREATOR') {
-          const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
-          batch.set(adminRoleRef, { uid: firebaseUser.uid });
-        }
-        
-        await batch.commit();
+        await setDoc(userDocRef, newUser);
         toast({
           title: 'Profile Created',
           description: `Your user profile has been set up with the role: ${role}`,
