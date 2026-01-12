@@ -120,16 +120,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const handleFirstSignIn = async () => {
-      if (!firestore || !firebaseUser || isUserLoading || isUsersLoading) return;
+      if (!firestore || !firebaseUser || isUserLoading) return;
       
-      const userExistsInState = users.some(u => u.id === firebaseUser.uid);
-      if (userExistsInState) return;
-
       const userDocRef = doc(firestore, 'users', firebaseUser.uid);
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        const isFirstUserEver = usersData === null || users.length === 0;
+        const usersCol = collection(firestore, 'users');
+        const allUsersSnapshot = await getDocs(usersCol);
+        const isFirstUserEver = allUsersSnapshot.empty;
+        
         const role = isFirstUserEver ? 'CREATOR' : 'MANAGER';
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
 
@@ -156,8 +156,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
     };
 
-    handleFirstSignIn();
-  }, [firebaseUser, isUserLoading, isUsersLoading, firestore, users, usersData, toast]);
+    if (!isUserLoading && firebaseUser) {
+      handleFirstSignIn();
+    }
+  }, [firebaseUser, isUserLoading, firestore, toast]);
 
 
   const customerBalances = useMemo(() => {
@@ -534,4 +536,5 @@ export const useData = () => {
   return context;
 };
 
+    
     
