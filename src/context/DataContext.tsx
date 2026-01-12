@@ -13,7 +13,7 @@ import {
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 
@@ -77,7 +77,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { data: productsData } = useCollection<Product>(productsCollection);
   const products = useMemo(() => productsData || [], [productsData]);
   
-  const usersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const usersCollection = useMemoFirebase(() => {
+    // Only fetch if the user is logged in
+    if (!firestore || !firebaseUser) return null;
+    return collection(firestore, 'users');
+  }, [firestore, firebaseUser]);
   const { data: usersData } = useCollection<User>(usersCollection);
   const users = useMemo(() => usersData || [], [usersData]);
 
@@ -108,6 +112,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return acc;
     }, {} as ProductPrices);
   }, [pricesData]);
+
+  // Effect to create user document in Firestore on first login
+  useEffect(() => {
+    if (firebaseUser && firestore) {
+      const userRef = doc(firestore, 'users', firebaseUser.uid);
+      getDoc(userRef).then(docSnap => {
+        if (!docSnap.exists()) {
+          // This is the first time this user is logging in.
+          // Let's create their user document in Firestore.
+          const isFirstUserEver = users.length === 0;
+          const newUser: User = {
+            id: firebaseUser.uid,
+            username: firebaseUser.email?.split('@')[0] || 'unknown',
+            // The first user becomes the Creator
+            role: isFirstUserEver ? 'CREATOR' : 'MANAGER',
+            status: 'Active'
+          };
+          setDoc(userRef, newUser).then(() => {
+             // If they are the creator, also add them to the roles_admin collection
+             if (newUser.role === 'CREATOR') {
+                const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
+                setDoc(adminRoleRef, { uid: firebaseUser.uid });
+             }
+          });
+        }
+      });
+    }
+  }, [firebaseUser, firestore, users.length]);
 
 
   const currentUser = useMemo(() => {
@@ -245,6 +277,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             status: 'Active'
         };
         await setDocumentNonBlocking(doc(firestore, 'users', newUser.id), newUser, {});
+        
+        if (user.role === 'ADMIN' || user.role === 'CREATOR') {
+          const adminRoleRef = doc(firestore, 'roles_admin', userCredential.user.uid);
+          await setDocumentNonBlocking(adminRoleRef, { uid: userCredential.user.uid }, {});
+        }
+
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
     } catch(error: any) {
         console.error("Error creating user:", error);
@@ -484,3 +522,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    
