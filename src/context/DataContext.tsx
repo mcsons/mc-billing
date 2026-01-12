@@ -38,7 +38,6 @@ interface DataContextType {
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'>) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
-  updateBillItem: (itemId: number, billNo: string, updates: Partial<BillItem>) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
@@ -166,10 +165,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const updateLiveBillSummary = (billNo: string, items: BillItem[]) => {
+  const updateLiveBill = (billNo: string, items: BillItem[]) => {
     const newTotal = items.reduce((sum, item) => sum + item.amount, 0);
-    setLiveBillSummaries(prev => {
-      const oldSummary = prev.find(b => b.billNo === billNo);
+
+    setLiveBillItems(prevItems => ({...prevItems, [billNo]: items}));
+    
+    setLiveBillSummaries(prevSummaries => {
+      const oldSummary = prevSummaries.find(b => b.billNo === billNo);
       const oldAmount = oldSummary?.amount || 0;
 
       if (oldSummary) {
@@ -183,22 +185,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           }
       }
 
-      return prev.map(b => b.billNo === billNo ? { ...b, amount: newTotal } : b);
+      return prevSummaries.map(b => b.billNo === billNo ? { ...b, amount: newTotal } : b);
     });
   };
   
   const removeBillItem = (itemId: number, billNo: string) => {
     const items = liveBillItems[billNo] || [];
     const newItems = items.filter(item => item.id !== itemId);
-    setLiveBillItems(prev => ({...prev, [billNo]: newItems}));
-    updateLiveBillSummary(billNo, newItems);
-  };
-  
-  const updateBillItem = (itemId: number, billNo: string, updates: Partial<BillItem>) => {
-    const items = liveBillItems[billNo] || [];
-    const newItems = items.map(item => item.id === itemId ? { ...item, ...updates } : item);
-    setLiveBillItems(prev => ({...prev, [billNo]: newItems}));
-    updateLiveBillSummary(billNo, newItems);
+    updateLiveBill(billNo, newItems);
   };
   
   const findBillForCustomerToday = (customerId: string) => {
@@ -227,8 +221,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
     if (existingBillNo) {
-      updateLiveBillSummary(existingBillNo, items);
-      setLiveBillItems(prev => ({...prev, [existingBillNo]: items}));
+      updateLiveBill(existingBillNo, items);
       return existingBillNo;
     } else {
         const maxBillNo = liveBillSummaries
@@ -339,7 +332,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteProduct,
         addUser,
         removeBillItem,
-        updateBillItem,
         createOrUpdateLiveBill,
         deleteBills,
         updateProductPrice,

@@ -158,6 +158,7 @@ export default function HistoryPage() {
                           key={customer.id}
                           value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
                           onSelect={() => handleCustomerSelect(customer.id)}
+                          onClick={() => handleCustomerSelect(customer.id)}
                         >
                           <Check
                             className={cn(

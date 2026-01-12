@@ -75,7 +75,6 @@ export default function BillingPage() {
     getBillItems,
     createOrUpdateLiveBill,
     removeBillItem,
-    updateBillItem,
     getBill,
   } = useData();
 
@@ -211,11 +210,18 @@ export default function BillingPage() {
     productInputRef.current?.focus();
   };
   
-  const handleItemUpdate = (itemId: number, field: 'rate', value: string) => {
+  const handleItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
     const updatedItems = billItems.map(item => {
       if (item.id === itemId) {
-        const newRate = parseFloat(value) || 0;
-        return { ...item, rate: newRate, amount: item.qty * newRate };
+        let newQty = item.qty;
+        let newRate = item.rate;
+        if (field === 'rate') {
+            newRate = parseFloat(value) || 0;
+        }
+        if (field === 'qty') {
+            newQty = parseFloat(value) || 0;
+        }
+        return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
       }
       return item;
     });
@@ -451,6 +457,7 @@ export default function BillingPage() {
                               key={customer.id}
                               value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
                               onSelect={() => handleCustomerSelect(customer.id)}
+                              onClick={() => handleCustomerSelect(customer.id)}
                             >
                               <Check
                                 className={cn(
@@ -525,6 +532,7 @@ export default function BillingPage() {
                                   key={product.id}
                                   value={`${product.name_en} ${product.name_ta} ${product.id}`}
                                   onSelect={() => handleProductSelect(product.id)}
+                                  onClick={() => handleProductSelect(product.id)}
                                 >
                                   <Check
                                     className={cn(
@@ -632,11 +640,11 @@ export default function BillingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-10">S/N</TableHead>
+                  <TableHead className="w-[40px]">S/N</TableHead>
                   <TableHead>Product (பெயர்)</TableHead>
                   <TableHead>UOM</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right w-40">Rate (₹)</TableHead>
+                  <TableHead className="text-right w-32">Rate (₹)</TableHead>
                   <TableHead className="text-right">Amount (₹)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>

@@ -117,6 +117,7 @@ export default function PricesPage() {
                           key={product.id}
                           value={`${product.name_en} ${product.name_ta} ${product.id}`}
                           onSelect={() => handleProductSelect(product.id)}
+                          onClick={() => handleProductSelect(product.id)}
                         >
                           <Check
                             className={cn(
