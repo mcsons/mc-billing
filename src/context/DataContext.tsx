@@ -126,12 +126,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const userDoc = await getDoc(userDocRef);
 
       if (!userDoc.exists()) {
-        const usersCol = collection(firestore, 'users');
-        const allUsersSnapshot = await getDocs(usersCol);
-        const isFirstUserEver = allUsersSnapshot.empty;
-        
-        const role = isFirstUserEver ? 'CREATOR' : 'MANAGER';
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
+        
+        // Explicitly check for the creator's email
+        const role = username === 'creator' ? 'CREATOR' : 'MANAGER';
 
         const newUser: User = {
           id: firebaseUser.uid,
@@ -143,6 +141,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const batch = writeBatch(firestore);
         batch.set(userDocRef, newUser);
 
+        // If the role is creator, add them to the admin roles
         if (role === 'CREATOR') {
           const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
           batch.set(adminRoleRef, { uid: firebaseUser.uid });
