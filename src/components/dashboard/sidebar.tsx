@@ -19,6 +19,7 @@ import React from 'react';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
+import { ThemeToggle } from '../ui/theme-toggle';
 
 const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
@@ -114,6 +116,9 @@ export function DashboardSidebar() {
             )}
           </SidebarMenu>
         </SidebarContent>
+        <SidebarFooter>
+            <ThemeToggle />
+        </SidebarFooter>
       </Sidebar>
   );
 }

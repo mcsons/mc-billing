@@ -46,6 +46,7 @@
     "genkit": "^1.20.0",
     "lucide-react": "^0.475.0",
     "next": "15.5.9",
+    "next-themes": "0.4.0",
     "patch-package": "^8.0.0",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",
@@ -64,5 +65,8 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "typescript": "^5"
+  },
+  "resolutions": {
+    "react": "^19.2.1"
   }
 }
