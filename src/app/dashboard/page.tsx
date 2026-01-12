@@ -366,16 +366,13 @@ export default function BillingPage() {
     setProductPopoverOpen(false);
   };
 
-  const handleCustomerSelect = useCallback(
-    (customerId: string) => {
+  const handleCustomerSelect = (customerId: string) => {
       if (customerId !== selectedCustomerId) {
         router.replace('/dashboard'); // Clear any billNo from params
         setSelectedCustomerId(customerId);
       }
       setCustomerPopoverOpen(false);
-    },
-    [selectedCustomerId, router]
-  );
+  };
 
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8 lg:grid-cols-2">
@@ -639,7 +636,7 @@ export default function BillingPage() {
                   <TableHead>Product (பெயர்)</TableHead>
                   <TableHead>UOM</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right w-32">Rate (₹)</TableHead>
+                  <TableHead className="text-right w-40">Rate (₹)</TableHead>
                   <TableHead className="text-right">Amount (₹)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
