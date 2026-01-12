@@ -54,6 +54,11 @@ export default function HistoryPage() {
     (c) => c.id.toLowerCase() === selectedCustomer.toLowerCase()
   );
 
+  const handleCustomerSelect = (customerId: string) => {
+    setSelectedCustomer(customerId === selectedCustomer ? '' : customerId);
+    setCustomerPopoverOpen(false);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -93,12 +98,7 @@ export default function HistoryPage() {
                         <CommandItem
                           key={customer.id}
                           value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
-                          onSelect={() => {
-                            setSelectedCustomer(
-                              customer.id === selectedCustomer ? '' : customer.id
-                            );
-                            setCustomerPopoverOpen(false);
-                          }}
+                          onSelect={() => handleCustomerSelect(customer.id)}
                         >
                           <Check
                             className={cn(

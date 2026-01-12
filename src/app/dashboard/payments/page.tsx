@@ -43,6 +43,11 @@ export default function PaymentsPage() {
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
   const currentBalance = selectedCustomerId ? customerBalances[selectedCustomerId] || 0 : 0;
   const newBalance = currentBalance - (parseFloat(amount) || 0);
+  
+  const handleCustomerSelect = (customerId: string) => {
+    setSelectedCustomerId(customerId === selectedCustomerId ? '' : customerId);
+    setCustomerPopoverOpen(false);
+  };
 
   const handleSubmit = () => {
     const paymentAmount = parseFloat(amount);
@@ -110,12 +115,7 @@ export default function PaymentsPage() {
                       <CommandItem
                         key={customer.id}
                         value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
-                        onSelect={() => {
-                          setSelectedCustomerId(
-                            customer.id === selectedCustomerId ? '' : customer.id
-                          );
-                          setCustomerPopoverOpen(false);
-                        }}
+                        onSelect={() => handleCustomerSelect(customer.id)}
                       >
                         <Check
                           className={cn(

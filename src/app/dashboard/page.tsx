@@ -371,8 +371,8 @@ export default function BillingPage() {
                         {customers.map((customer) => (
                           <CommandItem
                             key={customer.id}
-                            value={customer.id}
-                            onSelect={handleCustomerSelect}
+                            value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
+                            onSelect={() => handleCustomerSelect(customer.id)}
                           >
                             <Check
                               className={cn(
@@ -444,7 +444,7 @@ export default function BillingPage() {
                           {products.map((product) => (
                             <CommandItem
                               key={product.id}
-                              value={product.id}
+                              value={`${product.name_en} ${product.name_ta} ${product.id}`}
                               onSelect={() => handleProductSelect(product.id)}
                             >
                               <Check
