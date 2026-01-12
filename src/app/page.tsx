@@ -64,8 +64,9 @@ export default function LoginPage() {
             title: 'Login Successful',
             description: `Welcome back, ${username}!`,
         });
+        // The onAuthStateChanged listener in the provider will handle the redirect.
     } catch (error: any) {
-        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             // If user does not exist, try to create them.
             // This is a one-time operation for the first user.
             try {
@@ -74,12 +75,13 @@ export default function LoginPage() {
                     title: 'Account Created & Logged In',
                     description: `Welcome, ${username}! Your account has been created.`,
                 });
+                 // The onAuthStateChanged listener will handle the redirect and profile creation.
             } catch (createError: any) {
                 console.error("Creation Error:", createError.code, createError.message);
                  toast({
                     variant: 'destructive',
                     title: 'Registration Failed',
-                    description: 'Could not create a new account. Please try again.',
+                    description: createError.message || 'Could not create a new account. Please try again.',
                 });
             }
         } else {
@@ -87,7 +89,7 @@ export default function LoginPage() {
              toast({
                 variant: 'destructive',
                 title: 'Login Failed',
-                description: 'Invalid username or password. Please try again.',
+                description: error.message || 'Invalid username or password. Please try again.',
             });
         }
     }

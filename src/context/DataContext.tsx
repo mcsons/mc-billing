@@ -14,7 +14,7 @@ import {
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 
 
@@ -81,7 +81,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (!firestore || !firebaseUser) return null;
     return collection(firestore, 'users');
   }, [firestore, firebaseUser]);
-  const { data: usersData } = useCollection<User>(usersCollection);
+  const { data: usersData, isLoading: isUsersLoading } = useCollection<User>(usersCollection);
   const users = useMemo(() => usersData || [], [usersData]);
 
   const uomsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'uoms') : null, [firestore]);
@@ -113,9 +113,51 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [pricesData]);
 
   const currentUser = useMemo(() => {
-    if (isUserLoading || !firebaseUser) return null;
+    if (isUserLoading || !firebaseUser || isUsersLoading) return null;
     return users.find(u => u.id === firebaseUser.uid) || null;
-  }, [firebaseUser, isUserLoading, users]);
+  }, [firebaseUser, isUserLoading, users, isUsersLoading]);
+
+
+  useEffect(() => {
+    const handleFirstSignIn = async () => {
+      if (!firestore || !firebaseUser || isUserLoading || isUsersLoading) return;
+      
+      const userExistsInState = users.some(u => u.id === firebaseUser.uid);
+      if (userExistsInState) return;
+
+      const userDocRef = doc(firestore, 'users', firebaseUser.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        const isFirstUserEver = usersData === null || users.length === 0;
+        const role = isFirstUserEver ? 'CREATOR' : 'MANAGER';
+        const username = firebaseUser.email?.split('@')[0] || 'new-user';
+
+        const newUser: User = {
+          id: firebaseUser.uid,
+          username,
+          role,
+          status: 'Active',
+        };
+
+        const batch = writeBatch(firestore);
+        batch.set(userDocRef, newUser);
+
+        if (role === 'CREATOR') {
+          const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
+          batch.set(adminRoleRef, { uid: firebaseUser.uid });
+        }
+        
+        await batch.commit();
+        toast({
+          title: 'Profile Created',
+          description: `Your user profile has been set up with the role: ${role}`,
+        });
+      }
+    };
+
+    handleFirstSignIn();
+  }, [firebaseUser, isUserLoading, isUsersLoading, firestore, users, usersData, toast]);
 
 
   const customerBalances = useMemo(() => {
