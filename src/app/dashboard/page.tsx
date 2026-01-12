@@ -213,20 +213,27 @@ export default function BillingPage() {
   const handleItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
     const updatedItems = billItems.map(item => {
       if (item.id === itemId) {
-        let newQty = item.qty;
-        let newRate = item.rate;
-        if (field === 'rate') {
-            newRate = parseFloat(value) || 0;
-        }
-        if (field === 'qty') {
-            newQty = parseFloat(value) || 0;
-        }
+        const newQty = field === 'qty' ? parseFloat(value) || 0 : item.qty;
+        const newRate = field === 'rate' ? parseFloat(value) || 0 : item.rate;
         return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
       }
       return item;
     });
     setBillItems(updatedItems);
-    
+  };
+
+  const persistItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
+    const updatedItems = billItems.map(item => {
+        if (item.id === itemId) {
+          const parsedValue = parseFloat(value) || 0;
+          const newQty = field === 'qty' ? parsedValue : item.qty;
+          const newRate = field === 'rate' ? parsedValue : item.rate;
+          return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
+        }
+        return item;
+      });
+    setBillItems(updatedItems);
+
     // Auto-save on update
     const customer = customers.find(c => c.id === selectedCustomerId);
     if(customer && activeBillNo) {
@@ -439,6 +446,7 @@ export default function BillingPage() {
                       role="combobox"
                       aria-expanded={customerPopoverOpen}
                       className="justify-between"
+                      onClick={() => setCustomerPopoverOpen(!customerPopoverOpen)}
                     >
                       {selectedCustomerData
                         ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
@@ -457,7 +465,6 @@ export default function BillingPage() {
                               key={customer.id}
                               value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
                               onSelect={() => handleCustomerSelect(customer.id)}
-                              onClick={() => handleCustomerSelect(customer.id)}
                             >
                               <Check
                                 className={cn(
@@ -514,6 +521,7 @@ export default function BillingPage() {
                           aria-expanded={productPopoverOpen}
                           className="w-full justify-between"
                           disabled={isProductLocked || !selectedCustomerId}
+                          onClick={() => setProductPopoverOpen(!productPopoverOpen)}
                         >
                           {selectedProductData
                             ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
@@ -532,7 +540,6 @@ export default function BillingPage() {
                                   key={product.id}
                                   value={`${product.name_en} ${product.name_ta} ${product.id}`}
                                   onSelect={() => handleProductSelect(product.id)}
-                                  onClick={() => handleProductSelect(product.id)}
                                 >
                                   <Check
                                     className={cn(
@@ -664,8 +671,9 @@ export default function BillingPage() {
                       <TableCell className="text-right">
                          <Input
                             type="number"
-                            value={item.rate.toFixed(2)}
+                            value={item.rate}
                             onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                            onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
                             onFocus={(e) => e.target.select()}
                             className="h-8 text-right w-24 ml-auto"
                         />

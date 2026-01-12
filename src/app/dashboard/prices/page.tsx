@@ -99,6 +99,7 @@ export default function PricesPage() {
                   role="combobox"
                   aria-expanded={productPopoverOpen}
                   className="w-full justify-between"
+                  onClick={() => setProductPopoverOpen(!productPopoverOpen)}
                 >
                   {selectedProduct
                     ? `${selectedProduct.name_en} (${selectedProduct.name_ta})`
@@ -117,7 +118,6 @@ export default function PricesPage() {
                           key={product.id}
                           value={`${product.name_en} ${product.name_ta} ${product.id}`}
                           onSelect={() => handleProductSelect(product.id)}
-                          onClick={() => handleProductSelect(product.id)}
                         >
                           <Check
                             className={cn(

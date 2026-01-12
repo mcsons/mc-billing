@@ -140,6 +140,7 @@ export default function HistoryPage() {
                   role="combobox"
                   aria-expanded={customerPopoverOpen}
                   className="justify-between"
+                  onClick={() => setCustomerPopoverOpen(!customerPopoverOpen)}
                 >
                   {selectedCustomerData
                     ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
@@ -158,7 +159,6 @@ export default function HistoryPage() {
                           key={customer.id}
                           value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
                           onSelect={() => handleCustomerSelect(customer.id)}
-                          onClick={() => handleCustomerSelect(customer.id)}
                         >
                           <Check
                             className={cn(
