@@ -76,6 +76,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     'P04': { KGS: 180, BOX: 1500 },
     'P05': { KGS: 200, NOS: 40 },
   });
+  const [payments, setPayments] = useState<Payment[]>(samplePayments);
+
   const [customerBalances, setCustomerBalances] = useState<CustomerBalances>(() => {
     const balances: CustomerBalances = {};
     initialCustomers.forEach(c => balances[c.id] = 0);
@@ -95,7 +97,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     return balances;
   });
-  const [payments, setPayments] = useState<Payment[]>(samplePayments);
 
   const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>(liveHistoryItems);
 
@@ -358,10 +359,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // 2. Get transactions within the date range
     const customerData = customers.find(c => c.id === customerId);
     const billsInRange = liveBillSummaries.filter(b => 
-      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, dateRange)
+      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, { start: dateRange.from, end: dateRange.to })
     );
     const paymentsInRange = payments.filter(p => 
-      p.customerId === customerId && isWithinInterval(p.date, dateRange)
+      p.customerId === customerId && isWithinInterval(p.date, { start: dateRange.from, end: dateRange.to })
     );
 
     // 3. Map to a unified transaction format

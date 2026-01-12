@@ -117,8 +117,8 @@ function PrintPageContent() {
                 <TableRow>
                   <TableHead className="w-[100px]">Date</TableHead>
                   <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Billed Amount (+)</TableHead>
-                  <TableHead className="text-right">Received Amount (-)</TableHead>
+                  <TableHead className="text-right">Billed (+)</TableHead>
+                  <TableHead className="text-right">Received (-)</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                 </TableRow>
               </TableHeader>
@@ -142,17 +142,12 @@ function PrintPageContent() {
                     </TableCell>
                   </TableRow>
                 ))}
+                 <TableRow className="font-bold border-t-2">
+                    <TableCell colSpan={4}>Closing Balance</TableCell>
+                    <TableCell className="text-right font-mono">₹{closingBalance.toFixed(2)}</TableCell>
+                </TableRow>
               </TableBody>
             </Table>
-
-            <div className="flex justify-end mt-6">
-              <div className="w-full max-w-sm space-y-2 text-sm">
-                <div className="flex justify-between border-t pt-2 font-bold text-base">
-                  <span>Closing Balance:</span>
-                  <span className="font-mono">₹{closingBalance.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
 
             <footer className="text-center mt-8 text-xs text-muted-foreground">
               <p>This is a computer-generated statement.</p>

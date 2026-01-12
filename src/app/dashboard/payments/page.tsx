@@ -362,7 +362,7 @@ export default function PaymentsPage() {
                         </TableHeader>
                         <TableBody>
                             {historySelectedCustomerId ? (
-                                filteredTransactions.length > 0 ? (
+                                filteredTransactions.length > 0 || openingBalance !== 0 ? (
                                     <>
                                         <TableRow className="bg-muted/50">
                                             <TableCell colSpan={4} className="font-semibold">Opening Balance</TableCell>
