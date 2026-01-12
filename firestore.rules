@@ -1,0 +1,233 @@
+/**
+ * Core Philosophy:
+ * This ruleset establishes a collaborative, role-based security model for the
+ * M.C & SONS FISH COMPANY billing system. The primary goal is to allow all
+ * authenticated employees to manage core business data (customers, products, bills)
+ * while reserving administrative privileges for managing users and system-level
+ * data. A special `/roles_admin` collection governs administrative access,
+ * providing a single, performant source of truth for authorization checks.
+ *
+ * Data Structure:
+ * The data is organized into top-level collections for major entities like
+ * `customers`, `products`, `users`, and `bills`. Bill items are stored in a
+ * subcollection (`/bills/{billId}/billItems`). This flat structure simplifies
+ * rules and queries. Archived bills are segregated into `/billArchives` to
+- * separate active and inactive data.
+ *
+ * Key Security Decisions:
+ * - Admin Role: A user is considered an admin if a document with their UID
+ *   exists in the `/roles_admin` collection. This is the sole mechanism for
+ *   granting elevated privileges. Admins have exclusive write access to the
+ *   `/users` and `/roles_admin` collections.
+ * - Collaborative Writes: Most business data (customers, products, prices) can
+ *   be created and modified by any authenticated user, fostering a collaborative
+ *   environment.
+ * - Bill Ownership: While any authenticated user can create a bill, only the
+ *   original creator (as defined by the `createdBy` field) can modify or delete it.
+ *   This protects the integrity of billing records.
+ * - User Data Privacy: Users can only read their own data from the `/users`
+ *   collection. Listing all users is restricted to admins to prevent data leakage.
+ *
+ * Denormalization for Authorization:
+ * Authorization decisions rely on denormalized fields to avoid costly `get()` calls.
+ * - The `createdBy` field on `/bills` and the `addedBy` field on `/billItems`
+ *   are used to enforce ownership directly on the document being accessed.
+ * - The existence of a document in `/roles_admin/{userId}` is used for all
+ *   admin checks, which is significantly faster than reading a role field
+ *   from a user document.
+ *
+ * Structural Segregation:
+ * Active bills (`/bills`) and archived bills (`/billArchives`) are stored in
+ * separate collections. This allows for different security postures (e.g., making
+ * archives read-only for regular users) and improves query performance by
+ * reducing the size of the active dataset.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // -------------------------------------------------------------------------
+    // Helper Functions
+    // -------------------------------------------------------------------------
+
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the requesting user's UID matches the provided userId.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    /**
+     * Checks for ownership on an existing document. Used for update/delete.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    /**
+     * Checks if the requesting user is an administrator.
+     * Admin status is determined by the existence of a document in the /roles_admin collection.
+     */
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Ensures an immutable relationship field on update.
+     * Allows partial updates where the field is not present in the request.
+     */
+    function isImmutable(fieldName) {
+      return !(fieldName in request.resource.data) || request.resource.data[fieldName] == resource.data[fieldName];
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+
+    /**
+     * @description Manages customer data. Any authenticated user can read, create,
+     *   update, and delete customer information in this collaborative system.
+     * @path /customers/{customerId}
+     * @allow An authenticated user creates a new customer document. (auth != null, create)
+     * @deny An unauthenticated user attempts to read customer data. (auth == null, get)
+     * @principle Allows collaborative data management for all signed-in users.
+     */
+    match /customers/{customerId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages user profiles. Only admins can create, update, or delete
+     *   any user. Users can only read their own profile. Listing users is admin-only.
+     * @path /users/{userId}
+     * @allow An admin deletes a user document. (auth.isAdmin == true, delete)
+     * @allow A user reads their own profile. (auth.uid == userId, get)
+     * @deny A non-admin user attempts to create a new user. (auth.isAdmin == false, create)
+     * @deny A regular user tries to list all users. (auth.isAdmin == false, list)
+     * @principle Enforces admin-only management of user accounts and protects user privacy.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && request.resource.data.userId == userId;
+      allow update: if isAdmin() && resource != null && isImmutable('userId');
+      allow delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages product data. Any authenticated user can manage the
+     *   product catalog.
+     * @path /products/{productId}
+     * @allow An authenticated user updates an existing product. (auth != null, update)
+     * @deny An unauthenticated user attempts to create a product. (auth == null, create)
+     * @principle Allows collaborative data management for all signed-in users.
+     */
+    match /products/{productId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages customer balance information. Any authenticated user
+     *   can read or write balance data.
+     * @path /customerBalances/{customerId}
+     * @allow An authenticated user updates a customer's balance. (auth != null, update)
+     * @deny An unauthenticated user attempts to read balance data. (auth == null, get)
+     * @principle Validates relational integrity by ensuring the document's internal
+     *   customerId matches its path ID.
+     */
+    match /customerBalances/{customerId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.customerId == customerId;
+      allow update: if isSignedIn() && resource != null && isImmutable('customerId');
+      allow delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages daily product prices. Any authenticated user can manage
+     *   the pricing information.
+     * @path /productPrices/{productPriceId}
+     * @allow An authenticated user creates a new price entry. (auth != null, create)
+     * @deny An unauthenticated user attempts to delete a price. (auth == null, delete)
+     * @principle Allows collaborative data management for all signed-in users.
+     */
+    match /productPrices/{productPriceId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && resource != null;
+    }
+
+    /**
+     * @description Manages active billing documents. Any authenticated user can read
+     *   all bills and create new ones. Only the original creator can modify or delete a bill.
+     * @path /bills/{billId}
+     * @allow A user creates a new bill for a customer. (auth != null, create)
+     * @allow A user updates a bill they previously created. (auth.uid == resource.data.createdBy, update)
+     * @deny A user attempts to delete a bill created by someone else. (auth.uid != resource.data.createdBy, delete)
+     * @principle Enforces document ownership for writes, ensuring the integrity of billing records.
+     */
+    match /bills/{billId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy);
+
+      /**
+       * @description Manages items within a bill. Rules mirror the parent bill:
+       *   any signed-in user can read items and add new ones. Only the user who
+       *   added an item can modify or delete it.
+       * @path /bills/{billId}/billItems/{billItemId}
+       * @allow A user adds an item to an existing bill. (auth != null, create)
+       * @allow A user deletes an item they previously added. (auth.uid == resource.data.addedBy, delete)
+       * @deny A user attempts to change an item added by another user. (auth.uid != resource.data.addedBy, update)
+       * @principle Enforces document ownership for writes and validates relational integrity
+       *   with the parent bill document.
+       */
+      match /billItems/{billItemId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn() && request.resource.data.addedBy == request.auth.uid && request.resource.data.billId == billId;
+        allow update: if isExistingOwner(resource.data.addedBy) && isImmutable('addedBy') && isImmutable('billId');
+        allow delete: if isExistingOwner(resource.data.addedBy);
+      }
+    }
+
+    /**
+     * @description Manages archived bills. Data is read-only for all authenticated
+     *   users. Only administrators can write or delete archived data.
+     * @path /billArchives/{billId}
+     * @allow Any authenticated user reads an archived bill. (auth != null, get)
+     * @deny A regular user attempts to create an archived bill. (auth.isAdmin == false, create)
+     * @deny A regular user attempts to delete an archived bill. (auth.isAdmin == false, delete)
+     * @principle Segregates historical data and protects it from modification by non-admins.
+     */
+    match /billArchives/{billId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin() && resource != null;
+    }
+
+    /**
+     * @description Manages administrator roles. Only existing admins can read or
+     *   write to this collection, allowing them to grant or revoke admin privileges.
+     * @path /roles_admin/{userId}
+     * @allow An admin adds another user as an admin. (auth.isAdmin == true, create)
+     * @deny A non-admin user attempts to make themselves an admin. (auth.isAdmin == false, create)
+     * @deny A non-admin user attempts to list all admins. (auth.isAdmin == false, list)
+     * @principle Secures the role management system itself, preventing unauthorized privilege escalation.
+     */
+    match /roles_admin/{userId} {
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

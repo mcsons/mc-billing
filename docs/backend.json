@@ -1,0 +1,570 @@
+{
+  "entities": {
+    "Customer": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Customer",
+      "type": "object",
+      "description": "Represents a customer of M.C & SONS FISH COMPANY.",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "description": "Unique identifier for the customer.",
+          "format": "uuid"
+        },
+        "nameEn": {
+          "type": "string",
+          "description": "Customer's name in English."
+        },
+        "nameTa": {
+          "type": "string",
+          "description": "Customer's name in Tamil."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Customer's phone number."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indicates whether the customer is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the customer was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the customer was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "customerId",
+        "nameEn",
+        "nameTa",
+        "phone",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the billing system.",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Unique identifier for the user.",
+          "format": "uuid"
+        },
+        "username": {
+          "type": "string",
+          "description": "User's username (unique)."
+        },
+        "role": {
+          "type": "string",
+          "description": "User's role (CREATOR, ADMIN, or MANAGER).",
+          "format": "enum"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indicates whether the user is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the user was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the user was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "username",
+        "role",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Product": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Product",
+      "type": "object",
+      "description": "Represents a product sold by M.C & SONS FISH COMPANY.",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Unique identifier for the product.",
+          "format": "uuid"
+        },
+        "nameEn": {
+          "type": "string",
+          "description": "Product's name in English."
+        },
+        "nameTa": {
+          "type": "string",
+          "description": "Product's name in Tamil."
+        },
+        "uomAllowed": {
+          "type": "array",
+          "description": "Allowed units of measure for the product (BOX, KGS, ITEMS, NOS).",
+          "items": {
+            "type": "string"
+          }
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indicates whether the product is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the product was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the product was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "productId",
+        "nameEn",
+        "nameTa",
+        "uomAllowed",
+        "active",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CustomerBalance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CustomerBalance",
+      "type": "object",
+      "description": "Represents the balance of a customer.",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:1 CustomerBalance)",
+          "format": "uuid"
+        },
+        "balanceAmount": {
+          "type": "number",
+          "description": "The balance amount for the customer."
+        },
+        "lastPaymentAt": {
+          "type": "string",
+          "description": "Timestamp of the last payment made by the customer.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "customerId",
+        "balanceAmount",
+        "lastPaymentAt"
+      ]
+    },
+    "ProductPrice": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ProductPrice",
+      "type": "object",
+      "description": "Represents the price of a product for a specific date and unit of measure.",
+      "properties": {
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N ProductPrice)",
+          "format": "uuid"
+        },
+        "priceDate": {
+          "type": "string",
+          "description": "The date for which the price is valid.",
+          "format": "date"
+        },
+        "uom": {
+          "type": "string",
+          "description": "Unit of measure for the price (BOX, KGS, ITEMS, NOS)."
+        },
+        "pricePerUom": {
+          "type": "number",
+          "description": "The price per unit of measure."
+        }
+      },
+      "required": [
+        "productId",
+        "priceDate",
+        "uom",
+        "pricePerUom"
+      ]
+    },
+    "Bill": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Bill",
+      "type": "object",
+      "description": "Represents a bill for a customer.",
+      "properties": {
+        "billId": {
+          "type": "string",
+          "description": "Unique identifier for the bill.",
+          "format": "uuid"
+        },
+        "billDate": {
+          "type": "string",
+          "description": "The date of the bill.",
+          "format": "date"
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N Bill)",
+          "format": "uuid"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Reference to User who created the bill. (Relationship: User 1:N Bill)",
+          "format": "uuid"
+        },
+        "stall": {
+          "type": "string",
+          "description": "The stall number for the bill."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the bill."
+        },
+        "totalQtyBox": {
+          "type": "number",
+          "description": "Total quantity in boxes."
+        },
+        "totalQtyKgs": {
+          "type": "number",
+          "description": "Total quantity in kilograms."
+        },
+        "totalQtyItems": {
+          "type": "number",
+          "description": "Total quantity in items."
+        },
+        "totalQtyNos": {
+          "type": "number",
+          "description": "Total quantity in numbers."
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the bill (OPEN, PRINTED, CLOSED)."
+        }
+      },
+      "required": [
+        "billId",
+        "billDate",
+        "customerId",
+        "createdBy",
+        "stall",
+        "totalAmount",
+        "totalQtyBox",
+        "totalQtyKgs",
+        "totalQtyItems",
+        "totalQtyNos",
+        "status"
+      ]
+    },
+    "BillItem": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BillItem",
+      "type": "object",
+      "description": "Represents an item in a bill.",
+      "properties": {
+        "billItemId": {
+          "type": "string",
+          "description": "Unique identifier for the bill item.",
+          "format": "uuid"
+        },
+        "billId": {
+          "type": "string",
+          "description": "Reference to Bill. (Relationship: Bill 1:N BillItem)",
+          "format": "uuid"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Reference to Product. (Relationship: Product 1:N BillItem)",
+          "format": "uuid"
+        },
+        "uom": {
+          "type": "string",
+          "description": "Unit of measure for the bill item."
+        },
+        "qty": {
+          "type": "number",
+          "description": "Quantity of the bill item."
+        },
+        "rate": {
+          "type": "number",
+          "description": "Rate of the bill item."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the bill item."
+        },
+        "addedBy": {
+          "type": "string",
+          "description": "Reference to User who added the bill item. (Relationship: User 1:N BillItem)",
+          "format": "uuid"
+        },
+        "addedAt": {
+          "type": "string",
+          "description": "Timestamp of when the bill item was added.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "billItemId",
+        "billId",
+        "productId",
+        "uom",
+        "qty",
+        "rate",
+        "amount",
+        "addedBy",
+        "addedAt"
+      ]
+    },
+    "BillArchive": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BillArchive",
+      "type": "object",
+      "description": "Represents an archived bill (same structure as Bill and BillItem).",
+      "properties": {
+        "billId": {
+          "type": "string",
+          "description": "Unique identifier for the archived bill.",
+          "format": "uuid"
+        },
+        "billDate": {
+          "type": "string",
+          "description": "The date of the archived bill.",
+          "format": "date"
+        },
+        "customerId": {
+          "type": "string",
+          "description": "Reference to Customer. (Relationship: Customer 1:N BillArchive)",
+          "format": "uuid"
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Reference to User who created the archived bill. (Relationship: User 1:N BillArchive)",
+          "format": "uuid"
+        },
+        "stall": {
+          "type": "string",
+          "description": "The stall number for the archived bill."
+        },
+        "totalAmount": {
+          "type": "number",
+          "description": "The total amount of the archived bill."
+        },
+        "totalQtyBox": {
+          "type": "number",
+          "description": "Total quantity in boxes for the archived bill."
+        },
+        "totalQtyKgs": {
+          "type": "number",
+          "description": "Total quantity in kilograms for the archived bill."
+        },
+        "totalQtyItems": {
+          "type": "number",
+          "description": "Total quantity in items for the archived bill."
+        },
+        "totalQtyNos": {
+          "type": "number",
+          "description": "Total quantity in numbers for the archived bill."
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the archived bill (OPEN, PRINTED, CLOSED)."
+        },
+        "billItems": {
+          "type": "array",
+          "description": "A list of bill items associated with the archived bill. (Relationship: BillArchive 1:N BillItem)",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "billId",
+        "billDate",
+        "customerId",
+        "createdBy",
+        "stall",
+        "totalAmount",
+        "totalQtyBox",
+        "totalQtyKgs",
+        "totalQtyItems",
+        "totalQtyNos",
+        "status"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/customers/{customerId}",
+        "definition": {
+          "entityName": "Customer",
+          "schema": {
+            "$ref": "#/backend/entities/Customer"
+          },
+          "description": "Stores customer data.  Secured to allow only authenticated users to create or modify customers.",
+          "params": [
+            {
+              "name": "customerId",
+              "description": "Unique identifier for the customer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user data. Only admins can create or modify users.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "Unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/products/{productId}",
+        "definition": {
+          "entityName": "Product",
+          "schema": {
+            "$ref": "#/backend/entities/Product"
+          },
+          "description": "Stores product data.  Secured to allow only authenticated users to create or modify products.",
+          "params": [
+            {
+              "name": "productId",
+              "description": "Unique identifier for the product."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/customerBalances/{customerId}",
+        "definition": {
+          "entityName": "CustomerBalance",
+          "schema": {
+            "$ref": "#/backend/entities/CustomerBalance"
+          },
+          "description": "Stores customer balance data. The document ID is the customerId. Secured to allow only authenticated users to modify customer balances.",
+          "params": [
+            {
+              "name": "customerId",
+              "description": "Reference to Customer."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/productPrices/{productPriceId}",
+        "definition": {
+          "entityName": "ProductPrice",
+          "schema": {
+            "$ref": "#/backend/entities/ProductPrice"
+          },
+          "description": "Stores product price data. Secured to allow only authenticated users to create or modify product prices.",
+          "params": [
+            {
+              "name": "productPriceId",
+              "description": "Auto-generated ID for the product price document. Contains productId, priceDate and UOM"
+            }
+          ]
+        }
+      },
+      {
+        "path": "/bills/{billId}",
+        "definition": {
+          "entityName": "Bill",
+          "schema": {
+            "$ref": "#/backend/entities/Bill"
+          },
+          "description": "Stores bill data. Includes 'createdBy' field for authorization independence.",
+          "params": [
+            {
+              "name": "billId",
+              "description": "Unique identifier for the bill."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/bills/{billId}/billItems/{billItemId}",
+        "definition": {
+          "entityName": "BillItem",
+          "schema": {
+            "$ref": "#/backend/entities/BillItem"
+          },
+          "description": "Stores bill item data related to a bill. Includes 'addedBy' field for authorization independence.",
+          "params": [
+            {
+              "name": "billId",
+              "description": "Reference to Bill."
+            },
+            {
+              "name": "billItemId",
+              "description": "Unique identifier for the bill item."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/billArchives/{billId}",
+        "definition": {
+          "entityName": "BillArchive",
+          "schema": {
+            "$ref": "#/backend/entities/BillArchive"
+          },
+          "description": "Stores archived bill data. Includes 'createdBy' field for authorization independence.",
+          "params": [
+            {
+              "name": "billId",
+              "description": "Unique identifier for the archived bill."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "roles_admin",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Documents in this collection indicate admin role. Existence of a document determines admin access.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "User ID of the administrator."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to support the M.C & SONS FISH COMPANY billing system, focusing on real-time multi-user collaboration, role-based access control, and efficient data retrieval. The structure adheres to the principles of Authorization Independence, Structural Segregation, Access Modeling, and Data Clarity.\n\n**Authorization Independence:**\nAuthorization is enforced using a combination of path-based ownership and denormalized data. For instance, `Bill` documents are stored under `/bills/{billId}`, with the `createdBy` field referencing the `User` who created the bill. Although the `createdBy` is present, authorization rules do not depend on fetching the user document. Instead, the presence of a `User` document with a matching `userId` can determine access.\n\n**Structural Segregation:**\nData with different access needs is segregated into separate collections. For example, `Customer` and `Product` data are stored in their respective top-level collections (`/customers` and `/products`), each with specific security rules tailored to their content. Archived bills are stored in a separate collection (`/billArchives`), allowing for different retention policies and potentially different access controls compared to active bills.\n\n**Access Modeling:**\nOwnership is modeled using path-based access control for user-owned data.  `Bill` documents include the `createdBy` field. Role-based access control is implemented using the `/roles_admin/{uid}` collection for admin users.\n\n**QAPs (Rules are not Filters):**\nThe structure supports secure `list` operations by enforcing security rules directly on the queried collections. For example, listing `Bill` documents can be secured by checking the user's role or the `createdBy` field of the documents, without relying on filtering after retrieval.\n\n**Invariants:**\nThe structure supports the integrity of ownership, timestamps, and denormalized data. Timestamps like `createdAt` and `updatedAt` are enforced on `Customer`, `User`, and `Product` documents to maintain data consistency. The `createdBy` field in the `Bill` collection ensures the integrity of bill ownership.\n\nThis design ensures a secure, scalable, and debuggable Firestore structure for the M.C & SONS FISH COMPANY billing system, facilitating efficient data management and real-time collaboration."
+  }
+}
