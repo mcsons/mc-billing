@@ -83,7 +83,7 @@ export function DashboardSidebar() {
             {menuItems.map((item) => 
                 (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
                     <SidebarMenuItem key={item.label}>
-                        <Link href={item.href} passHref>
+                        <Link href={item.href} passHref asChild>
                             <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
                                 <a>
                                 <item.icon />
@@ -104,7 +104,7 @@ export function DashboardSidebar() {
                     <SidebarMenuSub open={isSettingsOpen}>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} passHref>
+                                <Link href={subItem.href} passHref asChild>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
