@@ -11,11 +11,12 @@ import {
   products as initialProducts,
   liveBillSummaries as initialLiveBillSummaries,
   users as initialUsers,
+  liveHistoryItems,
 } from '@/lib/data';
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
-type UserRole = 'CREATOR' | 'ADMIN' | 'MANAGER';
+type LiveBillItems = Record<string, BillItem[]>; // Keyed by billNo
 
 interface DataContextType {
   customers: Customer[];
@@ -27,19 +28,26 @@ interface DataContextType {
   customerBalances: CustomerBalances;
   payments: Payment[];
   currentUser: User | null;
+  liveBillItems: LiveBillItems;
   login: (username: string, password?: string) => User | null;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   addUser: (user: Omit<User, 'id' | 'status'>) => void;
-  addBillItem: (item: BillItem) => void;
-  removeBillItem: (itemId: number) => void;
+  addBillItem: (item: BillItem, billNo: string) => void;
+  removeBillItem: (itemId: number, billNo: string) => void;
   clearBill: () => void;
-  addLiveBillSummary: (summary: Omit<LiveBillSummary, 'billNo'>, paidAmount: number) => void;
+  createOrUpdateLiveBill: (
+    summary: Omit<LiveBillSummary, 'billNo'>,
+    items: BillItem[],
+    paidAmount: number,
+    existingBillNo?: string | null
+  ) => string;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   setCurrentBillItems: React.Dispatch<React.SetStateAction<BillItem[]>>;
-  updateLiveBillSummary: (summary: LiveBillSummary, paidAmount: number, oldTotal: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
+  findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
+  getBillItems: (billNo: string) => BillItem[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -63,6 +71,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   });
   const [payments, setPayments] = useState<Payment[]>([]);
 
+  const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({
+    'B1234': liveHistoryItems.filter(i => i.id === 1),
+    'B1235': liveHistoryItems.filter(i => i.id === 2),
+    'B1236': liveHistoryItems.filter(i => i.id === 3),
+  });
+
+  const getCustomerIdFromName = (customerName: string) => {
+    const customer = customers.find(c => customerName.includes(c.name_en));
+    return customer?.id;
+  };
+
   const login = (username: string, password?: string): User | null => {
     const user = users.find(u => u.username === username && u.password === password);
     if (user) {
@@ -75,6 +94,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   
   const logout = () => {
     setCurrentUser(null);
+    clearBill();
   };
 
 
@@ -132,69 +152,113 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const addBillItem = (item: BillItem) => {
-    setCurrentBillItems(prev => [...prev, item]);
-  }
-
-  const removeBillItem = (itemId: number) => {
-    setCurrentBillItems(prev => prev.filter(item => item.id !== itemId));
-  }
-
+  const addBillItem = (item: BillItem, billNo: string) => {
+    // This function will now update the central liveBillItems state
+    setLiveBillItems(prev => {
+        const currentItems = prev[billNo] || [];
+        const newItems = [...currentItems, item];
+        return {...prev, [billNo]: newItems};
+    });
+    // We also update the summary
+    setLiveBillSummaries(prev => prev.map(summary => 
+        summary.billNo === billNo 
+        ? { ...summary, amount: summary.amount + item.amount }
+        : summary
+    ));
+  };
+  
+  const removeBillItem = (itemId: number, billNo: string) => {
+    let removedItemAmount = 0;
+    setLiveBillItems(prev => {
+        const billItems = prev[billNo] || [];
+        const itemToRemove = billItems.find(i => i.id === itemId);
+        if (itemToRemove) {
+            removedItemAmount = itemToRemove.amount;
+        }
+        const newItems = billItems.filter(item => item.id !== itemId);
+        return {...prev, [billNo]: newItems};
+    });
+    
+    if (removedItemAmount > 0) {
+        setLiveBillSummaries(prev => prev.map(summary =>
+            summary.billNo === billNo
+            ? { ...summary, amount: summary.amount - removedItemAmount }
+            : summary
+        ));
+    }
+  };
+  
   const clearBill = () => {
     setCurrentBillItems([]);
-  }
-
-  const getCustomerIdFromName = (customerName: string) => {
-      const customer = customers.find(c => customerName.includes(c.name_en));
-      return customer?.id;
-  }
-
-  const addLiveBillSummary = (summary: Omit<LiveBillSummary, 'billNo'>, paidAmount: number) => {
-    setLiveBillSummaries(prev => {
-        const maxBillNo = prev
-            .map(b => parseInt(b.billNo.replace('B', ''), 10))
-            .filter(num => !isNaN(num))
-            .reduce((max, num) => Math.max(max, num), 1236); // Starting from after the initial data
-        const newBillNo = `B${maxBillNo + 1}`;
-        const newSummary: LiveBillSummary = {
-            ...summary,
-            billNo: newBillNo,
-        };
-
-        const customerId = getCustomerIdFromName(summary.customerName);
-        if (customerId) {
-            setCustomerBalances(prevBalances => ({
-                ...prevBalances,
-                [customerId]: (prevBalances[customerId] || 0) + summary.amount - paidAmount,
-            }));
-        }
-
-        return [newSummary, ...prev];
-    });
+  };
+  
+  const findBillForCustomerToday = (customerId: string) => {
+    // In a real app, you'd also check the date.
+    // For this demo, we assume all live bills are for today.
+    const customer = customers.find(c => c.id === customerId);
+    if (!customer) return undefined;
+    return liveBillSummaries.find(bill => bill.customerName.includes(customer.name_en));
   };
 
-  const updateLiveBillSummary = (summary: LiveBillSummary, paidAmount: number, oldTotal: number) => {
-    setLiveBillSummaries(prev => {
-        const index = prev.findIndex(b => b.billNo === summary.billNo);
-        if (index !== -1) {
-            const newSummaries = [...prev];
-            const oldSummary = newSummaries[index];
-            newSummaries[index] = summary;
+  const getBillItems = (billNo: string) => {
+    return liveBillItems[billNo] || [];
+  };
 
-            const customerId = getCustomerIdFromName(summary.customerName);
-            if(customerId){
-                const balanceChange = (summary.amount - oldSummary.amount);
+  const createOrUpdateLiveBill = (
+    summary: Omit<LiveBillSummary, 'billNo'>, 
+    items: BillItem[],
+    paidAmount: number,
+    existingBillNo?: string | null
+  ) => {
+    const customerId = getCustomerIdFromName(summary.customerName);
+    const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+
+    if (existingBillNo) {
+        // Update existing bill
+        setLiveBillSummaries(prev => {
+            const oldSummary = prev.find(b => b.billNo === existingBillNo);
+            const oldAmount = oldSummary?.amount || 0;
+
+            if (customerId) {
+                const balanceChange = totalAmount - oldAmount;
                 setCustomerBalances(prevBalances => ({
                     ...prevBalances,
                     [customerId]: (prevBalances[customerId] || 0) + balanceChange,
                 }));
             }
-            return newSummaries;
+
+            return prev.map(b => b.billNo === existingBillNo ? { ...summary, billNo: existingBillNo, amount: totalAmount } : b);
+        });
+
+        setLiveBillItems(prev => ({...prev, [existingBillNo]: items}));
+        return existingBillNo;
+    } else {
+        // Create new bill
+        const maxBillNo = liveBillSummaries
+            .map(b => parseInt(b.billNo.replace('B', ''), 10))
+            .filter(num => !isNaN(num))
+            .reduce((max, num) => Math.max(max, num), 1236);
+        const newBillNo = `B${maxBillNo + 1}`;
+
+        const newSummary: LiveBillSummary = {
+            ...summary,
+            billNo: newBillNo,
+            amount: totalAmount,
+        };
+
+        if (customerId) {
+            setCustomerBalances(prevBalances => ({
+                ...prevBalances,
+                [customerId]: (prevBalances[customerId] || 0) + totalAmount - paidAmount,
+            }));
         }
-        return prev;
-    });
+        
+        setLiveBillSummaries(prev => [newSummary, ...prev]);
+        setLiveBillItems(prev => ({...prev, [newBillNo]: items}));
+        return newBillNo;
+    }
   };
-  
+
   const addPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
       setPayments(prev => {
           const newPayment: Payment = {
@@ -221,6 +285,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
+  // The below functions are now deprecated in favor of the new logic, but kept for compatibility.
+  const addLiveBillSummary = (summary: Omit<LiveBillSummary, 'billNo'>, paidAmount: number) => {};
+  const updateLiveBillSummary = (summary: LiveBillSummary, paidAmount: number, oldTotal: number) => {};
+
   return (
     <DataContext.Provider
       value={{
@@ -233,6 +301,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         customerBalances,
         payments,
         currentUser,
+        liveBillItems,
         login,
         logout,
         addCustomer,
@@ -241,11 +310,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addBillItem,
         removeBillItem,
         clearBill,
-        addLiveBillSummary,
+        createOrUpdateLiveBill,
         updateProductPrice,
         setCurrentBillItems,
-        updateLiveBillSummary,
         addPayment,
+        findBillForCustomerToday,
+        getBillItems,
       }}
     >
       {children}

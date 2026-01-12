@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -38,7 +38,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
-import { BillItem, LiveBillSummary } from '@/lib/data';
+import { BillItem } from '@/lib/data';
 import {
   Popover,
   PopoverContent,
@@ -63,17 +63,28 @@ export default function BillingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { customers, products, addBillItem, currentBillItems, clearBill, removeBillItem, addLiveBillSummary, productPrices, liveBillSummaries, setCurrentBillItems, updateLiveBillSummary, customerBalances } = useData();
-  const [isProductLocked, setIsProductLocked] = useState(false);
-  const [date, setDate] = React.useState<Date | undefined>(new Date());
+  const { 
+    customers, 
+    products, 
+    productPrices, 
+    customerBalances,
+    currentUser,
+    findBillForCustomerToday,
+    getBillItems,
+    createOrUpdateLiveBill,
+  } = useData();
 
-  const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
-  const [selectedCustomerId, setSelectedCustomerId] = React.useState<string>('');
-
-  const [productPopoverOpen, setProductPopoverOpen] = React.useState(false);
-  const [selectedProductId, setSelectedProductId] = React.useState<string>('');
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   
-  const [editingBillNo, setEditingBillNo] = useState<string | null>(null);
+  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  
+  const [isProductLocked, setIsProductLocked] = useState(false);
+  
+  const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
+  const [billItems, setBillItems] = useState<BillItem[]>([]);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
 
   // Form state for new item
@@ -83,26 +94,24 @@ export default function BillingPage() {
   const [paidAmount, setPaidAmount] = useState('');
 
 
+  // This effect runs when a bill number is passed in the URL (for editing old bills)
   useEffect(() => {
-    const billNo = searchParams.get('billNo');
-    if (billNo) {
-      const billToEdit = liveBillSummaries.find(b => b.billNo === billNo);
+    const billNoFromParams = searchParams.get('billNo');
+    if (billNoFromParams) {
+      // Logic to load a historical bill for editing
+      const billToEdit = findBillForCustomerToday(selectedCustomerId); // This needs adjustment for historical
       if (billToEdit) {
-        setEditingBillNo(billNo);
+        setActiveBillNo(billToEdit.billNo);
         const customer = customers.find(c => billToEdit.customerName.includes(c.name_en));
         setSelectedCustomerId(customer?.id || '');
-        // In a real app, you would fetch and set the bill items here.
-        // For now, we simulate this by clearing items.
-        setCurrentBillItems([]); 
+        setBillItems(getBillItems(billToEdit.billNo)); 
         setInitialBillTotal(billToEdit.amount);
         setPaidAmount('');
       }
-    } else {
-      handleNewBill();
     }
-  }, [searchParams, liveBillSummaries, customers, setCurrentBillItems]);
+  }, [searchParams, customers, findBillForCustomerToday, getBillItems]);
 
-
+  // Effect to set the rate when product/uom changes
   useEffect(() => {
     if (selectedProductId && uom) {
       const price = productPrices[selectedProductId]?.[uom] || '';
@@ -111,9 +120,35 @@ export default function BillingPage() {
       setRate('');
     }
   }, [selectedProductId, uom, productPrices]);
-
+  
+  // New effect to handle customer selection and load existing bills
+  useEffect(() => {
+    if (selectedCustomerId) {
+      const existingBill = findBillForCustomerToday(selectedCustomerId);
+      if (existingBill) {
+        setActiveBillNo(existingBill.billNo);
+        setBillItems(getBillItems(existingBill.billNo));
+        setInitialBillTotal(existingBill.amount);
+      } else {
+        // No existing bill, start a new one
+        setActiveBillNo(null);
+        setBillItems([]);
+        setInitialBillTotal(0);
+      }
+      setPaidAmount('');
+    }
+  }, [selectedCustomerId, findBillForCustomerToday, getBillItems]);
 
   const handleAddItem = () => {
+    if (!selectedCustomerId) {
+      toast({
+        variant: "destructive",
+        title: "No Customer Selected",
+        description: "Please select a customer before adding items.",
+      });
+      return;
+    }
+
     const productInfo = products.find((p) => p.id === selectedProductId);
     if (!productInfo || !qty || !rate) {
         toast({
@@ -128,16 +163,18 @@ export default function BillingPage() {
     const rateNum = parseFloat(rate);
 
     const newItem: BillItem = {
-      id: currentBillItems.length > 0 ? Math.max(...currentBillItems.map(item => item.id)) + 1 : 1,
+      id: Date.now(), // Use timestamp for unique ID in local state
       product: productInfo.name_ta,
       uom: uom,
       qty: qtyNum,
       rate: rateNum,
       amount: qtyNum * rateNum,
-      user: 'Admin', // This should be dynamic based on logged in user
+      user: currentUser?.username || 'N/A',
       stall: '1', // This should be dynamic
     };
-    addBillItem(newItem);
+
+    setBillItems(prev => [...prev, newItem]);
+
     // Reset fields
     setQty('');
     if (!isProductLocked) {
@@ -146,22 +183,26 @@ export default function BillingPage() {
     }
   };
 
+  const handleRemoveItem = (itemId: number) => {
+    setBillItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
   const handleNewBill = () => {
-    clearBill();
-    setDate(new Date());
     setSelectedCustomerId('');
+    setActiveBillNo(null);
+    setBillItems([]);
+    setDate(new Date());
     setSelectedProductId('');
     setQty('');
     setRate('');
     setPaidAmount('');
-    setEditingBillNo(null);
     setInitialBillTotal(0);
     router.replace('/dashboard');
   };
   
   const handleSaveBill = () => {
     const customer = customers.find(c => c.id === selectedCustomerId);
-    if (!customer || currentBillItems.length === 0) {
+    if (!customer || billItems.length === 0) {
       toast({
           variant: "destructive",
           title: "Cannot Save Bill",
@@ -170,41 +211,33 @@ export default function BillingPage() {
       return;
     }
 
-    const totalAmount = currentBillItems.reduce((sum, item) => sum + item.amount, 0);
-    const paidAmountNum = parseFloat(paidAmount) || 0;
+    const newBillSummary = {
+        customerName: `${customer.name_en} (${customer.name_ta})`,
+        createdBy: currentUser?.username || 'N/A', // Should be dynamic
+        stall: '1', // Should be dynamic
+    };
 
-    if (editingBillNo) {
-        const updatedSummary: LiveBillSummary = {
-            billNo: editingBillNo,
-            customerName: `${customer.name_en} (${customer.name_ta})`,
-            amount: totalAmount,
-            createdBy: 'Admin', // Should be dynamic
-            stall: '1', // Should be dynamic
-        };
-        updateLiveBillSummary(updatedSummary, paidAmountNum, initialBillTotal);
+    const paidAmountNum = parseFloat(paidAmount) || 0;
+    
+    const billNo = createOrUpdateLiveBill(newBillSummary, billItems, paidAmountNum, activeBillNo);
+    
+    if (activeBillNo) {
         toast({
             title: "Bill Updated",
-            description: `Bill ${editingBillNo} has been successfully updated.`,
+            description: `Bill ${billNo} has been successfully updated.`,
         });
     } else {
-        const newBillSummary: Omit<LiveBillSummary, 'billNo'> = {
-            customerName: `${customer.name_en} (${customer.name_ta})`,
-            amount: totalAmount,
-            createdBy: 'Admin', // Should be dynamic
-            stall: '1', // Should be dynamic
-        };
-        addLiveBillSummary(newBillSummary, paidAmountNum);
         toast({
             title: "Bill Saved",
-            description: "A new bill has been successfully created.",
+            description: `A new bill (${billNo}) has been successfully created.`,
         });
     }
 
     handleNewBill(); // Clear everything for the next bill
   };
 
-    const handlePrintBill = () => {
-    if (!selectedCustomerId || currentBillItems.length === 0) {
+  const handlePrintBill = () => {
+    if (!selectedCustomerId || billItems.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Cannot Print Bill',
@@ -214,10 +247,10 @@ export default function BillingPage() {
     }
 
     const billData = {
-      billNo: editingBillNo || 'NEW',
+      billNo: activeBillNo || 'NEW',
       date: date?.toISOString() || new Date().toISOString(),
       customer: selectedCustomerData,
-      items: currentBillItems,
+      items: billItems,
       totalAmount,
       previousBalance,
       paidAmount: parseFloat(paidAmount) || 0,
@@ -226,19 +259,20 @@ export default function BillingPage() {
     };
 
     const encodedData = encodeURIComponent(JSON.stringify(billData));
-    router.push(`/dashboard/print?data=${encodedData}`);
+    window.open(`/dashboard/print?data=${encodedData}`, '_blank');
   };
 
-  const totalAmount = currentBillItems.reduce(
+  const totalAmount = useMemo(() => billItems.reduce(
     (sum, item) => sum + item.amount,
     0
-  );
+  ), [billItems]);
 
   const previousBalance = useMemo(() => {
       if (!selectedCustomerId) return 0;
-      const editingBillOriginalAmount = editingBillNo ? initialBillTotal : 0;
-      return (customerBalances[selectedCustomerId] || 0) - editingBillOriginalAmount;
-  }, [selectedCustomerId, customerBalances, editingBillNo, initialBillTotal]);
+      // When loading an existing bill, the `initialBillTotal` is part of the customer's balance already.
+      // We subtract it to show the balance *before* this bill was created/loaded.
+      return (customerBalances[selectedCustomerId] || 0) - initialBillTotal;
+  }, [selectedCustomerId, customerBalances, initialBillTotal]);
   
   const finalBalance = previousBalance + totalAmount - (parseFloat(paidAmount) || 0);
 
@@ -258,13 +292,20 @@ export default function BillingPage() {
     setProductPopoverOpen(false);
   }
 
+  const handleCustomerSelect = useCallback((customerId: string) => {
+    if (customerId !== selectedCustomerId) {
+      setSelectedCustomerId(customerId);
+    }
+    setCustomerPopoverOpen(false);
+  }, [selectedCustomerId]);
+
 
   return (
     <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:col-span-2">
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
           <div>
-            <CardTitle className="font-headline">{editingBillNo ? `Editing Bill ${editingBillNo}`: 'Create Bill'}</CardTitle>
+            <CardTitle className="font-headline">{activeBillNo ? `Editing Bill ${activeBillNo}`: 'Create Bill'}</CardTitle>
             <CardDescription>
               Select customer, add products, and generate a bill. Today is{' '}
               {new Date().toLocaleDateString()}.
@@ -331,12 +372,7 @@ export default function BillingPage() {
                           <CommandItem
                             key={customer.id}
                             value={customer.id}
-                            onSelect={(currentValue) => {
-                              setSelectedCustomerId(
-                                currentValue === selectedCustomerId ? '' : currentValue
-                              );
-                              setCustomerPopoverOpen(false);
-                            }}
+                            onSelect={handleCustomerSelect}
                           >
                             <Check
                               className={cn(
@@ -391,7 +427,7 @@ export default function BillingPage() {
                       role="combobox"
                       aria-expanded={productPopoverOpen}
                       className="w-full justify-between"
-                      disabled={isProductLocked}
+                      disabled={isProductLocked || !selectedCustomerId}
                     >
                       {selectedProductData
                         ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
@@ -409,11 +445,7 @@ export default function BillingPage() {
                             <CommandItem
                               key={product.id}
                               value={product.id}
-                              onSelect={(currentValue) => {
-                                handleProductSelect(
-                                  currentValue === selectedProductId ? '' : currentValue
-                                )
-                              }}
+                              onSelect={() => handleProductSelect(product.id)}
                             >
                               <Check
                                 className={cn(
@@ -436,6 +468,7 @@ export default function BillingPage() {
                   size="icon"
                   className="absolute right-1 top-1 h-7 w-7"
                   onClick={() => setIsProductLocked(!isProductLocked)}
+                  disabled={!selectedCustomerId}
                 >
                   {isProductLocked ? (
                     <Unlock className="h-4 w-4" />
@@ -463,14 +496,14 @@ export default function BillingPage() {
             </div>
             <div className="grid gap-2">
               <Label htmlFor="qty">Qty</Label>
-              <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={e => setQty(e.target.value)} />
+              <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={e => setQty(e.target.value)} disabled={!selectedCustomerId}/>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="rate">Rate (₹)</Label>
-              <Input id="rate" type="number" placeholder="0.00" value={rate} onChange={e => setRate(e.target.value)} />
+              <Input id="rate" type="number" placeholder="0.00" value={rate} onChange={e => setRate(e.target.value)} disabled={!selectedCustomerId}/>
             </div>
             <div className="md:col-span-6 lg:col-span-1">
-              <Button onClick={handleAddItem} className="w-full" size="sm">
+              <Button onClick={handleAddItem} className="w-full" size="sm" disabled={!selectedCustomerId}>
                 <PlusCircle className="h-4 w-4 mr-2" />
                 Add
               </Button>
@@ -483,7 +516,10 @@ export default function BillingPage() {
         <CardHeader>
           <CardTitle className="font-headline">Current Bill</CardTitle>
           <CardDescription>
-            Items added for the selected customer.
+            {selectedCustomerId 
+              ? `Items added for ${selectedCustomerData?.name_en}.`
+              : 'Select a customer to view or create a bill.'
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -500,8 +536,8 @@ export default function BillingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentBillItems.length > 0 ? (
-                currentBillItems.map((item, index) => (
+              {billItems.length > 0 ? (
+                billItems.map((item, index) => (
                   <TableRow key={item.id}>
                     <TableCell>{index + 1}</TableCell>
                     <TableCell className="font-medium">{item.product}</TableCell>
@@ -516,7 +552,7 @@ export default function BillingPage() {
                       {item.amount.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => removeBillItem(item.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                         <span className="sr-only">Delete item</span>
                       </Button>
@@ -526,14 +562,14 @@ export default function BillingPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center">
-                    No items added yet.
+                    {selectedCustomerId ? 'No items added yet.' : 'Select a customer to begin.'}
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
-        <CardFooter className="flex flex-col items-end gap-4">
+        {selectedCustomerId && (<CardFooter className="flex flex-col items-end gap-4">
           <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg">
             <span className="font-semibold">Total:</span>
             <span className="font-bold font-mono">
@@ -561,7 +597,7 @@ export default function BillingPage() {
               Print Bill
             </Button>
           </div>
-        </CardFooter>
+        </CardFooter>)}
       </Card>
     </div>
   );
