@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -14,10 +14,12 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useData } from '@/context/DataContext';
 import { Product } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddProductDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  productToEdit?: Product | null;
 }
 
 const UOM_OPTIONS = ['KGS', 'BOX', 'NOS', 'ITEMS'] as const;
@@ -26,12 +28,33 @@ type Uom = typeof UOM_OPTIONS[number];
 export function AddProductDialog({
   isOpen,
   onOpenChange,
+  productToEdit,
 }: AddProductDialogProps) {
-  const { addProduct } = useData();
+  const { addProduct, editProduct } = useData();
+  const { toast } = useToast();
+  
   const [id, setId] = useState('');
   const [nameEn, setNameEn] = useState('');
   const [nameTa, setNameTa] = useState('');
   const [uoms, setUoms] = useState<Set<Uom>>(new Set());
+
+  const isEditing = !!productToEdit;
+
+  useEffect(() => {
+    if (isEditing && productToEdit) {
+      setId(productToEdit.id);
+      setNameEn(productToEdit.name_en);
+      setNameTa(productToEdit.name_ta);
+      setUoms(new Set(productToEdit.uom_allowed as Uom[]));
+    } else {
+      // Reset for "Add New" mode
+      setId('');
+      setNameEn('');
+      setNameTa('');
+      setUoms(new Set());
+    }
+  }, [productToEdit, isEditing, isOpen]);
+
 
   const handleUomChange = (uom: Uom, checked: boolean) => {
     setUoms((prev) => {
@@ -46,41 +69,51 @@ export function AddProductDialog({
   };
 
   const handleSubmit = () => {
-    const newProduct: Omit<Product, 'id' | 'uom_allowed'> & { id?: string, uom_allowed: Uom[] } = {
-      id: id || undefined,
+    const productData = {
       name_en: nameEn,
       name_ta: nameTa,
       uom_allowed: Array.from(uoms),
     };
-    addProduct(newProduct);
+
+    if (isEditing) {
+      editProduct(id, productData);
+      toast({ title: 'Product Updated', description: `"${nameEn}" has been updated.` });
+    } else {
+       const newProduct: Omit<Product, 'id'> & { id?: string } = {
+        id: id || undefined,
+        ...productData
+      };
+      addProduct(newProduct);
+      toast({ title: 'Product Added', description: `"${nameEn}" has been added.` });
+    }
+
     onOpenChange(false);
-    // Reset form
-    setId('');
-    setNameEn('');
-    setNameTa('');
-    setUoms(new Set());
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Product</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Product' : 'Add New Product'}</DialogTitle>
           <DialogDescription>
-            Enter the details for the new product. Leave ID blank to auto-generate.
+            {isEditing 
+              ? `Editing details for ${productToEdit?.name_en}.`
+              : 'Enter the details for the new product. Leave ID blank to auto-generate.'
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
              <Label htmlFor="id" className="text-right">
-              ID (Optional)
+              ID
             </Label>
             <Input
               id="id"
               value={id}
               onChange={(e) => setId(e.target.value.toUpperCase())}
               className="col-span-3"
-              placeholder="e.g., P10"
+              placeholder={isEditing ? '' : 'e.g., P10 (Optional)'}
+              disabled={isEditing}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -92,6 +125,7 @@ export function AddProductDialog({
               value={nameEn}
               onChange={(e) => setNameEn(e.target.value)}
               className="col-span-3"
+              disabled={isEditing}
             />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
@@ -103,10 +137,11 @@ export function AddProductDialog({
               value={nameTa}
               onChange={(e) => setNameTa(e.target.value)}
               className="col-span-3"
+               disabled={isEditing}
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Allowed UOMs</Label>
+          <div className="grid grid-cols-4 items-start gap-4">
+            <Label className="text-right pt-2">Allowed UOMs</Label>
             <div className="col-span-3 grid grid-cols-2 gap-4">
               {UOM_OPTIONS.map((uom) => (
                 <div key={uom} className="flex items-center space-x-2">
@@ -125,7 +160,7 @@ export function AddProductDialog({
         </div>
         <DialogFooter>
           <Button type="submit" onClick={handleSubmit}>
-            Add Product
+            {isEditing ? 'Save Changes' : 'Add Product'}
           </Button>
         </DialogFooter>
       </DialogContent>

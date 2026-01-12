@@ -13,16 +13,19 @@ export type Customer = {
   phone: string;
 };
 
+export type Uom = 'BOX' | 'KGS' | 'ITEMS' | 'NOS';
+
 export type Product = {
   id: string;
   name_en: string;
   name_ta: string;
-  uom_allowed: ('BOX' | 'KGS' | 'ITEMS' | 'NOS')[];
+  uom_allowed: Uom[];
 };
 
 export type BillItem = {
   id: number;
-  product: string;
+  product: string; // This is the Tamil name for display
+  productId: string; // The actual product ID
   uom: string;
   qty: number;
   rate: number;
@@ -37,6 +40,7 @@ export type LiveBillSummary = {
   amount: number;
   createdBy: string;
   stall: string;
+  date?: Date;
 }
 
 export type Payment = {
@@ -70,14 +74,13 @@ export const products: Product[] = [
 ];
 
 export const liveBillSummaries: LiveBillSummary[] = [
-    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 8200, createdBy: 'Admin', stall: '1' },
-    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 15500, createdBy: 'Manager', stall: '2' },
-    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 4850, createdBy: 'Admin', stall: '1' },
+    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 2200, createdBy: 'Admin', stall: '1', date: new Date() },
+    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 6000, createdBy: 'Manager', stall: '2', date: new Date() },
+    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 2475, createdBy: 'Admin', stall: '1', date: new Date() },
 ];
 
-export const liveHistoryItems: BillItem[] = [
-    { id: 1, product: 'டூனா', uom: 'KGS', qty: 10, rate: 220, amount: 2200, user: 'Admin', stall: '1' },
-    { id: 2, product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, user: 'Manager', stall: '2' },
-    { id: 3, product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, user: 'Admin', stall: '1' },
-    { id: 4, product: 'மத்தி', uom: 'BOX', qty: 5, rate: 1500, amount: 7500, user: 'Creator', stall: '3' },
-];
+export const liveHistoryItems: Record<string, BillItem[]> = {
+    'B1234': [{ id: 1, productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 10, rate: 220, amount: 2200, user: 'Admin', stall: '1' }],
+    'B1235': [{ id: 2, productId: 'P02', product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, user: 'Manager', stall: '2' }],
+    'B1236': [{ id: 3, productId: 'P03', product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, user: 'Admin', stall: '1' }],
+};

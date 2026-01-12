@@ -1,5 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import { useToast } from '@/hooks/use-toast';
 import {
   Customer,
   Product,
@@ -23,7 +24,6 @@ interface DataContextType {
   products: Product[];
   users: User[];
   liveBillSummaries: LiveBillSummary[];
-  currentBillItems: BillItem[];
   productPrices: ProductPrices;
   customerBalances: CustomerBalances;
   payments: Payment[];
@@ -32,36 +32,42 @@ interface DataContextType {
   login: (username: string, password?: string) => User | null;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
+  deleteCustomer: (customerId: string) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
+  editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
+  deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'>) => void;
-  addBillItem: (item: BillItem, billNo: string) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
-  clearBill: () => void;
+  updateBillItem: (itemId: number, billNo: string, updates: Partial<BillItem>) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
   ) => string;
+  deleteBills: (billNos: string[]) => void;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
-  setCurrentBillItems: React.Dispatch<React.SetStateAction<BillItem[]>>;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
   getBillItems: (billNo: string) => BillItem[];
+  getBill: (billNo: string) => LiveBillSummary | undefined;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
+  const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [users, setUsers] = useState<User[]>(initialUsers);
   const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
-  const [currentBillItems, setCurrentBillItems] = useState<BillItem[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [productPrices, setProductPrices] = useState<ProductPrices>({
     'P01': { KGS: 250, NOS: 50 },
     'P02': { KGS: 450, BOX: 3200 },
+    'P03': { KGS: 400, NOS: 150 },
+    'P04': { KGS: 180, BOX: 1500 },
+    'P05': { KGS: 200, NOS: 40 },
   });
   const [customerBalances, setCustomerBalances] = useState<CustomerBalances>({
     'C001': 500,
@@ -71,11 +77,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   });
   const [payments, setPayments] = useState<Payment[]>([]);
 
-  const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({
-    'B1234': liveHistoryItems.filter(i => i.id === 1),
-    'B1235': liveHistoryItems.filter(i => i.id === 2),
-    'B1236': liveHistoryItems.filter(i => i.id === 3),
-  });
+  const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>(liveHistoryItems);
 
   const getCustomerIdFromName = (customerName: string) => {
     const customer = customers.find(c => customerName.includes(c.name_en));
@@ -94,9 +96,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   
   const logout = () => {
     setCurrentUser(null);
-    clearBill();
   };
-
 
   const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
     setCustomers((prev) => {
@@ -116,6 +116,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return [...prev, newCustomer];
     });
   };
+  
+  const deleteCustomer = (customerId: string) => {
+    setCustomers(prev => prev.filter(c => c.id !== customerId));
+    toast({ title: 'Customer Deleted', description: `Customer ${customerId} has been deleted.` });
+  };
 
   const addProduct = (product: Omit<Product, 'id'> & { id?: string }) => {
     setProducts((prev) => {
@@ -133,6 +138,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       };
       return [...prev, newProduct];
     });
+  };
+  
+  const editProduct = (productId: string, data: Partial<Omit<Product, 'id'>>) => {
+    setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...data } : p));
+  };
+  
+  const deleteProduct = (productId: string) => {
+    setProducts(prev => prev.filter(p => p.id !== productId));
+    toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
   const addUser = (user: Omit<User, 'id' | 'status'>) => {
@@ -152,44 +166,39 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const addBillItem = (item: BillItem, billNo: string) => {
-    // This function will now update the central liveBillItems state
-    setLiveBillItems(prev => {
-        const currentItems = prev[billNo] || [];
-        const newItems = [...currentItems, item];
-        return {...prev, [billNo]: newItems};
+  const updateLiveBillSummary = (billNo: string, items: BillItem[]) => {
+    const newTotal = items.reduce((sum, item) => sum + item.amount, 0);
+    setLiveBillSummaries(prev => {
+      const oldSummary = prev.find(b => b.billNo === billNo);
+      const oldAmount = oldSummary?.amount || 0;
+
+      if (oldSummary) {
+          const customerId = getCustomerIdFromName(oldSummary.customerName);
+          if (customerId) {
+              const balanceChange = newTotal - oldAmount;
+              setCustomerBalances(prevBalances => ({
+                  ...prevBalances,
+                  [customerId]: (prevBalances[customerId] || 0) + balanceChange,
+              }));
+          }
+      }
+
+      return prev.map(b => b.billNo === billNo ? { ...b, amount: newTotal } : b);
     });
-    // We also update the summary
-    setLiveBillSummaries(prev => prev.map(summary => 
-        summary.billNo === billNo 
-        ? { ...summary, amount: summary.amount + item.amount }
-        : summary
-    ));
   };
   
   const removeBillItem = (itemId: number, billNo: string) => {
-    let removedItemAmount = 0;
-    setLiveBillItems(prev => {
-        const billItems = prev[billNo] || [];
-        const itemToRemove = billItems.find(i => i.id === itemId);
-        if (itemToRemove) {
-            removedItemAmount = itemToRemove.amount;
-        }
-        const newItems = billItems.filter(item => item.id !== itemId);
-        return {...prev, [billNo]: newItems};
-    });
-    
-    if (removedItemAmount > 0) {
-        setLiveBillSummaries(prev => prev.map(summary =>
-            summary.billNo === billNo
-            ? { ...summary, amount: summary.amount - removedItemAmount }
-            : summary
-        ));
-    }
+    const items = liveBillItems[billNo] || [];
+    const newItems = items.filter(item => item.id !== itemId);
+    setLiveBillItems(prev => ({...prev, [billNo]: newItems}));
+    updateLiveBillSummary(billNo, newItems);
   };
   
-  const clearBill = () => {
-    setCurrentBillItems([]);
+  const updateBillItem = (itemId: number, billNo: string, updates: Partial<BillItem>) => {
+    const items = liveBillItems[billNo] || [];
+    const newItems = items.map(item => item.id === itemId ? { ...item, ...updates } : item);
+    setLiveBillItems(prev => ({...prev, [billNo]: newItems}));
+    updateLiveBillSummary(billNo, newItems);
   };
   
   const findBillForCustomerToday = (customerId: string) => {
@@ -200,40 +209,28 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return liveBillSummaries.find(bill => bill.customerName.includes(customer.name_en));
   };
 
-  const getBillItems = (billNo: string) => {
+  const getBillItems = useCallback((billNo: string) => {
     return liveBillItems[billNo] || [];
+  }, [liveBillItems]);
+  
+  const getBill = (billNo: string) => {
+    return liveBillSummaries.find(b => b.billNo === billNo);
   };
 
+
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo'>, 
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>, 
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
   ) => {
-    const customerId = getCustomerIdFromName(summary.customerName);
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
 
     if (existingBillNo) {
-        // Update existing bill
-        setLiveBillSummaries(prev => {
-            const oldSummary = prev.find(b => b.billNo === existingBillNo);
-            const oldAmount = oldSummary?.amount || 0;
-
-            if (customerId) {
-                const balanceChange = totalAmount - oldAmount;
-                setCustomerBalances(prevBalances => ({
-                    ...prevBalances,
-                    [customerId]: (prevBalances[customerId] || 0) + balanceChange,
-                }));
-            }
-
-            return prev.map(b => b.billNo === existingBillNo ? { ...summary, billNo: existingBillNo, amount: totalAmount } : b);
-        });
-
-        setLiveBillItems(prev => ({...prev, [existingBillNo]: items}));
-        return existingBillNo;
+      updateLiveBillSummary(existingBillNo, items);
+      setLiveBillItems(prev => ({...prev, [existingBillNo]: items}));
+      return existingBillNo;
     } else {
-        // Create new bill
         const maxBillNo = liveBillSummaries
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
             .filter(num => !isNaN(num))
@@ -246,6 +243,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             amount: totalAmount,
         };
 
+        const customerId = getCustomerIdFromName(summary.customerName);
         if (customerId) {
             setCustomerBalances(prevBalances => ({
                 ...prevBalances,
@@ -258,6 +256,41 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return newBillNo;
     }
   };
+
+    const deleteBills = (billNos: string[]) => {
+        const billsToDelete = liveBillSummaries.filter(b => billNos.includes(b.billNo));
+        
+        // Revert customer balances
+        const balanceUpdates: CustomerBalances = {};
+        billsToDelete.forEach(bill => {
+            const customerId = getCustomerIdFromName(bill.customerName);
+            if (customerId) {
+                if (!balanceUpdates[customerId]) balanceUpdates[customerId] = 0;
+                balanceUpdates[customerId] -= bill.amount; // Subtract the bill amount
+            }
+        });
+
+        setCustomerBalances(prev => {
+            const newBalances = { ...prev };
+            for (const customerId in balanceUpdates) {
+                newBalances[customerId] = (newBalances[customerId] || 0) + balanceUpdates[customerId];
+            }
+            return newBalances;
+        });
+
+        // Delete bills and items
+        setLiveBillSummaries(prev => prev.filter(b => !billNos.includes(b.billNo)));
+        setLiveBillItems(prev => {
+            const newItems = { ...prev };
+            billNos.forEach(billNo => delete newItems[billNo]);
+            return newItems;
+        });
+
+        toast({
+            title: 'Bills Deleted',
+            description: `${billNos.length} bill(s) have been permanently deleted.`,
+        });
+    };
 
   const addPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
       setPayments(prev => {
@@ -285,10 +318,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
   };
 
-  // The below functions are now deprecated in favor of the new logic, but kept for compatibility.
-  const addLiveBillSummary = (summary: Omit<LiveBillSummary, 'billNo'>, paidAmount: number) => {};
-  const updateLiveBillSummary = (summary: LiveBillSummary, paidAmount: number, oldTotal: number) => {};
-
   return (
     <DataContext.Provider
       value={{
@@ -296,7 +325,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         products,
         users,
         liveBillSummaries,
-        currentBillItems,
         productPrices,
         customerBalances,
         payments,
@@ -305,17 +333,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         login,
         logout,
         addCustomer,
+        deleteCustomer,
         addProduct,
+        editProduct,
+        deleteProduct,
         addUser,
-        addBillItem,
         removeBillItem,
-        clearBill,
+        updateBillItem,
         createOrUpdateLiveBill,
+        deleteBills,
         updateProductPrice,
-        setCurrentBillItems,
         addPayment,
         findBillForCustomerToday,
         getBillItems,
+        getBill,
       }}
     >
       {children}

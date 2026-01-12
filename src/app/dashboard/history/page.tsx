@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Check, ChevronsUpDown, Search } from 'lucide-react';
+import { Check, ChevronsUpDown, Search, Trash2 } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -38,13 +38,20 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useAlertDialog } from '@/context/AlertDialogProvider';
+import { useToast } from '@/hooks/use-toast';
 
 export default function HistoryPage() {
-  const { liveBillSummaries, customers } = useData();
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const { liveBillSummaries, customers, deleteBills, currentUser } = useData();
   const router = useRouter();
+  const showAlertDialog = useAlertDialog();
+  const { toast } = useToast();
+
+  const [date, setDate] = useState<Date | undefined>(new Date());
   const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
   const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
+  const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
 
   const handleEditBill = (billNo: string) => {
     router.push(`/dashboard?billNo=${billNo}`);
@@ -59,13 +66,65 @@ export default function HistoryPage() {
     setCustomerPopoverOpen(false);
   };
 
+  const handleSelectBill = (billNo: string, checked: boolean) => {
+    setSelectedBills((prev) => {
+      const newSelection = new Set(prev);
+      if (checked) {
+        newSelection.add(billNo);
+      } else {
+        newSelection.delete(billNo);
+      }
+      return newSelection;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedBills(new Set(liveBillSummaries.map((bill) => bill.billNo)));
+    } else {
+      setSelectedBills(new Set());
+    }
+  };
+  
+  const canDelete = useMemo(() => {
+    return currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
+  }, [currentUser]);
+
+
+  const handleDeleteSelected = () => {
+    if (selectedBills.size === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'No Bills Selected',
+        description: 'Please select at least one bill to delete.',
+      });
+      return;
+    }
+    showAlertDialog({
+      title: 'Are you sure?',
+      description: `This will permanently delete ${selectedBills.size} bill(s). This action cannot be undone.`,
+      onConfirm: () => {
+        deleteBills(Array.from(selectedBills));
+        setSelectedBills(new Set());
+      },
+    });
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="font-headline">Bill History</CardTitle>
-        <CardDescription>
-          Search and view past bills. Double-click a row to open and edit.
-        </CardDescription>
+      <CardHeader className="flex flex-row justify-between items-center">
+        <div>
+          <CardTitle className="font-headline">Bill History</CardTitle>
+          <CardDescription>
+            Search and view past bills. Double-click a row to open and edit.
+          </CardDescription>
+        </div>
+        {selectedBills.size > 0 && canDelete && (
+          <Button variant="destructive" onClick={handleDeleteSelected}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete Selected ({selectedBills.size})
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -154,6 +213,18 @@ export default function HistoryPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              {canDelete && (
+                <TableHead padding="checkbox">
+                  <Checkbox
+                    checked={
+                      liveBillSummaries.length > 0 &&
+                      selectedBills.size === liveBillSummaries.length
+                    }
+                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                    aria-label="Select all"
+                  />
+                </TableHead>
+              )}
               <TableHead>Bill No</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead className="text-right">Amount</TableHead>
@@ -167,7 +238,19 @@ export default function HistoryPage() {
                 key={bill.billNo}
                 className="cursor-pointer"
                 onDoubleClick={() => handleEditBill(bill.billNo)}
+                data-state={selectedBills.has(bill.billNo) && 'selected'}
               >
+                {canDelete && (
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={selectedBills.has(bill.billNo)}
+                      onCheckedChange={(checked) =>
+                        handleSelectBill(bill.billNo, !!checked)
+                      }
+                      aria-label={`Select bill ${bill.billNo}`}
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="font-medium">{bill.billNo}</TableCell>
                 <TableCell>{bill.customerName}</TableCell>
                 <TableCell className="text-right">
