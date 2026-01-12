@@ -1,6 +1,5 @@
 'use client';
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,18 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
-import { User, users as demoUsers } from '@/lib/data';
-
 
 function CompanyHeader() {
   return (
@@ -44,8 +33,8 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useData();
   const { toast } = useToast();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('password');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,7 +75,7 @@ export default function LoginPage() {
               <Input
                 id="username"
                 type="text"
-                placeholder="admin"
+                placeholder="Enter your username"
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -100,6 +89,7 @@ export default function LoginPage() {
                 id="password" 
                 type="password" 
                 required 
+                placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -108,31 +98,6 @@ export default function LoginPage() {
               Log in
             </Button>
           </form>
-        </CardContent>
-      </Card>
-      <Card className="w-full max-w-sm mt-6">
-        <CardHeader>
-            <CardTitle className="text-lg">Demo Credentials</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Username</TableHead>
-                        <TableHead>Password</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {demoUsers.map(user => (
-                        <TableRow key={user.role}>
-                            <TableCell>{user.role}</TableCell>
-                            <TableCell>{user.username}</TableCell>
-                            <TableCell>{user.password}</TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
         </CardContent>
       </Card>
     </main>

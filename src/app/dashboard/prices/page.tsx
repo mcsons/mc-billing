@@ -11,30 +11,17 @@ import { useData } from '@/context/DataContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
-import { Check, ChevronsUpDown, Save } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Save } from 'lucide-react';
 import { Product } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import ReactSelect from 'react-select';
 
 type LocalPrices = Record<string, string>;
 
 export default function PricesPage() {
   const { products, productPrices, updateProductPrice } = useData();
   const { toast } = useToast();
-  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
+
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [localPrices, setLocalPrices] = useState<LocalPrices>({});
 
@@ -52,10 +39,6 @@ export default function PricesPage() {
     }
   }, [selectedProduct, productPrices]);
 
-  const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId === selectedProductId ? '' : productId);
-    setProductPopoverOpen(false);
-  };
 
   const handlePriceChange = (uom: string, value: string) => {
     setLocalPrices((prev) => ({ ...prev, [uom]: value }));
@@ -72,8 +55,8 @@ export default function PricesPage() {
     });
 
     toast({
-        title: "Prices Updated",
-        description: `Prices for ${selectedProduct.name_en} have been saved.`,
+      title: "Prices Updated",
+      description: `Prices for ${selectedProduct.name_en} have been saved.`,
     });
   };
 
@@ -89,52 +72,33 @@ export default function PricesPage() {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="grid gap-2">
             <Label htmlFor="product-search">Product</Label>
-            <Popover
-              open={productPopoverOpen}
-              onOpenChange={setProductPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={productPopoverOpen}
-                  className="w-full justify-between"
-                  onClick={() => setProductPopoverOpen(!productPopoverOpen)}
-                >
-                  {selectedProduct
-                    ? `${selectedProduct.name_en} (${selectedProduct.name_ta})`
-                    : 'Select product...'}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search product..." />
-                  <CommandList>
-                    <CommandEmpty>No product found.</CommandEmpty>
-                    <CommandGroup>
-                      {products.map((product) => (
-                        <CommandItem
-                          key={product.id}
-                          value={`${product.name_en} ${product.name_ta} ${product.id}`}
-                          onSelect={() => handleProductSelect(product.id)}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              selectedProductId.toLowerCase() === product.id.toLowerCase()
-                                ? 'opacity-100'
-                                : 'opacity-0'
-                            )}
-                          />
-                          {product.name_en} ({product.name_ta})
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <ReactSelect
+              instanceId="price-product-select"
+              placeholder="Select product..."
+              isClearable
+              options={products.map((p) => ({
+                value: p.id,
+                label: `${p.name_en} (${p.name_ta})`,
+              }))}
+              value={
+                selectedProduct
+                  ? {
+                    value: selectedProduct.id,
+                    label: `${selectedProduct.name_en} (${selectedProduct.name_ta})`,
+                  }
+                  : null
+              }
+              onChange={(option) => {
+                setSelectedProductId(option ? option.value : '');
+              }}
+              styles={{
+                menu: (base) => ({ ...base, zIndex: 50 }),
+              }}
+              filterOption={(option, input) =>
+                option.label.toLowerCase().includes(input.toLowerCase()) ||
+                option.value.toLowerCase().includes(input.toLowerCase())
+              }
+            />
           </div>
         </div>
 

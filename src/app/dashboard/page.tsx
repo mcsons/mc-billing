@@ -44,14 +44,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -59,6 +51,8 @@ import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import ReactSelect from 'react-select';
+
 
 export default function BillingPage() {
   const searchParams = useSearchParams();
@@ -79,10 +73,9 @@ export default function BillingPage() {
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [customerPopoverOpen, setCustomerPopoverOpen] = useState(false);
+
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
 
-  const [productPopoverOpen, setProductPopoverOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string>('');
 
   const [isProductLocked, setIsProductLocked] = useState(false);
@@ -96,8 +89,7 @@ export default function BillingPage() {
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
-  
-  const productInputRef = useRef<HTMLButtonElement>(null);
+
 
 
   // This effect runs when a bill number is passed in the URL (for editing old bills)
@@ -108,12 +100,12 @@ export default function BillingPage() {
       if (billToEdit) {
         const customer = customers.find(c => billToEdit.customerName.includes(c.name_en));
         if (customer) {
-            setSelectedCustomerId(customer.id);
-            setActiveBillNo(billToEdit.billNo);
-            setBillItems(getBillItems(billToEdit.billNo));
-            setInitialBillTotal(billToEdit.amount);
-            setPaidAmount('');
-            setDate(new Date(billToEdit.date || new Date()));
+          setSelectedCustomerId(customer.id);
+          setActiveBillNo(billToEdit.billNo);
+          setBillItems(getBillItems(billToEdit.billNo));
+          setInitialBillTotal(billToEdit.amount);
+          setPaidAmount('');
+          setDate(new Date(billToEdit.date || new Date()));
         }
       }
     }
@@ -146,7 +138,7 @@ export default function BillingPage() {
       setPaidAmount('');
     }
   }, [selectedCustomerId, findBillForCustomerToday, getBillItems, searchParams]);
-  
+
   const handleAddItem = () => {
     if (!selectedCustomerId) {
       toast({
@@ -187,17 +179,17 @@ export default function BillingPage() {
 
     // Save immediately
     const customer = customers.find(c => c.id === selectedCustomerId);
-    if(customer) {
-        const newBillSummary = {
-            customerName: `${customer.name_en} (${customer.name_ta})`,
-            createdBy: currentUser?.username || 'N/A',
-            stall: '1',
-            date: date || new Date(),
-        };
-        const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
-        if (!activeBillNo) {
-            setActiveBillNo(updatedBillNo);
-        }
+    if (customer) {
+      const newBillSummary = {
+        customerName: `${customer.name_en} (${customer.name_ta})`,
+        createdBy: currentUser?.username || 'N/A',
+        stall: '1',
+        date: date || new Date(),
+      };
+      const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
+      if (!activeBillNo) {
+        setActiveBillNo(updatedBillNo);
+      }
     }
 
 
@@ -207,9 +199,10 @@ export default function BillingPage() {
       setSelectedProductId('');
       setRate('');
     }
-    productInputRef.current?.focus();
+
+    productSelectRef.current?.focus();
   };
-  
+
   const handleItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
     const updatedItems = billItems.map(item => {
       if (item.id === itemId) {
@@ -224,45 +217,45 @@ export default function BillingPage() {
 
   const persistItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
     const updatedItems = billItems.map(item => {
-        if (item.id === itemId) {
-          const parsedValue = parseFloat(value) || 0;
-          const newQty = field === 'qty' ? parsedValue : item.qty;
-          const newRate = field === 'rate' ? parsedValue : item.rate;
-          return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
-        }
-        return item;
-      });
+      if (item.id === itemId) {
+        const parsedValue = parseFloat(value) || 0;
+        const newQty = field === 'qty' ? parsedValue : item.qty;
+        const newRate = field === 'rate' ? parsedValue : item.rate;
+        return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
+      }
+      return item;
+    });
     setBillItems(updatedItems);
 
     // Auto-save on update
     const customer = customers.find(c => c.id === selectedCustomerId);
-    if(customer && activeBillNo) {
-        const newBillSummary = {
-            customerName: `${customer.name_en} (${customer.name_ta})`,
-            createdBy: currentUser?.username || 'N/A',
-            stall: '1',
-            date: date || new Date(),
-        };
-        createOrUpdateLiveBill(newBillSummary, updatedItems, parseFloat(paidAmount) || 0, activeBillNo);
+    if (customer && activeBillNo) {
+      const newBillSummary = {
+        customerName: `${customer.name_en} (${customer.name_ta})`,
+        createdBy: currentUser?.username || 'N/A',
+        stall: '1',
+        date: date || new Date(),
+      };
+      createOrUpdateLiveBill(newBillSummary, updatedItems, parseFloat(paidAmount) || 0, activeBillNo);
     }
   };
 
 
   const handleRemoveItem = (itemId: number) => {
     showAlertDialog({
-        title: "Delete Item?",
-        description: "Are you sure you want to remove this item from the bill? This cannot be undone.",
-        onConfirm: () => {
-            const itemToRemove = billItems.find(item => item.id === itemId);
-            if (!itemToRemove || !activeBillNo) return;
+      title: "Delete Item?",
+      description: "Are you sure you want to remove this item from the bill? This cannot be undone.",
+      onConfirm: () => {
+        const itemToRemove = billItems.find(item => item.id === itemId);
+        if (!itemToRemove || !activeBillNo) return;
 
-            removeBillItem(itemId, activeBillNo);
-            setBillItems(prev => prev.filter(item => item.id !== itemId));
-            toast({
-                title: "Item Removed",
-                description: "The item has been removed from the bill.",
-            });
-        }
+        removeBillItem(itemId, activeBillNo);
+        setBillItems(prev => prev.filter(item => item.id !== itemId));
+        toast({
+          title: "Item Removed",
+          description: "The item has been removed from the bill.",
+        });
+      }
     });
   };
 
@@ -370,22 +363,13 @@ export default function BillingPage() {
     (p) => p.id.toLowerCase() === selectedProductId.toLowerCase()
   );
 
-  const handleProductSelect = (productId: string) => {
-    setSelectedProductId(productId);
-    const product = products.find((p) => p.id === productId);
-    if (product && product.uom_allowed.length > 0) {
-      setUom(product.uom_allowed[0]);
-    }
-    setProductPopoverOpen(false);
-  };
+  const productSelectRef = useRef<any>(null);
 
   const handleCustomerSelect = (customerId: string) => {
-      if (customerId !== selectedCustomerId) {
-        router.replace('/dashboard'); // Clear any billNo from params
-        setSelectedCustomerId(customerId);
-      }
-      setCustomerPopoverOpen(false);
+    router.replace('/dashboard');
+    setSelectedCustomerId(customerId);
   };
+
 
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8 lg:grid-cols-2">
@@ -405,84 +389,67 @@ export default function BillingPage() {
             </div>
             <div className="flex flex-col gap-2 items-end">
               <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={'outline'}
-                      className={cn(
-                        'w-[240px] justify-start text-left font-normal',
-                        !date && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, 'PPP') : <span>Pick a date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={date}
-                      onSelect={setDate}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                 <Button variant="outline" onClick={handleNewBill}>
-                    <FilePlus className="mr-2 h-4 w-4" />
-                    New Bill
-                </Button>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={'outline'}
+                    className={cn(
+                      'w-[240px] justify-start text-left font-normal',
+                      !date && 'text-muted-foreground'
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {date ? format(date, 'PPP') : <span>Pick a date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <Button variant="outline" onClick={handleNewBill}>
+                <FilePlus className="mr-2 h-4 w-4" />
+                New Bill
+              </Button>
             </div>
           </CardHeader>
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="customer">Customer (ID, பெயர், Name)</Label>
-                <Popover
-                  open={customerPopoverOpen}
-                  onOpenChange={setCustomerPopoverOpen}
-                >
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={customerPopoverOpen}
-                      className="justify-between"
-                      onClick={() => setCustomerPopoverOpen(!customerPopoverOpen)}
-                    >
-                      {selectedCustomerData
-                        ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
-                        : 'Select customer...'}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search customer..." />
-                      <CommandList>
-                        <CommandEmpty>No customer found.</CommandEmpty>
-                        <CommandGroup>
-                          {customers.map((customer) => (
-                            <CommandItem
-                              key={customer.id}
-                              value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
-                              onSelect={() => handleCustomerSelect(customer.id)}
-                            >
-                              <Check
-                                className={cn(
-                                  'mr-2 h-4 w-4',
-                                  selectedCustomerId === customer.id
-                                    ? 'opacity-100'
-                                    : 'opacity-0'
-                                )}
-                              />
-                              {customer.name_en} ({customer.name_ta})
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+
+                <ReactSelect
+                  instanceId="customer-select"
+                  placeholder="Select customer..."
+                  isClearable
+                  options={customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name_en} (${c.name_ta})`,
+                  }))}
+                  value={
+                    selectedCustomerData
+                      ? {
+                        value: selectedCustomerData.id,
+                        label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
+                      }
+                      : null
+                  }
+                  onChange={(option) => {
+                    router.replace('/dashboard');
+                    setSelectedCustomerId(option ? option.value : '');
+                    handleCustomerSelect(option ? option.value : '')
+                  }}
+                  styles={{
+                    menu: (base) => ({ ...base, zIndex: 50 }),
+                  }}
+                />
+
               </div>
+
+
               <div className="grid gap-2">
                 <Label htmlFor="stall">Stall</Label>
                 <Select defaultValue="1">
@@ -509,54 +476,46 @@ export default function BillingPage() {
               <div className="grid gap-2 col-span-12 lg:col-span-5">
                 <Label htmlFor="product">Product (ID, பெயர், Name)</Label>
                 <div className="relative">
-                   <Popover
-                      open={productPopoverOpen}
-                      onOpenChange={setProductPopoverOpen}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button
-                          ref={productInputRef}
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={productPopoverOpen}
-                          className="w-full justify-between"
-                          disabled={isProductLocked || !selectedCustomerId}
-                          onClick={() => setProductPopoverOpen(!productPopoverOpen)}
-                        >
-                          {selectedProductData
-                            ? `${selectedProductData?.name_en} (${selectedProductData?.name_ta})`
-                            : 'Select product...'}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[300px] p-0">
-                        <Command>
-                          <CommandInput placeholder="Search product..." />
-                          <CommandList>
-                            <CommandEmpty>No product found.</CommandEmpty>
-                            <CommandGroup>
-                              {products.map((product) => (
-                                <CommandItem
-                                  key={product.id}
-                                  value={`${product.name_en} ${product.name_ta} ${product.id}`}
-                                  onSelect={() => handleProductSelect(product.id)}
-                                >
-                                  <Check
-                                    className={cn(
-                                      'mr-2 h-4 w-4',
-                                      selectedProductId === product.id
-                                        ? 'opacity-100'
-                                        : 'opacity-0'
-                                    )}
-                                  />
-                                  {product.name_en} ({product.name_ta})
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
+                  <ReactSelect
+                    instanceId="product-select"
+                    placeholder="Select product..."
+                    isClearable
+                    isDisabled={!selectedCustomerId || isProductLocked}
+                    options={products.map((p) => ({
+                      value: p.id,
+                      label: `${p.name_en} (${p.name_ta})`,
+                    }))}
+                    value={
+                      selectedProductData
+                        ? {
+                          value: selectedProductData.id,
+                          label: `${selectedProductData.name_en} (${selectedProductData.name_ta})`,
+                        }
+                        : null
+                    }
+                    onChange={(option) => {
+                      if (!option) {
+                        setSelectedProductId('');
+                        setRate('');
+                        return;
+                      }
+
+                      setSelectedProductId(option.value);
+
+                      const product = products.find((p) => p.id === option.value);
+                      if (product && product.uom_allowed.length > 0) {
+                        setUom(product.uom_allowed[0]);
+                      }
+                    }}
+                    styles={{
+                      menu: (base) => ({ ...base, zIndex: 50 }),
+                    }}
+                    filterOption={(option, input) =>
+                      option.label.toLowerCase().includes(input.toLowerCase()) ||
+                      option.value.toLowerCase().includes(input.toLowerCase())
+                    }
+                    ref={productSelectRef}
+                  />
                   <Button
                     variant="ghost"
                     size="icon"
@@ -669,13 +628,13 @@ export default function BillingPage() {
                         {item.qty.toFixed(3)}
                       </TableCell>
                       <TableCell className="text-right">
-                         <Input
-                            type="number"
-                            value={item.rate}
-                            onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
-                            onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
-                            onFocus={(e) => e.target.select()}
-                            className="h-8 text-right w-24 ml-auto"
+                        <Input
+                          type="number"
+                          value={item.rate}
+                          onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                          onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="h-8 text-right w-24 ml-auto"
                         />
                       </TableCell>
                       <TableCell className="text-right">

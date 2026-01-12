@@ -25,14 +25,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command';
+
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
@@ -42,6 +35,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useToast } from '@/hooks/use-toast';
 import { LiveBillSummary } from '@/lib/data';
+import ReactSelect from 'react-select';
+
 
 export default function HistoryPage() {
   const { liveBillSummaries, customers, deleteBills, currentUser } = useData();
@@ -50,10 +45,10 @@ export default function HistoryPage() {
   const { toast } = useToast();
 
   const [date, setDate] = useState<Date | undefined>();
-  const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
+
   const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
-  
+
   const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>(liveBillSummaries);
 
   useEffect(() => {
@@ -72,10 +67,6 @@ export default function HistoryPage() {
     (c) => c.id.toLowerCase() === selectedCustomer.toLowerCase()
   );
 
-  const handleCustomerSelect = (customerId: string) => {
-    setSelectedCustomer(customerId === selectedCustomer ? '' : customerId);
-    setCustomerPopoverOpen(false);
-  };
 
   const handleSelectBill = (billNo: string, checked: boolean) => {
     setSelectedBills((prev) => {
@@ -96,7 +87,7 @@ export default function HistoryPage() {
       setSelectedBills(new Set());
     }
   };
-  
+
   const canDelete = useMemo(() => {
     return currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
   }, [currentUser]);
@@ -125,19 +116,19 @@ export default function HistoryPage() {
     let results = liveBillSummaries;
 
     if (selectedCustomer) {
-        const custData = customers.find(c => c.id === selectedCustomer);
-        if (custData) {
-            results = results.filter(bill => bill.customerName.includes(custData.name_en));
-        }
+      const custData = customers.find(c => c.id === selectedCustomer);
+      if (custData) {
+        results = results.filter(bill => bill.customerName.includes(custData.name_en));
+      }
     }
 
     if (date) {
-        results = results.filter(bill => bill.date && isSameDay(bill.date, date));
+      results = results.filter(bill => bill.date && isSameDay(bill.date, date));
     }
-    
+
     setFilteredBills(results);
   };
-  
+
   const handleClearSearch = () => {
     setDate(undefined);
     setSelectedCustomer('');
@@ -164,53 +155,33 @@ export default function HistoryPage() {
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="grid gap-2 flex-1">
             <Label htmlFor="customer-search">Customer</Label>
-            <Popover
-              open={customerPopoverOpen}
-              onOpenChange={setCustomerPopoverOpen}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={customerPopoverOpen}
-                  className="justify-between"
-                  onClick={() => setCustomerPopoverOpen(!customerPopoverOpen)}
-                >
-                  {selectedCustomerData
-                    ? `${selectedCustomerData?.name_en} (${selectedCustomerData?.name_ta})`
-                    : 'Select customer...'}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search customer..." />
-                  <CommandList>
-                    <CommandEmpty>No customer found.</CommandEmpty>
-                    <CommandGroup>
-                      {customers.map((customer) => (
-                        <CommandItem
-                          key={customer.id}
-                          value={`${customer.name_en} ${customer.name_ta} ${customer.id}`}
-                          onSelect={() => handleCustomerSelect(customer.id)}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 h-4 w-4',
-                              selectedCustomer.toLowerCase() ===
-                                customer.id.toLowerCase()
-                                ? 'opacity-100'
-                                : 'opacity-0'
-                            )}
-                          />
-                          {customer.name_en} ({customer.name_ta})
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <ReactSelect
+              instanceId="history-customer-select"
+              placeholder="Select customer..."
+              isClearable
+              options={customers.map((c) => ({
+                value: c.id,
+                label: `${c.name_en} (${c.name_ta})`,
+              }))}
+              value={
+                selectedCustomerData
+                  ? {
+                    value: selectedCustomerData.id,
+                    label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
+                  }
+                  : null
+              }
+              onChange={(option) => {
+                setSelectedCustomer(option ? option.value : '');
+              }}
+              styles={{
+                menu: (base) => ({ ...base, zIndex: 50 }),
+              }}
+              filterOption={(option, input) =>
+                option.label.toLowerCase().includes(input.toLowerCase()) ||
+                option.value.toLowerCase().includes(input.toLowerCase())
+              }
+            />
           </div>
           <div className="grid gap-2">
             <Label htmlFor="date-search">Date</Label>
@@ -243,8 +214,8 @@ export default function HistoryPage() {
               Search
             </Button>
             <Button variant="ghost" onClick={handleClearSearch}>
-                <X className="mr-2 h-4 w-4" />
-                Clear
+              <X className="mr-2 h-4 w-4" />
+              Clear
             </Button>
           </div>
         </div>
@@ -253,7 +224,7 @@ export default function HistoryPage() {
           <TableHeader>
             <TableRow>
               {canDelete && (
-                <TableHead padding="checkbox">
+                <TableHead className="w-[40px] text-center">
                   <Checkbox
                     checked={
                       filteredBills.length > 0 &&
@@ -272,7 +243,7 @@ export default function HistoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-             {filteredBills.length > 0 ? (
+            {filteredBills.length > 0 ? (
               filteredBills.map((bill) => (
                 <TableRow
                   key={bill.billNo}
@@ -281,7 +252,7 @@ export default function HistoryPage() {
                   data-state={selectedBills.has(bill.billNo) && 'selected'}
                 >
                   {canDelete && (
-                    <TableCell padding="checkbox">
+                    <TableCell className="w-[40px] text-center">
                       <Checkbox
                         checked={selectedBills.has(bill.billNo)}
                         onCheckedChange={(checked) =>
@@ -301,11 +272,11 @@ export default function HistoryPage() {
                 </TableRow>
               ))
             ) : (
-                <TableRow>
-                    <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
-                        No results found.
-                    </TableCell>
-                </TableRow>
+              <TableRow>
+                <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
+                  No results found.
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
