@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import { initiateEmailSignIn } from '@/firebase';
 
 function CompanyHeader() {
   return (
@@ -31,26 +32,35 @@ function CompanyHeader() {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useData();
+  const { login, auth } = useData();
   const { toast } = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = login(username, password);
-    if (user) {
-      toast({
-        title: 'Login Successful',
-        description: `Welcome back, ${user.username}!`,
-      });
-      router.push('/dashboard');
-    } else {
-      toast({
-        variant: 'destructive',
-        title: 'Login Failed',
-        description: 'Invalid username or password.',
-      });
+    if (!auth) {
+        toast({
+            variant: 'destructive',
+            title: 'Authentication service not available',
+            description: 'Please try again later.',
+        });
+        return;
+    }
+    try {
+        await initiateEmailSignIn(auth, `${username}@mcandsons.com`, password);
+        // The onAuthStateChanged listener in the provider will handle the redirect.
+        toast({
+            title: 'Login Successful',
+            description: `Welcome back!`,
+        });
+        router.push('/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: 'Invalid username or password.',
+        });
     }
   };
 

@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import { DataProvider } from '@/context/DataContext';
 import { ThemeProvider } from './theme-provider';
+import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
   title: 'MC Billing',
@@ -29,10 +30,12 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-          <DataProvider>
-            {children}
-            <Toaster />
-          </DataProvider>
+          <FirebaseClientProvider>
+            <DataProvider>
+              {children}
+              <Toaster />
+            </DataProvider>
+          </FirebaseClientProvider>
         </ThemeProvider>
       </body>
     </html>

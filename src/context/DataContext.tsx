@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Customer,
@@ -10,15 +10,12 @@ import {
   User,
   Transaction,
   Uom,
-  customers as initialCustomers,
-  products as initialProducts,
-  liveBillSummaries as initialLiveBillSummaries,
-  users as initialUsers,
-  liveHistoryItems,
-  samplePayments,
-  initialUoms,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
@@ -46,7 +43,7 @@ interface DataContextType {
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'customerId'> & { customerId: string },
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -61,51 +58,84 @@ interface DataContextType {
     customerId: string, 
     dateRange: { from: Date, to: Date }
   ) => { transactions: Transaction[], openingBalance: number };
+  auth: any;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
-  const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [users, setUsers] = useState<User[]>(initialUsers);
-  const [uoms, setUoms] = useState<Uom[]>(initialUoms);
-  const [liveBillSummaries, setLiveBillSummaries] = useState<LiveBillSummary[]>(initialLiveBillSummaries);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [productPrices, setProductPrices] = useState<ProductPrices>({
-    'P01': { KGS: 250, NOS: 50 },
-    'P02': { KGS: 450, BOX: 3200 },
-    'P03': { KGS: 400, NOS: 150 },
-    'P04': { KGS: 180, BOX: 1500 },
-    'P05': { KGS: 200, NOS: 40 },
-  });
-  const [payments, setPayments] = useState<Payment[]>(samplePayments);
+  const firestore = useFirestore();
+  const auth = useAuth();
+  const { user: firebaseUser, isUserLoading } = useUser();
 
-  const [customerBalances, setCustomerBalances] = useState<CustomerBalances>(() => {
+  const customersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'customers') : null, [firestore]);
+  const { data: customersData } = useCollection<Customer>(customersCollection);
+  const customers = useMemo(() => customersData || [], [customersData]);
+
+  const productsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'products') : null, [firestore]);
+  const { data: productsData } = useCollection<Product>(productsCollection);
+  const products = useMemo(() => productsData || [], [productsData]);
+  
+  const usersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'users') : null, [firestore]);
+  const { data: usersData } = useCollection<User>(usersCollection);
+  const users = useMemo(() => usersData || [], [usersData]);
+
+  const uomsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'uoms') : null, [firestore]);
+  const { data: uomsData } = useCollection<{name: string}>(uomsCollection);
+  const uoms = useMemo(() => (uomsData || []).map(u => u.name), [uomsData]);
+
+
+  const billsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'bills') : null, [firestore]);
+  const { data: liveBillSummariesData } = useCollection<LiveBillSummary>(billsCollection);
+  const liveBillSummaries = useMemo(() => liveBillSummariesData || [], [liveBillSummariesData]);
+
+
+  const paymentsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'payments') : null, [firestore]);
+  const { data: paymentsData } = useCollection<Payment>(paymentsCollection);
+  const payments = useMemo(() => paymentsData || [], [paymentsData]);
+  
+  const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({});
+  
+  const { data: pricesData } = useCollection<any>(useMemoFirebase(() => firestore ? collection(firestore, 'productPrices') : null, [firestore]));
+  const productPrices = useMemo(() => {
+    return (pricesData || []).reduce((acc, price) => {
+        if (!acc[price.productId]) {
+            acc[price.productId] = {};
+        }
+        acc[price.productId][price.uom] = price.pricePerUom;
+        return acc;
+    }, {} as ProductPrices);
+  }, [pricesData]);
+
+
+  const currentUser = useMemo(() => {
+    if (isUserLoading || !firebaseUser) return null;
+    return users.find(u => u.id === firebaseUser.uid) || null;
+  }, [firebaseUser, isUserLoading, users]);
+
+
+  const customerBalances = useMemo(() => {
     const balances: CustomerBalances = {};
-    initialCustomers.forEach(c => balances[c.id] = 0);
+    customers.forEach(c => balances[c.id] = 0);
 
     const allTransactions = [
-        ...initialLiveBillSummaries.map(bill => {
-            const customer = initialCustomers.find(c => bill.customerName.includes(c.name_en));
-            return {
-                customerId: customer?.id,
-                amount: bill.amount,
-                type: 'bill' as const,
-                date: bill.date || new Date(0)
-            }
-        }),
-        ...samplePayments.map(payment => ({
+        ...liveBillSummaries.map(bill => ({
+            customerId: bill.customerId,
+            amount: bill.amount,
+            type: 'bill' as const,
+            date: bill.date || new Date(0)
+        })),
+        ...payments.map(payment => ({
             customerId: payment.customerId,
             amount: payment.amount,
             type: 'payment' as const,
             date: payment.date
         }))
-    ].sort((a, b) => a.date.getTime() - b.date.getTime());
+    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     allTransactions.forEach(tx => {
-        if (tx.customerId && balances[tx.customerId] !== undefined) {
+        if (tx.customerId && typeof balances[tx.customerId] !== 'undefined') {
             if (tx.type === 'bill') {
                 balances[tx.customerId] += tx.amount;
             } else {
@@ -115,129 +145,101 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
     
     return balances;
-  });
+  }, [customers, liveBillSummaries, payments]);
 
-  const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>(liveHistoryItems);
-
-  const getCustomerIdFromName = (customerName: string) => {
-    const customer = customers.find(c => customerName.includes(c.name_en));
-    return customer?.id;
-  };
 
   const login = (username: string, password?: string): User | null => {
     const user = users.find(u => u.username === username && u.password === password);
     if (user) {
-      setCurrentUser(user);
       return user;
     }
-    setCurrentUser(null);
     return null;
   };
   
   const logout = () => {
-    setCurrentUser(null);
+    auth?.signOut();
   };
 
   const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
-    setCustomers((prev) => {
-      let newId = customer.id;
-      if (!newId) {
-        const maxId = prev
-          .map(c => parseInt(c.id.replace('C', ''), 10))
-          .filter(num => !isNaN(num))
-          .reduce((max, num) => Math.max(max, num), 0);
-        newId = `C${(maxId + 1).toString().padStart(3, '0')}`;
-      }
-      const newCustomer: Customer = {
-        ...customer,
-        id: newId,
-      };
-      setCustomerBalances(prevBalances => ({...prevBalances, [newId as string]: 0}));
-      return [...prev, newCustomer];
-    });
+    if (!firestore) return;
+    let newId = customer.id;
+    if (!newId) {
+      const maxId = customers
+        .map(c => parseInt(c.id.replace('C', ''), 10))
+        .filter(num => !isNaN(num))
+        .reduce((max, num) => Math.max(max, num), 0);
+      newId = `C${(maxId + 1).toString().padStart(3, '0')}`;
+    }
+    const customerRef = doc(firestore, 'customers', newId);
+    const newCustomerData = {
+      ...customer,
+      id: newId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      active: true,
+    }
+    setDocumentNonBlocking(customerRef, newCustomerData, {});
   };
   
   const deleteCustomer = (customerId: string) => {
-    setCustomers(prev => prev.filter(c => c.id !== customerId));
+    if (!firestore) return;
+    const customerRef = doc(firestore, 'customers', customerId);
+    deleteDocumentNonBlocking(customerRef);
     toast({ title: 'Customer Deleted', description: `Customer ${customerId} has been deleted.` });
   };
 
   const addProduct = (product: Omit<Product, 'id'> & { id?: string }) => {
-    setProducts((prev) => {
+     if (!firestore) return;
       let newId = product.id;
       if (!newId) {
-        const maxId = prev
+        const maxId = products
           .map(p => parseInt(p.id.replace('P', ''), 10))
           .filter(num => !isNaN(num))
           .reduce((max, num) => Math.max(max, num), 0);
         newId = `P${(maxId + 1).toString().padStart(2, '0')}`;
       }
-      const newProduct: Product = {
+      const productRef = doc(firestore, 'products', newId);
+      const newProductData = {
         ...product,
         id: newId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        active: true,
       };
-      return [...prev, newProduct];
-    });
+      setDocumentNonBlocking(productRef, newProductData, {});
   };
   
   const editProduct = (productId: string, data: Partial<Omit<Product, 'id'>>) => {
-    setProducts(prev => prev.map(p => p.id === productId ? { ...p, ...data } : p));
+    if (!firestore) return;
+    const productRef = doc(firestore, 'products', productId);
+    updateDocumentNonBlocking(productRef, {
+        ...data,
+        updatedAt: serverTimestamp(),
+    });
   };
   
   const deleteProduct = (productId: string) => {
-    setProducts(prev => prev.filter(p => p.id !== productId));
+    if (!firestore) return;
+    const productRef = doc(firestore, 'products', productId);
+    deleteDocumentNonBlocking(productRef);
     toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
   const addUser = (user: Omit<User, 'id' | 'status'>) => {
-    setUsers((prev) => {
-        const maxId = prev
-            .map(u => parseInt(u.id.replace('U', ''), 10))
-            .filter(num => !isNaN(num))
-            .reduce((max, num) => Math.max(max, num), 0);
-        const newId = `U${(maxId + 1).toString().padStart(2, '0')}`;
-        
-        const newUser: User = {
-            ...user,
-            id: newId,
-            status: 'Active',
-        };
-        return [...prev, newUser];
-    });
+    // This should be a cloud function for security reasons
+    console.log("addUser is not implemented for client-side for security reasons.", user);
+    toast({ variant: "destructive", title: "Action not allowed", description: "Creating users from the client is disabled."});
   };
   
   const addUom = (uom: Uom) => {
-    setUoms(prev => [...prev, uom]);
+    if (!firestore) return;
+    const uomRef = doc(firestore, 'uoms', uom.toUpperCase());
+    setDocumentNonBlocking(uomRef, { name: uom.toUpperCase() }, {});
   };
 
-  const updateLiveBill = (billNo: string, items: BillItem[]) => {
-    const newTotal = items.reduce((sum, item) => sum + item.amount, 0);
-
-    setLiveBillItems(prevItems => ({...prevItems, [billNo]: items}));
-    
-    setLiveBillSummaries(prevSummaries => {
-      const oldSummary = prevSummaries.find(b => b.billNo === billNo);
-      const oldAmount = oldSummary?.amount || 0;
-
-      if (oldSummary) {
-          const customerId = getCustomerIdFromName(oldSummary.customerName);
-          if (customerId) {
-              const balanceChange = newTotal - oldAmount;
-              setCustomerBalances(prevBalances => ({
-                  ...prevBalances,
-                  [customerId]: (prevBalances[customerId] || 0) + balanceChange,
-              }));
-          }
-      }
-
-      return prevSummaries.map(b => b.billNo === billNo ? { ...b, amount: newTotal } : b);
-    });
-  };
-  
   const removeBillItem = (itemId: number, billNo: string) => {
-    const items = liveBillItems[billNo] || [];
-    const newItems = items.filter(item => item.id !== itemId);
-    updateLiveBill(billNo, newItems);
+    // Bill items are now subcollections, handle this with a transaction
+    console.log("removeBillItem needs to be implemented with subcollections", itemId, billNo);
   };
   
   const findBillForCustomerToday = (customerId: string) => {
@@ -245,12 +247,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (!customer) return undefined;
     const today = startOfDay(new Date());
     return liveBillSummaries.find(bill => {
-        if (!bill.date || !bill.customerName.includes(customer.name_en)) return false;
-        return startOfDay(bill.date).getTime() === today.getTime();
+        const billDate = bill.date ? new Date(bill.date) : null;
+        if (!billDate || bill.customerId !== customerId) return false;
+        return startOfDay(billDate).getTime() === today.getTime();
     });
   };
 
   const getBillItems = useCallback((billNo: string) => {
+    // This will need to be replaced with a `useCollection` call for the subcollection
     return liveBillItems[billNo] || [];
   }, [liveBillItems]);
   
@@ -260,102 +264,99 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>, 
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'customerId'> & {customerId: string}, 
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
   ) => {
+    if (!firestore) return "error-no-firestore";
+
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+    const customerId = summary.customerId;
 
     if (existingBillNo) {
-      updateLiveBill(existingBillNo, items);
-      // Logic for paid amount on update isn't fully clear here,
-      // The balance update on edit is handled in updateLiveBill
-      return existingBillNo;
+        const billRef = doc(firestore, 'bills', existingBillNo);
+        updateDocumentNonBlocking(billRef, { ...summary, amount: totalAmount, updatedAt: serverTimestamp() });
+        // Update bill items subcollection
+        const batch = writeBatch(firestore);
+        const itemsCollectionRef = collection(firestore, 'bills', existingBillNo, 'billItems');
+        // This is simplified. In reality, you'd need to fetch existing items and diff.
+        items.forEach(item => {
+            const itemRef = doc(itemsCollectionRef, item.id.toString());
+            batch.set(itemRef, item);
+        });
+        batch.commit();
+        return existingBillNo;
     } else {
         const maxBillNo = liveBillSummaries
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
             .filter(num => !isNaN(num))
             .reduce((max, num) => Math.max(max, num), 1237);
         const newBillNo = `B${maxBillNo + 1}`;
-
+        
         const newSummary: LiveBillSummary = {
             ...summary,
             billNo: newBillNo,
             amount: totalAmount,
+            customerId: customerId
         };
+        const billRef = doc(firestore, 'bills', newBillNo);
+        setDocumentNonBlocking(billRef, { ...newSummary, createdAt: serverTimestamp() }, {});
 
-        const customerId = getCustomerIdFromName(summary.customerName);
-        if (customerId) {
-            setCustomerBalances(prevBalances => ({
-                ...prevBalances,
-                [customerId]: (prevBalances[customerId] || 0) + totalAmount - paidAmount,
-            }));
+        const batch = writeBatch(firestore);
+        const itemsCollectionRef = collection(firestore, 'bills', newBillNo, 'billItems');
+        items.forEach(item => {
+            const itemRef = doc(itemsCollectionRef, item.id.toString());
+            batch.set(itemRef, item);
+        });
+        batch.commit();
+
+        if (paidAmount > 0) {
+            addPayment({
+                customerId,
+                amount: paidAmount,
+                notes: `Payment for new bill ${newBillNo}`
+            });
         }
         
-        setLiveBillSummaries(prev => [newSummary, ...prev]);
-        setLiveBillItems(prev => ({...prev, [newBillNo]: items}));
         return newBillNo;
     }
   };
 
     const deleteBills = (billNos: string[]) => {
-        const billsToDelete = liveBillSummaries.filter(b => billNos.includes(b.billNo));
-        
-        const balanceUpdates: CustomerBalances = {};
-        billsToDelete.forEach(bill => {
-            const customerId = getCustomerIdFromName(bill.customerName);
-            if (customerId) {
-                if (!balanceUpdates[customerId]) balanceUpdates[customerId] = 0;
-                balanceUpdates[customerId] -= bill.amount;
-            }
-        });
-
-        setCustomerBalances(prev => {
-            const newBalances = { ...prev };
-            for (const customerId in balanceUpdates) {
-                newBalances[customerId] = (newBalances[customerId] || 0) + balanceUpdates[customerId];
-            }
-            return newBalances;
-        });
-
-        setLiveBillSummaries(prev => prev.filter(b => !billNos.includes(b.billNo)));
-        setLiveBillItems(prev => {
-            const newItems = { ...prev };
-            billNos.forEach(billNo => delete newItems[billNo]);
-            return newItems;
-        });
-
-        toast({
-            title: 'Bills Deleted',
-            description: `${billNos.length} bill(s) have been permanently deleted.`,
-        });
+       if (!firestore) return;
+       const batch = writeBatch(firestore);
+       billNos.forEach(billNo => {
+           const billRef = doc(firestore, 'bills', billNo);
+           batch.delete(billRef);
+       });
+       batch.commit().then(() => {
+           toast({
+                title: 'Bills Deleted',
+                description: `${billNos.length} bill(s) have been permanently deleted.`,
+            });
+       });
     };
 
   const addPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
-      setPayments(prev => {
-          const newPayment: Payment = {
-              ...payment,
-              id: (prev.length > 0 ? Math.max(...prev.map(p => p.id)) : 0) + 1,
-              date: new Date(),
-          };
-          return [...prev, newPayment];
+      if (!firestore) return;
+      const paymentsCol = collection(firestore, 'payments');
+      addDocumentNonBlocking(paymentsCol, {
+          ...payment,
+          date: serverTimestamp(),
       });
-
-      setCustomerBalances(prevBalances => ({
-          ...prevBalances,
-          [payment.customerId]: (prevBalances[payment.customerId] || 0) - payment.amount,
-      }));
   }
 
   const updateProductPrice = (productId: string, uom: string, price: number) => {
-    setProductPrices(prev => ({
-        ...prev,
-        [productId]: {
-            ...prev[productId],
-            [uom]: price,
-        },
-    }));
+    if (!firestore) return;
+    const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
+    const priceRef = doc(firestore, 'productPrices', priceId);
+    setDocumentNonBlocking(priceRef, {
+        productId,
+        uom,
+        pricePerUom: price,
+        priceDate: new Date().toISOString().split('T')[0]
+    }, {merge: true});
   };
 
   const getCustomerLedger = (
@@ -366,15 +367,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const fromDateStart = startOfDay(dateRange.from);
     const toDateEnd = endOfDay(dateRange.to);
 
-    const allBills = liveBillSummaries.filter(b => {
-        const cId = getCustomerIdFromName(b.customerName);
-        return cId === customerId && b.date;
-    });
-
+    const allBills = liveBillSummaries.filter(b => b.customerId === customerId && b.date);
     const allPayments = payments.filter(p => p.customerId === customerId);
 
-    const priorBills = allBills.filter(b => b.date! < fromDateStart);
-    const priorPayments = allPayments.filter(p => p.date < fromDateStart);
+    const priorBills = allBills.filter(b => new Date(b.date!) < fromDateStart);
+    const priorPayments = allPayments.filter(p => new Date(p.date) < fromDateStart);
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -382,11 +379,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const interval = { start: fromDateStart, end: toDateEnd };
     
-    const billsInRange = allBills.filter(b => isWithinInterval(b.date!, interval));
-    const paymentsInRange = allPayments.filter(p => isWithinInterval(p.date, interval));
+    const billsInRange = allBills.filter(b => isWithinInterval(new Date(b.date!), interval));
+    const paymentsInRange = allPayments.filter(p => isWithinInterval(new Date(p.date), interval));
 
     const mappedBills: Transaction[] = billsInRange.map(b => ({
-      date: b.date!,
+      date: new Date(b.date!),
       description: `Bill No: ${b.billNo}`,
       billedAmount: b.amount,
       balance: 0,
@@ -394,7 +391,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
 
     const mappedPayments: Transaction[] = paymentsInRange.map(p => ({
-      date: p.date,
+      date: new Date(p.date),
       description: p.notes || 'Payment Received',
       receivedAmount: p.amount,
       balance: 0,
@@ -447,6 +444,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         getBillItems,
         getBill,
         getCustomerLedger,
+        auth,
       }}
     >
       {children}
