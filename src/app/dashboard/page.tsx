@@ -644,7 +644,7 @@ export default function BillingPage() {
                   <TableHead>Product (பெயர்)</TableHead>
                   <TableHead>UOM</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right w-32">Rate (₹)</TableHead>
+                  <TableHead className="text-right w-40">Rate (₹)</TableHead>
                   <TableHead className="text-right">Amount (₹)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -667,7 +667,7 @@ export default function BillingPage() {
                             value={item.rate.toFixed(2)}
                             onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
                             onFocus={(e) => e.target.select()}
-                            className="h-8 text-right"
+                            className="h-8 text-right w-24 ml-auto"
                         />
                       </TableCell>
                       <TableCell className="text-right">
