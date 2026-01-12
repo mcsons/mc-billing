@@ -33,7 +33,7 @@ export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -47,11 +47,13 @@ export default function LoginPage() {
         return;
     }
     try {
+        // Construct email from username for Firebase Auth
+        const email = `${username.toLowerCase()}@mcandsons.com`;
         await initiateEmailSignIn(auth, email, password);
         // The onAuthStateChanged listener in the provider will handle the redirect.
         toast({
             title: 'Login Successful',
-            description: `Welcome back!`,
+            description: `Welcome back, ${username}!`,
         });
         router.push('/dashboard');
     } catch (error: any) {
@@ -80,14 +82,14 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="username">Username</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
+                id="username"
+                type="text"
+                placeholder="Enter your username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
