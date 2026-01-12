@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { initiateEmailSignIn, useAuth } from '@/firebase';
+import { initiateEmailSignIn, useAuth, useUser } from '@/firebase';
 
 function CompanyHeader() {
   return (
@@ -32,9 +32,17 @@ function CompanyHeader() {
 export default function LoginPage() {
   const router = useRouter();
   const auth = useAuth();
+  const { user, isUserLoading } = useUser();
   const { toast } = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+
+  // Redirect if user is already logged in
+  React.useEffect(() => {
+    if (!isUserLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, isUserLoading, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,7 +63,7 @@ export default function LoginPage() {
             title: 'Login Successful',
             description: `Welcome back, ${username}!`,
         });
-        router.push('/dashboard');
+        // The redirect is now handled by the useEffect hook
     } catch (error: any) {
         toast({
             variant: 'destructive',
