@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Check, ChevronsUpDown, Search, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Search, Trash2, X } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -35,12 +35,13 @@ import {
 } from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useToast } from '@/hooks/use-toast';
+import { LiveBillSummary } from '@/lib/data';
 
 export default function HistoryPage() {
   const { liveBillSummaries, customers, deleteBills, currentUser } = useData();
@@ -48,10 +49,20 @@ export default function HistoryPage() {
   const showAlertDialog = useAlertDialog();
   const { toast } = useToast();
 
-  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [date, setDate] = useState<Date | undefined>();
   const [customerPopoverOpen, setCustomerPopoverOpen] = React.useState(false);
   const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
+  
+  const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>(liveBillSummaries);
+
+  useEffect(() => {
+    // Keep the filtered list in sync with the source if no filters are active
+    if (!date && !selectedCustomer) {
+      setFilteredBills(liveBillSummaries);
+    }
+  }, [liveBillSummaries, date, selectedCustomer]);
+
 
   const handleEditBill = (billNo: string) => {
     router.push(`/dashboard?billNo=${billNo}`);
@@ -80,7 +91,7 @@ export default function HistoryPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedBills(new Set(liveBillSummaries.map((bill) => bill.billNo)));
+      setSelectedBills(new Set(filteredBills.map((bill) => bill.billNo)));
     } else {
       setSelectedBills(new Set());
     }
@@ -108,6 +119,29 @@ export default function HistoryPage() {
         setSelectedBills(new Set());
       },
     });
+  };
+
+  const handleSearch = () => {
+    let results = liveBillSummaries;
+
+    if (selectedCustomer) {
+        const custData = customers.find(c => c.id === selectedCustomer);
+        if (custData) {
+            results = results.filter(bill => bill.customerName.includes(custData.name_en));
+        }
+    }
+
+    if (date) {
+        results = results.filter(bill => bill.date && isSameDay(bill.date, date));
+    }
+    
+    setFilteredBills(results);
+  };
+  
+  const handleClearSearch = () => {
+    setDate(undefined);
+    setSelectedCustomer('');
+    setFilteredBills(liveBillSummaries);
   };
 
   return (
@@ -185,7 +219,7 @@ export default function HistoryPage() {
                 <Button
                   variant={'outline'}
                   className={cn(
-                    'justify-start text-left font-normal',
+                    'w-[240px] justify-start text-left font-normal',
                     !date && 'text-muted-foreground'
                   )}
                 >
@@ -203,10 +237,14 @@ export default function HistoryPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="self-end">
-            <Button>
+          <div className="self-end flex gap-2">
+            <Button onClick={handleSearch}>
               <Search className="mr-2 h-4 w-4" />
               Search
+            </Button>
+            <Button variant="ghost" onClick={handleClearSearch}>
+                <X className="mr-2 h-4 w-4" />
+                Clear
             </Button>
           </div>
         </div>
@@ -218,8 +256,8 @@ export default function HistoryPage() {
                 <TableHead padding="checkbox">
                   <Checkbox
                     checked={
-                      liveBillSummaries.length > 0 &&
-                      selectedBills.size === liveBillSummaries.length
+                      filteredBills.length > 0 &&
+                      selectedBills.size === filteredBills.length
                     }
                     onCheckedChange={(checked) => handleSelectAll(!!checked)}
                     aria-label="Select all"
@@ -234,33 +272,41 @@ export default function HistoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {liveBillSummaries.map((bill) => (
-              <TableRow
-                key={bill.billNo}
-                className="cursor-pointer"
-                onDoubleClick={() => handleEditBill(bill.billNo)}
-                data-state={selectedBills.has(bill.billNo) && 'selected'}
-              >
-                {canDelete && (
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={selectedBills.has(bill.billNo)}
-                      onCheckedChange={(checked) =>
-                        handleSelectBill(bill.billNo, !!checked)
-                      }
-                      aria-label={`Select bill ${bill.billNo}`}
-                    />
+             {filteredBills.length > 0 ? (
+              filteredBills.map((bill) => (
+                <TableRow
+                  key={bill.billNo}
+                  className="cursor-pointer"
+                  onDoubleClick={() => handleEditBill(bill.billNo)}
+                  data-state={selectedBills.has(bill.billNo) && 'selected'}
+                >
+                  {canDelete && (
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedBills.has(bill.billNo)}
+                        onCheckedChange={(checked) =>
+                          handleSelectBill(bill.billNo, !!checked)
+                        }
+                        aria-label={`Select bill ${bill.billNo}`}
+                      />
+                    </TableCell>
+                  )}
+                  <TableCell className="font-medium">{bill.billNo}</TableCell>
+                  <TableCell>{bill.customerName}</TableCell>
+                  <TableCell className="text-right">
+                    ₹{bill.amount.toFixed(2)}
                   </TableCell>
-                )}
-                <TableCell className="font-medium">{bill.billNo}</TableCell>
-                <TableCell>{bill.customerName}</TableCell>
-                <TableCell className="text-right">
-                  ₹{bill.amount.toFixed(2)}
-                </TableCell>
-                <TableCell>{bill.createdBy}</TableCell>
-                <TableCell>{bill.stall}</TableCell>
-              </TableRow>
-            ))}
+                  <TableCell>{bill.createdBy}</TableCell>
+                  <TableCell>{bill.stall}</TableCell>
+                </TableRow>
+              ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
+                        No results found.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>
