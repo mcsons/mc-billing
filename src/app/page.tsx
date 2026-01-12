@@ -12,9 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
-import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
-import { initiateEmailSignIn } from '@/firebase';
+import { initiateEmailSignIn, useAuth } from '@/firebase';
 
 function CompanyHeader() {
   return (
@@ -32,7 +31,7 @@ function CompanyHeader() {
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login, auth } = useData();
+  const auth = useAuth();
   const { toast } = useToast();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
