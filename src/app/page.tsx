@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 function CompanyHeader() {
   return (
@@ -55,21 +55,41 @@ export default function LoginPage() {
         });
         return;
     }
+    
+    const email = `${username.toLowerCase()}@mcandsons.com`;
+
     try {
-        const email = `${username.toLowerCase()}@mcandsons.com`;
         await signInWithEmailAndPassword(auth, email, password);
         toast({
             title: 'Login Successful',
             description: `Welcome back, ${username}!`,
         });
-        // The onAuthStateChanged listener in the provider will handle the redirect.
     } catch (error: any) {
-        console.error("Login Error:", error.code, error.message);
-        toast({
-            variant: 'destructive',
-            title: 'Login Failed',
-            description: 'Invalid username or password. Please try again.',
-        });
+        if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
+            // If user does not exist, try to create them.
+            // This is a one-time operation for the first user.
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                toast({
+                    title: 'Account Created & Logged In',
+                    description: `Welcome, ${username}! Your account has been created.`,
+                });
+            } catch (createError: any) {
+                console.error("Creation Error:", createError.code, createError.message);
+                 toast({
+                    variant: 'destructive',
+                    title: 'Registration Failed',
+                    description: 'Could not create a new account. Please try again.',
+                });
+            }
+        } else {
+             console.error("Login Error:", error.code, error.message);
+             toast({
+                variant: 'destructive',
+                title: 'Login Failed',
+                description: 'Invalid username or password. Please try again.',
+            });
+        }
     }
   };
 

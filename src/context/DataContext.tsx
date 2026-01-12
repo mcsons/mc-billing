@@ -39,7 +39,7 @@ interface DataContextType {
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
-  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER', password?: string}) => Promise<void>;
+  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string}) => Promise<void>;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -83,7 +83,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const uomsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'uoms') : null, [firestore]);
   const { data: uomsData } = useCollection<{name: string}>(uomsCollection);
-  const uoms = useMemo(() => (uomsData || []).map(u => u.name), [uomsData]);
+  const uoms = useMemo(() => uomsData ? uomsData.map(u => u.name) : [], [uomsData]);
 
 
   const billsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'bills') : null, [firestore]);
@@ -248,7 +248,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
     } catch(error: any) {
         console.error("Error creating user:", error);
-        toast({ variant: "destructive", title: "Failed to create user", description: error.message });
+        if (error.code === 'auth/email-already-in-use') {
+             toast({ variant: "destructive", title: "User Exists", description: "A user with this username already exists." });
+        } else {
+            toast({ variant: "destructive", title: "Failed to create user", description: error.message });
+        }
     }
   };
   
