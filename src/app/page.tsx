@@ -13,7 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { initiateEmailSignIn, useAuth, useUser } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 
 function CompanyHeader() {
   return (
@@ -55,16 +56,15 @@ export default function LoginPage() {
         return;
     }
     try {
-        // Construct email from username for Firebase Auth
         const email = `${username.toLowerCase()}@mcandsons.com`;
-        await initiateEmailSignIn(auth, email, password);
-        // The onAuthStateChanged listener in the provider will handle the redirect.
+        await signInWithEmailAndPassword(auth, email, password);
         toast({
             title: 'Login Successful',
             description: `Welcome back, ${username}!`,
         });
-        // The redirect is now handled by the useEffect hook
+        // The onAuthStateChanged listener in the provider will handle the redirect.
     } catch (error: any) {
+        console.error("Login Error:", error.code, error.message);
         toast({
             variant: 'destructive',
             title: 'Login Failed',
@@ -98,6 +98,7 @@ export default function LoginPage() {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
               />
             </div>
             <div className="grid gap-2">
@@ -111,6 +112,7 @@ export default function LoginPage() {
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
               />
             </div>
             <Button type="submit" className="w-full">

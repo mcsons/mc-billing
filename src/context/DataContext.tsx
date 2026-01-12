@@ -32,7 +32,6 @@ interface DataContextType {
   payments: Payment[];
   currentUser: User | null;
   liveBillItems: LiveBillItems;
-  login: (username: string, password?: string) => User | null;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   deleteCustomer: (customerId: string) => void;
@@ -43,7 +42,7 @@ interface DataContextType {
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'customerId'> & { customerId: string },
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'> & { customerId: string },
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -117,16 +116,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const customerBalances = useMemo(() => {
     const balances: CustomerBalances = {};
+    if (!customers) return balances;
     customers.forEach(c => balances[c.id] = 0);
 
     const allTransactions = [
-        ...liveBillSummaries.map(bill => ({
+        ...(liveBillSummaries || []).map(bill => ({
             customerId: bill.customerId,
             amount: bill.amount,
             type: 'bill' as const,
             date: bill.date || new Date(0)
         })),
-        ...payments.map(payment => ({
+        ...(payments || []).map(payment => ({
             customerId: payment.customerId,
             amount: payment.amount,
             type: 'payment' as const,
@@ -147,14 +147,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return balances;
   }, [customers, liveBillSummaries, payments]);
 
-
-  const login = (username: string, password?: string): User | null => {
-    const user = users.find(u => u.username === username && u.password === password);
-    if (user) {
-      return user;
-    }
-    return null;
-  };
   
   const logout = () => {
     auth?.signOut();
@@ -246,7 +238,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return undefined;
     const today = startOfDay(new Date());
-    return liveBillSummaries.find(bill => {
+    return (liveBillSummaries || []).find(bill => {
         const billDate = bill.date ? new Date(bill.date) : null;
         if (!billDate || bill.customerId !== customerId) return false;
         return startOfDay(billDate).getTime() === today.getTime();
@@ -259,12 +251,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [liveBillItems]);
   
   const getBill = (billNo: string) => {
-    return liveBillSummaries.find(b => b.billNo === billNo);
+    return (liveBillSummaries || []).find(b => b.billNo === billNo);
   };
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'customerId'> & {customerId: string}, 
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'> & {customerId: string}, 
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -288,7 +280,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         batch.commit();
         return existingBillNo;
     } else {
-        const maxBillNo = liveBillSummaries
+        const maxBillNo = (liveBillSummaries || [])
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
             .filter(num => !isNaN(num))
             .reduce((max, num) => Math.max(max, num), 1237);
@@ -367,8 +359,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const fromDateStart = startOfDay(dateRange.from);
     const toDateEnd = endOfDay(dateRange.to);
 
-    const allBills = liveBillSummaries.filter(b => b.customerId === customerId && b.date);
-    const allPayments = payments.filter(p => p.customerId === customerId);
+    const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date);
+    const allPayments = (payments || []).filter(p => p.customerId === customerId);
 
     const priorBills = allBills.filter(b => new Date(b.date!) < fromDateStart);
     const priorPayments = allPayments.filter(p => new Date(p.date) < fromDateStart);
@@ -426,7 +418,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         payments,
         currentUser,
         liveBillItems,
-        login,
         logout,
         addCustomer,
         deleteCustomer,
