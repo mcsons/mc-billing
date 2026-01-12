@@ -17,7 +17,7 @@ import {
   samplePayments,
   samplePayments as initialPayments,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, subDays } from 'date-fns';
+import { isWithinInterval, startOfDay, subDays, endOfDay } from 'date-fns';
 
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
@@ -82,19 +82,32 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const balances: CustomerBalances = {};
     initialCustomers.forEach(c => balances[c.id] = 0);
 
-    initialLiveBillSummaries.forEach(bill => {
-        const customer = initialCustomers.find(c => bill.customerName.includes(c.name_en));
-        if (customer) {
-            balances[customer.id] = (balances[customer.id] || 0) + bill.amount;
+    const allTransactions = [
+        ...initialLiveBillSummaries.map(bill => {
+            const customer = initialCustomers.find(c => bill.customerName.includes(c.name_en));
+            return {
+                customerId: customer?.id,
+                amount: bill.amount,
+                type: 'bill'
+            }
+        }),
+        ...initialPayments.map(payment => ({
+            customerId: payment.customerId,
+            amount: payment.amount,
+            type: 'payment'
+        }))
+    ];
+
+    allTransactions.forEach(tx => {
+        if (tx.customerId && balances[tx.customerId] !== undefined) {
+            if (tx.type === 'bill') {
+                balances[tx.customerId] += tx.amount;
+            } else {
+                balances[tx.customerId] -= tx.amount;
+            }
         }
     });
     
-    initialPayments.forEach(payment => {
-        if(balances[payment.customerId] !== undefined) {
-            balances[payment.customerId] -= payment.amount;
-        }
-    });
-
     return balances;
   });
 
@@ -358,11 +371,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // 2. Get transactions within the date range
     const customerData = customers.find(c => c.id === customerId);
+    const interval = { start: startOfDay(dateRange.from), end: endOfDay(dateRange.to) };
+    
     const billsInRange = liveBillSummaries.filter(b => 
-      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, { start: dateRange.from, end: dateRange.to })
+      customerData && b.customerName.includes(customerData.name_en) && b.date && isWithinInterval(b.date, interval)
     );
     const paymentsInRange = payments.filter(p => 
-      p.customerId === customerId && isWithinInterval(p.date, { start: dateRange.from, end: dateRange.to })
+      p.customerId === customerId && isWithinInterval(p.date, interval)
     );
 
     // 3. Map to a unified transaction format
