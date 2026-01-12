@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Customer,
@@ -13,8 +13,9 @@ import {
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 
 
 type ProductPrices = Record<string, Record<string, number>>;
@@ -38,7 +39,7 @@ interface DataContextType {
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
-  addUser: (user: Omit<User, 'id' | 'status'>) => void;
+  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER', password?: string}) => Promise<void>;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -114,12 +115,52 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   }, [firebaseUser, isUserLoading, users]);
 
 
+  // Seed initial creator user if not present
+  useEffect(() => {
+    if (firestore) {
+      const seedCreator = async () => {
+        const usersQuery = query(collection(firestore, "users"), where("role", "==", "CREATOR"));
+        const querySnapshot = await getDocs(usersQuery);
+        if (querySnapshot.empty) {
+          console.log("No creator user found, seeding initial creator.");
+          const creatorEmail = "creator@mcandsons.com";
+          const creatorData = {
+            username: "creator",
+            role: "CREATOR",
+            status: "Active",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          };
+          // This will create the user in Firestore. The Auth user is created on first login.
+          // In a real app, you'd have a secure way to create the first user.
+          // For this environment, we rely on `signInWithEmailAndPassword` to create if doesn't exist.
+          // A proper implementation would use a Cloud Function.
+          try {
+             const userCredential = await createUserWithEmailAndPassword(auth, creatorEmail, "password");
+             await setDocumentNonBlocking(doc(firestore, "users", userCredential.user.uid), {
+                ...creatorData,
+                id: userCredential.user.uid,
+             }, {});
+          } catch (error: any) {
+             if (error.code === 'auth/email-already-in-use') {
+                console.log("Creator auth user already exists.");
+             } else {
+                console.error("Error seeding creator auth user:", error);
+             }
+          }
+        }
+      };
+      seedCreator();
+    }
+  }, [firestore, auth]);
+
+
   const customerBalances = useMemo(() => {
     const balances: CustomerBalances = {};
     if (!customers) return balances;
     customers.forEach(c => balances[c.id] = 0);
 
-    const allTransactions = [
+    const allTransactions: {customerId: string, amount: number, type: 'bill' | 'payment', date: Date | Timestamp}[] = [
         ...(liveBillSummaries || []).map(bill => ({
             customerId: bill.customerId,
             amount: bill.amount,
@@ -132,7 +173,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             type: 'payment' as const,
             date: payment.date
         }))
-    ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    ].sort((a, b) => {
+        const dateA = a.date instanceof Timestamp ? a.date.toMillis() : new Date(a.date).getTime();
+        const dateB = b.date instanceof Timestamp ? b.date.toMillis() : new Date(b.date).getTime();
+        return dateA - dateB;
+    });
 
     allTransactions.forEach(tx => {
         if (tx.customerId && typeof balances[tx.customerId] !== 'undefined') {
@@ -149,7 +194,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   
   const logout = () => {
-    auth?.signOut();
+    if (auth) {
+      signOut(auth);
+    }
   };
 
   const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
@@ -217,10 +264,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
-  const addUser = (user: Omit<User, 'id' | 'status'>) => {
-    // This should be a cloud function for security reasons
-    console.log("addUser is not implemented for client-side for security reasons.", user);
-    toast({ variant: "destructive", title: "Action not allowed", description: "Creating users from the client is disabled."});
+    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER', password?: string}) => {
+    if (!firestore || !auth) {
+        toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
+        return;
+    };
+    if (!user.password) {
+        toast({ variant: "destructive", title: "Password Required", description: "A password must be provided."});
+        return;
+    }
+    
+    // In a real-world secure app, this would be a Cloud Function call.
+    // For this environment, we'll create the user directly.
+    try {
+        const email = `${user.username.toLowerCase()}@mcandsons.com`;
+        const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);
+        const newUser: User = {
+            id: userCredential.user.uid,
+            username: user.username,
+            role: user.role,
+            status: 'Active'
+        };
+        await setDocumentNonBlocking(doc(firestore, 'users', newUser.id), newUser, {});
+        toast({ title: "User Created", description: `User ${user.username} has been created.`});
+    } catch(error: any) {
+        console.error("Error creating user:", error);
+        toast({ variant: "destructive", title: "Failed to create user", description: error.message });
+    }
   };
   
   const addUom = (uom: Uom) => {
@@ -230,8 +300,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeBillItem = (itemId: number, billNo: string) => {
-    // Bill items are now subcollections, handle this with a transaction
-    console.log("removeBillItem needs to be implemented with subcollections", itemId, billNo);
+    if (!firestore) return;
+    const itemRef = doc(firestore, 'bills', billNo, 'billItems', itemId.toString());
+    deleteDocumentNonBlocking(itemRef);
   };
   
   const findBillForCustomerToday = (customerId: string) => {
@@ -239,7 +310,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (!customer) return undefined;
     const today = startOfDay(new Date());
     return (liveBillSummaries || []).find(bill => {
-        const billDate = bill.date ? new Date(bill.date) : null;
+        const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
         if (!billDate || bill.customerId !== customerId) return false;
         return startOfDay(billDate).getTime() === today.getTime();
     });
@@ -362,8 +433,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date);
     const allPayments = (payments || []).filter(p => p.customerId === customerId);
 
-    const priorBills = allBills.filter(b => new Date(b.date!) < fromDateStart);
-    const priorPayments = allPayments.filter(p => new Date(p.date) < fromDateStart);
+    const priorBills = allBills.filter(b => ((b.date as Timestamp).toDate()) < fromDateStart);
+    const priorPayments = allPayments.filter(p => ((p.date as Timestamp).toDate()) < fromDateStart);
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -371,11 +442,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const interval = { start: fromDateStart, end: toDateEnd };
     
-    const billsInRange = allBills.filter(b => isWithinInterval(new Date(b.date!), interval));
-    const paymentsInRange = allPayments.filter(p => isWithinInterval(new Date(p.date), interval));
+    const billsInRange = allBills.filter(b => isWithinInterval((b.date as Timestamp).toDate(), interval));
+    const paymentsInRange = allPayments.filter(p => isWithinInterval((p.date as Timestamp).toDate(), interval));
 
     const mappedBills: Transaction[] = billsInRange.map(b => ({
-      date: new Date(b.date!),
+      date: (b.date as Timestamp).toDate(),
       description: `Bill No: ${b.billNo}`,
       billedAmount: b.amount,
       balance: 0,
@@ -383,7 +454,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
 
     const mappedPayments: Transaction[] = paymentsInRange.map(p => ({
-      date: new Date(p.date),
+      date: (p.date as Timestamp).toDate(),
       description: p.notes || 'Payment Received',
       receivedAmount: p.amount,
       balance: 0,

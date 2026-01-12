@@ -68,7 +68,7 @@ export default function LoginPage() {
         toast({
             variant: 'destructive',
             title: 'Login Failed',
-            description: 'Invalid username or password.',
+            description: 'Invalid username or password. Please try again.',
         });
     }
   };
