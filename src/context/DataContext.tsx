@@ -13,6 +13,7 @@ import {
   liveBillSummaries as initialLiveBillSummaries,
   users as initialUsers,
   liveHistoryItems,
+  samplePayments,
 } from '@/lib/data';
 
 type ProductPrices = Record<string, Record<string, number>>;
@@ -74,7 +75,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     'C003': 0,
     'C004': -300,
   });
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>(samplePayments);
 
   const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>(liveHistoryItems);
 
@@ -289,7 +290,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       setPayments(prev => {
           const newPayment: Payment = {
               ...payment,
-              id: prev.length + 1,
+              id: (prev.length > 0 ? Math.max(...prev.map(p => p.id)) : 0) + 1,
               date: new Date(),
           };
           return [...prev, newPayment];

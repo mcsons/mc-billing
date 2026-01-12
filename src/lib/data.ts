@@ -1,3 +1,5 @@
+import { subDays } from 'date-fns';
+
 export type User = {
   id: string;
   username: string;
@@ -84,3 +86,10 @@ export const liveHistoryItems: Record<string, BillItem[]> = {
     'B1235': [{ id: 2, productId: 'P02', product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, user: 'Manager', stall: '2' }],
     'B1236': [{ id: 3, productId: 'P03', product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, user: 'Admin', stall: '1' }],
 };
+
+export const samplePayments: Payment[] = [
+    { id: 1, customerId: 'C001', amount: 1000, date: subDays(new Date(), 5), notes: 'Cash payment' },
+    { id: 2, customerId: 'C002', amount: 2500, date: subDays(new Date(), 3), notes: 'Bank transfer for bill B1230' },
+    { id: 3, customerId: 'C001', amount: 500, date: subDays(new Date(), 1), notes: 'Partial payment' },
+    { id: 4, customerId: 'C004', amount: 1000, date: subDays(new Date(), 2) },
+];
