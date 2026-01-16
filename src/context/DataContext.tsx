@@ -12,7 +12,7 @@ import {
   Uom,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
-import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
+import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -33,6 +33,7 @@ interface DataContextType {
   customerBalances: CustomerBalances;
   payments: Payment[];
   currentUser: User | null;
+  isCurrentUserAdmin: boolean;
   liveBillItems: LiveBillItems;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
@@ -116,6 +117,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (isUserLoading || !firebaseUser || isUsersLoading) return null;
     return users.find(u => u.id === firebaseUser.uid) || null;
   }, [firebaseUser, isUserLoading, users, isUsersLoading]);
+  
+  // NEW: Check for admin role
+  const adminRoleDocRef = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null;
+    return doc(firestore, 'roles_admin', currentUser.id);
+  }, [firestore, currentUser]);
+
+  const { data: adminRoleDoc } = useDoc(adminRoleDocRef);
+
+  const isCurrentUserAdmin = useMemo(() => !!adminRoleDoc, [adminRoleDoc]);
 
 
   useEffect(() => {
@@ -313,7 +324,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const deleteUser = (userId: string) => {
     if (!firestore || !currentUser) return;
-    if (currentUser.role !== 'CREATOR') {
+    if (!isCurrentUserAdmin) {
       toast({
         variant: 'destructive',
         title: 'Permission Denied',
@@ -554,6 +565,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         customerBalances,
         payments,
         currentUser,
+        isCurrentUserAdmin,
         liveBillItems,
         logout,
         addCustomer,

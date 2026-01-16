@@ -24,11 +24,11 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
   
   
   export default function UsersPage() {
-    const { users, currentUser, deleteUser } = useData();
+    const { users, currentUser, deleteUser, isCurrentUserAdmin } = useData();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const showAlertDialog = useAlertDialog();
 
-    const canManageUsers = currentUser?.role === 'CREATOR';
+    const canManageUsers = isCurrentUserAdmin;
 
     const handleDeleteUser = (userId: string, username: string) => {
       showAlertDialog({
