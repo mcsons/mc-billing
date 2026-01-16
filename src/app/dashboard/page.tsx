@@ -170,7 +170,7 @@ export default function BillingPage() {
       qty: qtyNum,
       rate: rateNum,
       amount: qtyNum * rateNum,
-      user: currentUser?.username || 'N/A',
+      addedBy: currentUser?.id || 'unknown-user',
       stall: '1', // This should be dynamic
     };
 
@@ -182,7 +182,7 @@ export default function BillingPage() {
     if (customer) {
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
-        createdBy: currentUser?.username || 'N/A',
+        createdBy: currentUser?.id || 'unknown-user',
         stall: '1',
         date: date || new Date(),
         customerId: selectedCustomerId,
@@ -233,7 +233,7 @@ export default function BillingPage() {
     if (customer && activeBillNo) {
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
-        createdBy: currentUser?.username || 'N/A',
+        createdBy: currentUser?.id || 'unknown-user',
         stall: '1',
         date: date || new Date(),
         customerId: selectedCustomerId,
@@ -288,7 +288,7 @@ export default function BillingPage() {
 
     const newBillSummary = {
       customerName: `${customer.name_en} (${customer.name_ta})`,
-      createdBy: currentUser?.username || 'N/A', // Should be dynamic
+      createdBy: currentUser?.id || 'unknown-user',
       stall: '1', // Should be dynamic
       date: date || new Date(),
       customerId: selectedCustomerId,

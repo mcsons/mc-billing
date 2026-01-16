@@ -39,7 +39,7 @@ interface DataContextType {
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
-  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string}) => Promise<void>;
+  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => Promise<void>;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -271,7 +271,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
-    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string}) => {
+    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => {
     if (!firestore || !auth) {
         toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
         return;
