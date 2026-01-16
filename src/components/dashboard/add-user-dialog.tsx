@@ -26,13 +26,13 @@ interface AddUserDialogProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-type UserRole = 'MANAGER';
+type UserRole = User['role'];
 
 export function AddUserDialog({
   isOpen,
   onOpenChange,
 }: AddUserDialogProps) {
-  const { addUser, currentUser } = useData();
+  const { addUser } = useData();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('MANAGER');
@@ -43,7 +43,7 @@ export function AddUserDialog({
         console.error("Username and password are required");
         return;
     }
-    const newUser: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string} = {
+    const newUser: Omit<User, 'id' | 'status'> & { password: string } = {
       username,
       password,
       role,
@@ -62,7 +62,7 @@ export function AddUserDialog({
         <DialogHeader>
           <DialogTitle>Add New User</DialogTitle>
           <DialogDescription>
-            Enter the details for the new user. New users will be assigned the 'Manager' role.
+            Enter the details for the new user.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -99,6 +99,8 @@ export function AddUserDialog({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="MANAGER">Manager</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                    <SelectItem value="CREATOR">Creator</SelectItem>
                 </SelectContent>
             </Select>
           </div>

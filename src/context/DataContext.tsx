@@ -40,7 +40,7 @@ interface DataContextType {
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
-  addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => Promise<void>;
+  addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => void;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
@@ -120,15 +120,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const handleFirstSignIn = async () => {
-      if (!firestore || !firebaseUser || isUserLoading) return;
+      if (!firestore || !firebaseUser || isUserLoading || isUsersLoading) return;
       
       const userDocRef = doc(firestore, 'users', firebaseUser.uid);
-      const userDoc = await getDoc(userDocRef);
+      const userDocSnap = await getDoc(userDocRef);
 
-      if (!userDoc.exists()) {
+      // Only proceed if the user document does *not* exist.
+      if (!userDocSnap.exists()) {
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
         
-        let role: 'CREATOR' | 'MANAGER' = 'MANAGER';
+        let role: User['role'] = 'MANAGER'; // Default role
+        
+        // Special check for the 'creator' user.
         if (username.toLowerCase() === 'creator' && firebaseUser.email === 'creator@mcandsons.com') {
             role = 'CREATOR';
         }
@@ -143,24 +146,30 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const batch = writeBatch(firestore);
         batch.set(userDocRef, newUser);
 
+        // If the role is Creator, also grant them admin privileges.
         if (role === 'CREATOR') {
             const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
             batch.set(adminRoleRef, { uid: firebaseUser.uid });
         }
         
-        await batch.commit();
-
-        toast({
-          title: 'Profile Created',
-          description: `Your user profile has been set up with the role: ${role}`,
-        });
+        // This commit can still fail if the rules are not set up for the first user.
+        try {
+            await batch.commit();
+            toast({
+              title: 'Profile Created',
+              description: `Your user profile has been set up with the role: ${role}`,
+            });
+        } catch (error) {
+            console.error("Failed to create initial user profile:", error);
+            // Don't show a toast here as it might be a transient permissions issue during setup
+        }
       }
     };
 
-    if (!isUserLoading && firebaseUser) {
+    if (!isUserLoading && firebaseUser && !isUsersLoading) {
       handleFirstSignIn();
     }
-  }, [firebaseUser, isUserLoading, firestore, toast]);
+  }, [firebaseUser, isUserLoading, isUsersLoading, firestore, toast]);
 
 
   const customerBalances = useMemo(() => {
@@ -272,7 +281,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
   };
 
-    const addUser = async (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => {
+  const addUser = async (user: Omit<User, 'id' | 'status'> & { password?: string }) => {
     if (!firestore || !auth) {
         toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
         return;
@@ -289,21 +298,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     try {
         const email = `${user.username.toLowerCase()}@mcandsons.com`;
         const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);
+        
         const newUser: User = {
             id: userCredential.user.uid,
             username: user.username,
             role: user.role,
             status: 'Active'
         };
+
+        const batch = writeBatch(firestore);
+        const userRef = doc(firestore, 'users', newUser.id);
+        batch.set(userRef, newUser);
         
-        await setDoc(doc(firestore, 'users', newUser.id), newUser);
+        if (user.role === 'ADMIN' || user.role === 'CREATOR') {
+            const adminRoleRef = doc(firestore, 'roles_admin', newUser.id);
+            batch.set(adminRoleRef, { uid: newUser.id });
+        }
+        
+        await batch.commit();
 
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
     } catch(error: any) {
         console.error("Error creating user:", error);
         if (error.code === 'auth/email-already-in-use') {
              toast({ variant: "destructive", title: "User Exists", description: "A user with this username already exists." });
-        } else {
+        } else if (error.code?.includes('permission-denied')) {
+             toast({ variant: "destructive", title: "Permission Denied", description: "Could not set admin privileges. Please do this manually in the Firebase console." });
+        }
+        else {
             toast({ variant: "destructive", title: "Failed to create user", description: error.message });
         }
     }
@@ -414,8 +436,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       batch.set(billRef, { ...summaryPayload, createdAt: serverTimestamp() }, {});
       
       if (paidAmount > 0) {
-        // This is not ideal inside a batch, as addDoc can't be in a batch.
-        // It's better to handle payment logic separately.
         addPayment({ customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
       }
     }
