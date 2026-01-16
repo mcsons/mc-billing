@@ -14,6 +14,7 @@ import {
 import { BillItem, Customer } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { format } from 'date-fns';
 
 interface BillPrintData {
   billNo: string;
@@ -46,14 +47,6 @@ function PrintPageContent() {
     } else {
       router.push('/dashboard');
     }
-    useEffect(() => {
-      if (billData) {
-        setTimeout(() => {
-          window.print();
-        }, 300);
-      }
-    }, [billData]);
-    
   }, [searchParams, router]);
 
   if (!billData) {
@@ -112,7 +105,7 @@ function PrintPageContent() {
               </p>
               <p>
                 <span className="font-semibold">Date:</span>{' '}
-                {new Date(date).toLocaleDateString()}
+                {format(new Date(date), 'P')}
               </p>
             </div>
           </div>
@@ -122,8 +115,7 @@ function PrintPageContent() {
               <TableRow>
                 <TableHead className="w-[50px]">S/N</TableHead>
                 <TableHead>Product (பெயர்)</TableHead>
-                <TableHead className="text-center">UOM</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
+                <TableHead className="text-center">Qty</TableHead>
                 <TableHead className="text-right">Rate (₹)</TableHead>
                 <TableHead className="text-right">Amount (₹)</TableHead>
               </TableRow>
@@ -133,10 +125,13 @@ function PrintPageContent() {
                 <TableRow key={item.id}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{item.product}</TableCell>
-                  <TableCell className="text-center">{item.uom}</TableCell>
-                  <TableCell className="text-right">
-                    {item.qty.toFixed(3)}
+                  <TableCell className="text-center">
+                    <span className="qty-uom">
+                      <strong>{item.qty}</strong>
+                      <span className="uom-text">{item.uom}</span>
+                    </span>
                   </TableCell>
+
                   <TableCell className="text-right">
                     {item.rate.toFixed(2)}
                   </TableCell>
@@ -178,98 +173,159 @@ function PrintPageContent() {
         </CardContent>
       </Card>
       <style jsx global>{`
-  /* ===== PRINT RESET ===== */
-  @media print {
-    * {
-      box-sizing: border-box;
-    }
+/* ===============================
+   Qty + UOM inline formatting
+================================ */
+.qty-uom {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+}
 
-    body {
-      margin: 0;
-      padding: 0;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
+.qty-uom strong {
+  font-weight: 700;
+}
 
-    .print\\:hidden {
-      display: none !important;
-    }
+.qty-uom .uom-text {
+  font-size: 0.95em;
+}
+
+/* ===============================
+   GLOBAL PRINT RESET
+================================ */
+@media print {
+  * {
+    box-sizing: border-box;
   }
 
-  /* ===== THERMAL 79mm ===== */
-  @media print {
-    .print-root.thermal {
-      width: 79mm;
-      font-family: monospace;
-      font-size: 11px;
-    }
-
-    .print-root.thermal .print-content {
-      padding: 4mm;
-    }
-
-    .print-root.thermal h1 {
-      font-size: 16px;
-    }
-
-    .print-root.thermal table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .print-root.thermal th,
-    .print-root.thermal td {
-      padding: 2px 0;
-      font-size: 11px;
-    }
-
-    .print-root.thermal .text-right {
-      text-align: right;
-    }
-
-    .print-root.thermal .text-center {
-      text-align: center;
-    }
-
-    @page {
-      size: 79mm auto;
-      margin: 0;
-    }
+  body {
+    margin: 0;
+    padding: 0;
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  /* ===== A4 / LETTER ===== */
-  @media print {
-    .print-root.a4 {
-      width: 210mm;
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-    }
-
-    .print-root.a4 .print-content {
-      padding: 15mm;
-    }
-
-    .print-root.a4 table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .print-root.a4 th,
-    .print-root.a4 td {
-      padding: 6px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .print-root.a4 th {
-      background: #f5f5f5;
-    }
-
-    @page {
-      size: A4;
-      margin: 10mm;
-    }
+  /* Hide EVERYTHING by default */
+  body * {
+    visibility: hidden;
   }
+
+  /* Show ONLY printable area */
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  /* Position print at top-left */
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Hide UI-only elements */
+  .print\\:hidden {
+    display: none !important;
+  }
+}
+
+/* ===============================
+   THERMAL PRINT — 79mm
+================================ */
+@media print {
+  .print-root.thermal {
+    width: 79mm;
+    font-family: monospace;
+    font-size: 11px;
+  }
+
+  .print-root.thermal #print-area {
+    padding: 4mm;
+  }
+
+  .print-root.thermal h1 {
+    font-size: 16px;
+    margin-bottom: 4px;
+  }
+
+  .print-root.thermal p {
+    margin: 2px 0;
+  }
+
+  .print-root.thermal table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-root.thermal th,
+  .print-root.thermal td {
+    padding: 2px 0;
+    font-size: 11px;
+  }
+
+  .print-root.thermal th {
+    font-weight: bold;
+  }
+
+  .print-root.thermal .text-right {
+    text-align: right;
+  }
+
+  .print-root.thermal .text-center {
+    text-align: center;
+  }
+
+  @page {
+    size: 79mm auto;
+    margin: 0;
+  }
+}
+
+/* ===============================
+   A4 / DESKTOP PRINT
+================================ */
+@media print {
+  .print-root.a4 {
+    width: 210mm;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+  }
+
+  .print-root.a4 #print-area {
+    padding: 15mm;
+  }
+
+  .print-root.a4 h1 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .print-root.a4 table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-root.a4 th,
+  .print-root.a4 td {
+    padding: 6px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .print-root.a4 th {
+    background: #f5f5f5;
+    font-weight: bold;
+  }
+
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+}
 `}</style>
+
+
     </div>
   );
 }

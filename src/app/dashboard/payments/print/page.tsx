@@ -28,8 +28,10 @@ function PrintPageContent() {
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'a4';
   const [printData, setPrintData] = useState<PrintData | null>(null);
+  const [statementDate, setStatementDate] = useState('');
 
   useEffect(() => {
+    setStatementDate(new Date().toLocaleDateString());
     const data = searchParams.get('data');
     if (data) {
       try {
@@ -101,7 +103,7 @@ function PrintPageContent() {
               <div className="text-right">
                 <p>
                   <span className="font-semibold">Statement Date:</span>{' '}
-                  {new Date().toLocaleDateString()}
+                  {statementDate}
                 </p>
                 {dateRange.from && dateRange.to && (
                      <p>
