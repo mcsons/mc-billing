@@ -35,7 +35,7 @@ import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
             <div>
                 <CardTitle className="font-headline">Manage Users</CardTitle>
                 <CardDescription>
-                Add, edit, or remove users. (Creator access only)
+                Add new managers. For security, Admin and Creator roles must be managed via the Firebase Console.
                 </CardDescription>
             </div>
             {canManageUsers && (

@@ -26,7 +26,7 @@ interface AddUserDialogProps {
   onOpenChange: (isOpen: boolean) => void;
 }
 
-type UserRole = 'ADMIN' | 'MANAGER' | 'CREATOR';
+type UserRole = 'MANAGER';
 
 export function AddUserDialog({
   isOpen,
@@ -43,7 +43,7 @@ export function AddUserDialog({
         console.error("Username and password are required");
         return;
     }
-    const newUser: Omit<User, 'id' | 'status'> = {
+    const newUser: Omit<User, 'id' | 'status' | 'role'> & {role: 'ADMIN' | 'MANAGER' | 'CREATOR', password?: string} = {
       username,
       password,
       role,
@@ -56,16 +56,13 @@ export function AddUserDialog({
     setRole('MANAGER');
   };
 
-  const canCreateCreator = currentUser?.role === 'CREATOR';
-
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Add New User</DialogTitle>
           <DialogDescription>
-            Enter the details for the new user.
+            Enter the details for the new user. New users will be assigned the 'Manager' role.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -101,8 +98,6 @@ export function AddUserDialog({
                     <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
-                    {canCreateCreator && <SelectItem value="CREATOR">Creator</SelectItem>}
-                    <SelectItem value="ADMIN">Admin</SelectItem>
                     <SelectItem value="MANAGER">Manager</SelectItem>
                 </SelectContent>
             </Select>

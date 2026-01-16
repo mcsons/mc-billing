@@ -280,12 +280,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             role: user.role,
             status: 'Active'
         };
-        await setDocumentNonBlocking(doc(firestore, 'users', newUser.id), newUser, {});
-        
-        if (user.role === 'ADMIN' || user.role === 'CREATOR') {
-          const adminRoleRef = doc(firestore, 'roles_admin', userCredential.user.uid);
-          await setDocumentNonBlocking(adminRoleRef, { uid: userCredential.user.uid }, {});
-        }
+        // This setDoc is now authenticated as the new user, so it needs permission
+        await setDoc(doc(firestore, 'users', newUser.id), newUser);
 
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
     } catch(error: any) {
