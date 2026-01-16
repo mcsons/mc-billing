@@ -28,8 +28,16 @@ function PrintPageContent() {
     if (data) {
       try {
         const decodedData = JSON.parse(decodeURIComponent(data));
-        // Dates might be strings from the URL, convert them.
-        if(decodedData.date) decodedData.date = new Date(decodedData.date);
+        // Dates might be strings or Timestamp-like objects from the URL, convert them.
+        if (decodedData.date) {
+            if (typeof decodedData.date === 'object' && decodedData.date.seconds) {
+                // Handle Firestore Timestamp that was JSON.stringified
+                decodedData.date = new Date(decodedData.date.seconds * 1000);
+            } else {
+                // Handle ISO date string
+                decodedData.date = new Date(decodedData.date);
+            }
+        }
         setBillData(decodedData);
       } catch (error) {
         console.error('Failed to parse bill data:', error);
@@ -59,7 +67,7 @@ function PrintPageContent() {
     expenses
   } = billData;
   
-  const billDate = date instanceof Timestamp ? date.toDate() : date;
+  const billDate = date; // date is now a valid Date object
 
   return (
     <div className={`print-root ${paper}`}>
@@ -98,7 +106,7 @@ function PrintPageContent() {
               </p>
               <p>
                 <span className="font-semibold">Date:</span>{' '}
-                {format(billDate, 'P')}
+                {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
               </p>
             </div>
           </div>
@@ -235,5 +243,3 @@ export default function PrintVehicleBillPage() {
     </Suspense>
   );
 }
-
-    
