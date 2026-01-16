@@ -43,7 +43,7 @@ interface DataContextType {
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: number, billNo: string) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'> & { customerId: string },
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -127,9 +127,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (!userDoc.exists()) {
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
         
-        // This simplified logic now only handles non-creator users, 
-        // as the creator's role is now explicitly set on the login page.
-        const role = 'MANAGER';
+        let role: 'CREATOR' | 'MANAGER' = 'MANAGER';
+        if (username.toLowerCase() === 'creator' && firebaseUser.email === 'creator@mcandsons.com') {
+            role = 'CREATOR';
+        }
 
         const newUser: User = {
           id: firebaseUser.uid,
@@ -138,7 +139,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           status: 'Active',
         };
 
-        await setDoc(userDocRef, newUser);
+        const batch = writeBatch(firestore);
+        batch.set(userDocRef, newUser);
+
+        if (role === 'CREATOR') {
+            const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
+            batch.set(adminRoleRef, { uid: firebaseUser.uid });
+        }
+        
+        await batch.commit();
+
         toast({
           title: 'Profile Created',
           description: `Your user profile has been set up with the role: ${role}`,
@@ -328,7 +338,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'> & {customerId: string}, 
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>, 
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -362,7 +372,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             ...summary,
             billNo: newBillNo,
             amount: totalAmount,
-            customerId: customerId
         };
         const billRef = doc(firestore, 'bills', newBillNo);
         setDocumentNonBlocking(billRef, { ...newSummary, createdAt: serverTimestamp() }, {});

@@ -39,6 +39,7 @@ export type BillItem = {
 export type LiveBillSummary = {
   billNo: string;
   customerName: string;
+  customerId: string;
   amount: number;
   createdBy: string;
   stall: string;
@@ -88,10 +89,10 @@ export const products: Product[] = [
 ];
 
 export const liveBillSummaries: LiveBillSummary[] = [
-    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 2200, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 7) },
-    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', amount: 6000, createdBy: 'Manager', stall: '2', date: subDays(new Date(), 6) },
-    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', amount: 2475, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 5) },
-    { billNo: 'B1237', customerName: 'Retail Shop A (சில்லறை கடை அ)', amount: 3500, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 2) },
+    { billNo: 'B1234', customerName: 'Retail Shop A (சில்லறை கடை அ)', customerId: 'C001', amount: 2200, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 7) },
+    { billNo: 'B1235', customerName: 'Hotel B (ஹோட்டல் ஆ)', customerId: 'C002', amount: 6000, createdBy: 'Manager', stall: '2', date: subDays(new Date(), 6) },
+    { billNo: 'B1236', customerName: 'Catering Service C (சமையல் சேவை இ)', customerId: 'C003', amount: 2475, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 5) },
+    { billNo: 'B1237', customerName: 'Retail Shop A (சில்லறை கடை அ)', customerId: 'C001', amount: 3500, createdBy: 'Admin', stall: '1', date: subDays(new Date(), 2) },
 
 ];
 

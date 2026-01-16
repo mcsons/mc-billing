@@ -185,6 +185,7 @@ export default function BillingPage() {
         createdBy: currentUser?.username || 'N/A',
         stall: '1',
         date: date || new Date(),
+        customerId: selectedCustomerId,
       };
       const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
       if (!activeBillNo) {
@@ -235,6 +236,7 @@ export default function BillingPage() {
         createdBy: currentUser?.username || 'N/A',
         stall: '1',
         date: date || new Date(),
+        customerId: selectedCustomerId,
       };
       createOrUpdateLiveBill(newBillSummary, updatedItems, parseFloat(paidAmount) || 0, activeBillNo);
     }
@@ -289,6 +291,7 @@ export default function BillingPage() {
       createdBy: currentUser?.username || 'N/A', // Should be dynamic
       stall: '1', // Should be dynamic
       date: date || new Date(),
+      customerId: selectedCustomerId,
     };
 
     const paidAmountNum = parseFloat(paidAmount) || 0;
