@@ -103,7 +103,7 @@ export default function HistoryPage() {
 
 
   const handleEditBill = (billNo: string) => {
-    router.push(`/dashboard?billNo=${billNo}`);
+    router.push(`/dashboard/billing?billNo=${billNo}`);
   };
 
   const selectedCustomerData = customers.find(
@@ -180,7 +180,7 @@ export default function HistoryPage() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="font-headline">Bill History</CardTitle>
           <CardDescription>

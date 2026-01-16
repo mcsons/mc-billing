@@ -14,7 +14,7 @@ import {
   Driver,
   VehicleBill,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -25,6 +25,23 @@ import { FirestorePermissionError, errorEmitter } from '@/firebase';
 type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
 type LiveBillItems = Record<string, BillItem[]>; // Keyed by billNo
+
+export interface DashboardStats {
+  todaySales: number;
+  salesChange: number;
+  todayBills: number;
+  billsChange: number;
+  totalPendingBalance: number;
+  activeCustomers: number;
+  recentBills: LiveBillSummary[];
+  topProducts: {
+    productId: string;
+    productName: string;
+    totalQty: number;
+    uom: string;
+    percentage: number;
+  }[];
+}
 
 interface DataContextType {
   customers: Customer[];
@@ -41,6 +58,7 @@ interface DataContextType {
   currentUser: User | null;
   isCurrentUserAdmin: boolean;
   liveBillItems: LiveBillItems;
+  dashboardStats: DashboardStats;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
   deleteCustomer: (customerId: string) => void;
@@ -140,6 +158,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, {} as ProductPrices);
   }, [pricesData]);
 
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    todaySales: 0,
+    salesChange: 0,
+    todayBills: 0,
+    billsChange: 0,
+    totalPendingBalance: 0,
+    activeCustomers: 0,
+    recentBills: [],
+    topProducts: [],
+  });
+
   const currentUser = useMemo(() => {
     if (isUserLoading || !firebaseUser || isUsersLoading) return null;
     return users.find(u => u.id === firebaseUser.uid) || null;
@@ -222,6 +251,100 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     return balances;
   }, [customers, liveBillSummaries, payments]);
+  
+  useEffect(() => {
+    if (isUserLoading || !firestore || !products.length) return;
+
+    const calculateStats = async () => {
+      const todayStart = startOfToday();
+      const todayEnd = endOfToday();
+      const yesterdayStart = startOfYesterday();
+      const yesterdayEnd = endOfYesterday();
+
+      const todayBillsList = (liveBillSummaries || []).filter(bill => {
+          const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
+          return billDate && billDate >= todayStart && billDate <= todayEnd;
+      });
+
+      const yesterdayBillsList = (liveBillSummaries || []).filter(bill => {
+          const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
+          return billDate && billDate >= yesterdayStart && billDate <= yesterdayEnd;
+      });
+
+      // Sales and Bills stats
+      const todaySales = todayBillsList.reduce((sum, bill) => sum + bill.amount, 0);
+      const yesterdaySales = yesterdayBillsList.reduce((sum, bill) => sum + bill.amount, 0);
+      const salesChange = yesterdaySales > 0 ? ((todaySales - yesterdaySales) / yesterdaySales) * 100 : todaySales > 0 ? 100 : 0;
+      
+      const todayBillsCount = todayBillsList.length;
+      const yesterdayBillsCount = yesterdayBillsList.length;
+      const billsChange = yesterdayBillsCount > 0 ? todayBillsCount - yesterdayBillsCount : todayBillsCount;
+      
+      // Balance and Customer stats
+      const totalPendingBalance = Object.values(customerBalances).reduce((sum, bal) => sum + bal, 0);
+      const activeCustomers = new Set(todayBillsList.map(b => b.customerId)).size;
+
+      // Recent Bills
+      const recentBills = todayBillsList.sort((a,b) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis()).slice(0, 5);
+
+      // Top Products
+      let topProducts: DashboardStats['topProducts'] = [];
+      if (todayBillsList.length > 0) {
+          const billItemsPromises = todayBillsList.map(bill => 
+              getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
+          );
+          const billItemsSnapshots = await Promise.all(billItemsPromises);
+          
+          const todaysItems: BillItem[] = [];
+          billItemsSnapshots.forEach(snapshot => {
+              snapshot.forEach(doc => {
+                  todaysItems.push(doc.data() as BillItem);
+              });
+          });
+
+          const productSales = new Map<string, { totalQty: number, uom: string, name: string }>();
+          todaysItems.forEach(item => {
+              const existing = productSales.get(item.productId);
+              const productInfo = products.find(p => p.id === item.productId);
+              if (productInfo) {
+                  productSales.set(item.productId, {
+                      totalQty: (existing?.totalQty || 0) + item.qty,
+                      uom: item.uom,
+                      name: productInfo.name_ta,
+                  });
+              }
+          });
+
+          const sortedProducts = [...productSales.entries()]
+              .sort(([, a], [, b]) => b.totalQty - a.totalQty)
+              .slice(0, 5);
+
+          const maxQty = sortedProducts[0]?.[1].totalQty || 1;
+
+          topProducts = sortedProducts.map(([productId, data]) => ({
+              productId,
+              productName: data.name,
+              totalQty: data.totalQty,
+              uom: data.uom,
+              percentage: (data.totalQty / maxQty) * 100,
+          }));
+      }
+
+      setDashboardStats({
+          todaySales,
+          salesChange,
+          todayBills: todayBillsCount,
+          billsChange,
+          totalPendingBalance,
+          activeCustomers,
+          recentBills,
+          topProducts
+      });
+    };
+
+    calculateStats();
+
+  }, [liveBillSummaries, customerBalances, firestore, products, isUserLoading]);
 
   
   const logout = () => {
@@ -705,6 +828,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         currentUser,
         isCurrentUserAdmin,
         liveBillItems,
+        dashboardStats,
         logout,
         addCustomer,
         deleteCustomer,

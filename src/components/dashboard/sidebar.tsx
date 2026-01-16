@@ -17,6 +17,7 @@ import {
   ClipboardPaste,
   Truck,
   CircleUser,
+  LayoutDashboard,
 } from 'lucide-react';
 import React from 'react';
 
@@ -39,7 +40,8 @@ import { useData } from '@/context/DataContext';
 import { ThemeToggle } from '../ui/theme-toggle';
 
 const menuItems = [
-  { href: '/dashboard', label: 'Billing', icon: ClipboardList },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
@@ -50,7 +52,7 @@ const menuItems = [
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
-  { href: '/dashboard/profile', label: 'Profile', icon: User, roles: ['CREATOR', 'ADMIN', 'MANAGER']},
+  { href: '/dashboard/profile', label: 'Profile', icon: User, roles: ['CREATOR', 'ADMIN', 'MANAGER'], exact: true },
 ];
 
 const settingsSubItems = [
@@ -98,7 +100,7 @@ export function DashboardSidebar() {
                 (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
                     <SidebarMenuItem key={item.label}>
                         <Link href={item.href} onClick={handleLinkClick}>
-                            <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
+                            <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, !!item.exact)}>
                                 <item.icon />
                                 <span>{item.label}</span>
                             </SidebarMenuButton>
