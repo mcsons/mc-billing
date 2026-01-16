@@ -136,7 +136,9 @@ export default function VehicleBillingPage() {
         if (savedBill) {
             toast({ title: editingBillId ? 'Bill Updated' : 'Bill Saved', description: `Vehicle bill for ${vehicleId} has been saved.`});
             if (!editingBillId) {
-                handleNewBill();
+                // Don't clear the form, just set the editing ID
+                setEditingBillId(savedBill.id);
+                router.replace(`/dashboard/vehicle-bill?billId=${savedBill.id}`, { scroll: false });
             }
         }
         return savedBill;
@@ -208,6 +210,8 @@ export default function VehicleBillingPage() {
 
   const activeVehicles = useMemo(() => vehicles.filter(v => v.active), [vehicles]);
   const activeDrivers = useMemo(() => drivers.filter(d => d.active), [drivers]);
+  
+  const balance = useMemo(() => (parseFloat(advance) || 0) - (parseFloat(expenses) || 0), [advance, expenses]);
 
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
@@ -240,7 +244,7 @@ export default function VehicleBillingPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="vehicle">Vehicle Number</Label>
               <ReactSelect
@@ -267,13 +271,17 @@ export default function VehicleBillingPage() {
               <Label htmlFor="destination">Destination</Label>
               <Input id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} />
             </div>
-            <div className="grid gap-2">
+             <div className="grid gap-2">
               <Label htmlFor="advance">Advance (₹)</Label>
               <Input id="advance" type="number" value={advance} onChange={(e) => setAdvance(e.target.value)} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="expenses">Expenses (₹)</Label>
               <Input id="expenses" type="number" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
+            </div>
+             <div className="grid gap-2">
+              <Label>Balance (₹)</Label>
+              <p className="text-2xl font-bold font-mono">₹{balance.toFixed(2)}</p>
             </div>
           </div>
         </CardContent>

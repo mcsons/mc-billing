@@ -7,15 +7,12 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
 } from '@/components/ui/table';
 import { VehicleBill } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
-import { Timestamp } from 'firebase/firestore';
 
 function PrintPageContent() {
   const router = useRouter();
@@ -94,41 +91,48 @@ function PrintPageContent() {
              <h2 className="text-lg font-semibold mt-4">Vehicle Bill</h2>
           </header>
 
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-            <div>
-              <p><span className="font-semibold">Vehicle:</span> {vehicleId} ({vehicleName})</p>
-              <p><span className="font-semibold">Driver:</span> {driverName}</p>
-              <p><span className="font-semibold">Destination:</span> {destination}</p>
-            </div>
-            <div className="text-right">
-              <p>
-                <span className="font-semibold">Bill No:</span> {id.slice(0, 8).toUpperCase()}
-              </p>
-              <p>
-                <span className="font-semibold">Date:</span>{' '}
-                {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex justify-end mt-6">
-            <div className="w-full max-w-sm space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="font-semibold">Advance Amount:</span>
-                <span className="font-mono">₹{advance.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-semibold">Expenses:</span>
-                <span className="font-mono">
-                  ₹{expenses.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between border-t pt-2 font-bold text-base">
-                <span>Balance:</span>
-                <span className="font-mono">₹{(advance - expenses).toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+          <Table className="print-table">
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-semibold">Bill No</TableCell>
+                <TableCell className="text-right">{id.slice(0, 8).toUpperCase()}</TableCell>
+              </TableRow>
+               <TableRow>
+                <TableCell className="font-semibold">Date</TableCell>
+                <TableCell className="text-right">
+                  {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-semibold">Vehicle Number</TableCell>
+                <TableCell className="text-right">{vehicleId}</TableCell>
+              </TableRow>
+               <TableRow>
+                <TableCell className="font-semibold">Vehicle Name</TableCell>
+                <TableCell className="text-right">{vehicleName}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-semibold">Driver Name</TableCell>
+                <TableCell className="text-right">{driverName}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-semibold">Destination</TableCell>
+                <TableCell className="text-right">{destination}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-semibold">Advance Amount</TableCell>
+                <TableCell className="text-right font-mono">₹{advance.toFixed(2)}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-semibold">Expenses</TableCell>
+                <TableCell className="text-right font-mono">₹{expenses.toFixed(2)}</TableCell>
+              </TableRow>
+              <TableRow className="font-bold text-base border-t-2">
+                <TableCell>Balance</TableCell>
+                <TableCell className="text-right font-mono">₹{(advance - expenses).toFixed(2)}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
 
           <footer className="text-center mt-8 text-xs text-muted-foreground">
             <p>This is a computer-generated bill.</p>
@@ -182,6 +186,11 @@ function PrintPageContent() {
   .print-root.thermal #print-area {
     padding: 4mm;
   }
+  
+  .print-root.thermal .print-table td,
+  .print-root.thermal .print-table th {
+    padding: 2px 0;
+  }
 
   .print-root.thermal h1 {
     font-size: 16px;
@@ -214,6 +223,11 @@ function PrintPageContent() {
 
   .print-root.a4 #print-area {
     padding: 15mm;
+  }
+  
+  .print-root.a4 .print-table td,
+  .print-root.a4 .print-table th {
+    padding: 6px;
   }
 
   .print-root.a4 h1 {
