@@ -68,11 +68,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const auth = useAuth();
   const { user: firebaseUser, isUserLoading } = useUser();
 
-  const customersCollection = useMemoFirebase(() => firestore ? collection(firestore, 'customers') : null, [firestore]);
+  const customersCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'customers') : null, [firestore, firebaseUser]);
   const { data: customersData } = useCollection<Customer>(customersCollection);
   const customers = useMemo(() => customersData || [], [customersData]);
 
-  const productsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'products') : null, [firestore]);
+  const productsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'products') : null, [firestore, firebaseUser]);
   const { data: productsData } = useCollection<Product>(productsCollection);
   const products = useMemo(() => productsData || [], [productsData]);
   
@@ -83,23 +83,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { data: usersData, isLoading: isUsersLoading } = useCollection<User>(usersCollection);
   const users = useMemo(() => usersData || [], [usersData]);
 
-  const uomsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'uoms') : null, [firestore]);
+  const uomsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'uoms') : null, [firestore, firebaseUser]);
   const { data: uomsData } = useCollection<{name: string}>(uomsCollection);
   const uoms = useMemo(() => uomsData ? uomsData.map(u => u.name) : [], [uomsData]);
 
 
-  const billsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'bills') : null, [firestore]);
+  const billsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'bills') : null, [firestore, firebaseUser]);
   const { data: liveBillSummariesData } = useCollection<LiveBillSummary>(billsCollection);
   const liveBillSummaries = useMemo(() => liveBillSummariesData || [], [liveBillSummariesData]);
 
 
-  const paymentsCollection = useMemoFirebase(() => firestore ? collection(firestore, 'payments') : null, [firestore]);
+  const paymentsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'payments') : null, [firestore, firebaseUser]);
   const { data: paymentsData } = useCollection<Payment>(paymentsCollection);
   const payments = useMemo(() => paymentsData || [], [paymentsData]);
   
   const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({});
   
-  const { data: pricesData } = useCollection<any>(useMemoFirebase(() => firestore ? collection(firestore, 'productPrices') : null, [firestore]));
+  const { data: pricesData } = useCollection<any>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'productPrices') : null, [firestore, firebaseUser]));
   const productPrices = useMemo(() => {
     if (!pricesData) return {};
     return pricesData.reduce((acc, price) => {
