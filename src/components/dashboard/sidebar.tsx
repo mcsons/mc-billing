@@ -16,7 +16,7 @@ import {
   Cuboid,
   ClipboardPaste,
   Truck,
-  SteeringWheel
+  CircleUser
 } from 'lucide-react';
 import React from 'react';
 
@@ -45,7 +45,7 @@ const menuItems = [
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
-  { href: '/dashboard/drivers', label: 'Manage Drivers', icon: SteeringWheel, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
@@ -128,5 +128,3 @@ export function DashboardSidebar() {
       </Sidebar>
   );
 }
-
-    
