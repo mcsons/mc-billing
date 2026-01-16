@@ -26,6 +26,7 @@ interface PrintData {
 function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const paper = searchParams.get('paper') || 'a4';
   const [printData, setPrintData] = useState<PrintData | null>(null);
 
   useEffect(() => {
@@ -67,8 +68,7 @@ function PrintPageContent() {
   const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : openingBalance;
 
   return (
-    <div className="bg-gray-100 min-h-screen p-4 sm:p-8">
-      <div className="max-w-4xl mx-auto">
+    <div className={`print-root ${paper}`}>
         <div className="flex justify-between items-center mb-4 print:hidden">
           <Button variant="outline" onClick={() => router.back()}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -80,7 +80,7 @@ function PrintPageContent() {
           </Button>
         </div>
         <Card className="print:shadow-none print:border-none print:bg-white">
-          <CardContent className="p-6 md:p-8" id="print-area">
+          <CardContent className="print-content" id="print-area">
             <header className="text-center mb-6">
               <h1 className="text-2xl font-bold font-headline text-primary">
                 M.C & SONS FISH COMPANY
@@ -112,7 +112,7 @@ function PrintPageContent() {
               </div>
             </div>
 
-            <Table>
+            <Table className="print-table">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[100px]">Date</TableHead>
@@ -154,34 +154,92 @@ function PrintPageContent() {
             </footer>
           </CardContent>
         </Card>
-      </div>
-      <style jsx global>{`
-        @media print {
-          body {
-            -webkit-print-color-adjust: exact;
-            background-color: #fff;
-          }
-          .print\\:hidden {
-            display: none;
-          }
-          .print\\:shadow-none {
-            box-shadow: none;
-          }
-          .print\\:border-none {
-            border: none;
-          }
-          .print\\:bg-white {
-            background-color: #fff !important;
-          }
-          .bg-gray-100 {
-            background-color: #fff !important;
-          }
-          @page {
-            size: auto;
-            margin: 0.5in;
-          }
-        }
-      `}</style>
+        <style jsx global>{`
+  /* ===== PRINT RESET ===== */
+  @media print {
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .print\\:hidden {
+      display: none !important;
+    }
+  }
+
+  /* ===== THERMAL 79mm ===== */
+  @media print {
+    .print-root.thermal {
+      width: 79mm;
+      font-family: monospace;
+      font-size: 11px;
+    }
+
+    .print-root.thermal .print-content {
+      padding: 4mm;
+    }
+
+    .print-root.thermal table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .print-root.thermal th,
+    .print-root.thermal td {
+      padding: 2px 0;
+      font-size: 11px;
+    }
+
+    .print-root.thermal h1 {
+      font-size: 15px;
+    }
+
+    @page {
+      size: 79mm auto;
+      margin: 0;
+    }
+  }
+
+  /* ===== A4 / LETTER ===== */
+  @media print {
+    .print-root.a4 {
+      width: 210mm;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+
+    .print-root.a4 .print-content {
+      padding: 15mm;
+    }
+
+    .print-root.a4 table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .print-root.a4 th,
+    .print-root.a4 td {
+      padding: 6px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .print-root.a4 th {
+      background: #f5f5f5;
+    }
+
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+  }
+`}</style>
+
     </div>
   );
 }

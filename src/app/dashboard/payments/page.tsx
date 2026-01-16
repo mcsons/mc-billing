@@ -112,21 +112,33 @@ export default function PaymentsPage() {
         setOpeningBalance(0);
     };
 
-    const handlePrint = () => {
-        if (filteredTransactions.length === 0 && openingBalance === 0 || !historySelectedCustomerId) {
-            toast({ variant: 'destructive', title: 'Nothing to Print', description: 'Please search for transactions first.' });
+    const openPaymentsPrint = (paper: 'thermal' | 'a4') => {
+        if (!historySelectedCustomerId || (!filteredTransactions.length && openingBalance === 0)) {
+            toast({
+                variant: 'destructive',
+                title: 'Nothing to Print',
+                description: 'Please search for transactions first.',
+            });
             return;
         }
+
         const customer = customers.find(c => c.id === historySelectedCustomerId);
+
         const printData = {
             customer,
             transactions: filteredTransactions,
-            openingBalance: openingBalance,
-            dateRange: { from: fromDate, to: toDate }
+            openingBalance,
+            dateRange: { from: fromDate, to: toDate },
         };
+
         const encodedData = encodeURIComponent(JSON.stringify(printData));
-        window.open(`/dashboard/payments/print?data=${encodedData}`, '_blank');
+
+        window.open(
+            `/dashboard/payments/print?data=${encodedData}&paper=${paper}`,
+            '_blank'
+        );
     };
+
 
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
 
@@ -340,10 +352,14 @@ export default function PaymentsPage() {
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button size="lg" onClick={handlePrint} disabled={!historySelectedCustomerId || (!filteredTransactions.length && openingBalance === 0)}>
-                        <Printer className="mr-2 h-4 w-4" />
-                        Print Statement
+                    <Button onClick={() => openPaymentsPrint('thermal')}>
+                        🧾 Print Receipt (79mm)
                     </Button>
+
+                    <Button variant="outline" onClick={() => openPaymentsPrint('a4')}>
+                        📄 Print A4 Statement
+                    </Button>
+
                 </CardFooter>
             </Card>
         </div>

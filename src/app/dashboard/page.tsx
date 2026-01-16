@@ -112,7 +112,16 @@ export default function BillingPage() {
           setActiveBillNo(billToEdit.billNo);
           setInitialBillTotal(billToEdit.amount);
           setPaidAmount('');
-          setDate(new Date(billToEdit.date || new Date()));
+
+          const dateFromBill = billToEdit.date;
+          // When loading from Firestore, `date` can be a Timestamp object.
+          // We must convert it to a JS Date object before using it with `format`.
+          if (dateFromBill && typeof (dateFromBill as any).toDate === 'function') {
+            setDate((dateFromBill as any).toDate());
+          } else {
+            // Fallback for regular JS Dates or if the date is missing.
+            setDate(new Date(dateFromBill || new Date()));
+          }
         }
       }
     }
@@ -167,8 +176,7 @@ export default function BillingPage() {
     const qtyNum = parseFloat(qty);
     const rateNum = parseFloat(rate);
 
-    const newItem: BillItem = {
-      id: Date.now().toString(), // Use timestamp string for unique ID
+    const newItem: Omit<BillItem, 'id'> = {
       product: productInfo.name_ta,
       productId: productInfo.id,
       uom: uom,
@@ -182,7 +190,8 @@ export default function BillingPage() {
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (customer) {
       const currentItems = billItems || [];
-      const newBillItems = [...currentItems, newItem];
+      // This is a temporary local representation. The source of truth is Firestore.
+      const newBillItems = [...currentItems, {...newItem, id: Date.now().toString()}];
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
         createdBy: currentUser?.id || 'unknown-user',
@@ -190,9 +199,9 @@ export default function BillingPage() {
         date: date || new Date(),
         customerId: selectedCustomerId,
       };
-      
+
       const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
-      
+
       if (!activeBillNo) {
         setActiveBillNo(updatedBillNo);
       }
@@ -219,10 +228,10 @@ export default function BillingPage() {
     const newAmount = newQty * newRate;
 
     const updateData = {
-        [field]: parsedValue,
-        amount: newAmount,
+      [field]: parsedValue,
+      amount: newAmount,
     };
-    
+
     // Use a batch to update item and bill total atomically
     const batch = writeBatch(firestore);
 
@@ -230,13 +239,13 @@ export default function BillingPage() {
     batch.update(itemRef, updateData);
 
     const newTotalAmount = (billItems || []).reduce((sum, item) => {
-        if (item.id === itemId) return sum + newAmount;
-        return sum + item.amount;
+      if (item.id === itemId) return sum + newAmount;
+      return sum + item.amount;
     }, 0);
 
     const billRef = doc(firestore, 'bills', activeBillNo);
     batch.update(billRef, { amount: newTotalAmount });
-    
+
     batch.commit().catch(error => {
       console.error("Failed to update item:", error);
       toast({
@@ -256,7 +265,7 @@ export default function BillingPage() {
         if (!activeBillNo || !firestore) return;
 
         const batch = writeBatch(firestore);
-        
+
         // Mark item for deletion
         const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
         batch.delete(itemRef);
@@ -266,7 +275,7 @@ export default function BillingPage() {
         const newTotalAmount = remainingItems.reduce((sum, item) => sum + item.amount, 0);
         const billRef = doc(firestore, 'bills', activeBillNo);
         batch.update(billRef, { amount: newTotalAmount });
-        
+
         // Commit the batch
         batch.commit().then(() => {
           toast({
@@ -342,7 +351,7 @@ export default function BillingPage() {
     handleNewBill(); // Clear everything for the next bill
   };
 
-  const handlePrintBill = () => {
+  const handlePrintBill = (paper: 'thermal' | 'a4') => {
     const currentItems = billItems || [];
     if (!selectedCustomerId || currentItems.length === 0) {
       toast({
@@ -357,17 +366,22 @@ export default function BillingPage() {
       billNo: activeBillNo || 'NEW',
       date: date?.toISOString() || new Date().toISOString(),
       customer: selectedCustomerData,
-      items: currentItems,
+      items: billItems,
       totalAmount,
       previousBalance,
       paidAmount: parseFloat(paidAmount) || 0,
       finalBalance,
-      stall: '1', // Should be dynamic
+      stall: '1',
     };
 
     const encodedData = encodeURIComponent(JSON.stringify(billData));
-    window.open(`/dashboard/print?data=${encodedData}`, '_blank');
+
+    window.open(
+      `/dashboard/print?data=${encodedData}&paper=${paper}`,
+      '_blank'
+    );
   };
+
 
   const totalAmount = useMemo(
     () => (billItems || []).reduce((sum, item) => sum + item.amount, 0),
@@ -723,9 +737,12 @@ export default function BillingPage() {
                   <Save className="mr-2 h-4 w-4" />
                   Save Bill
                 </Button>
-                <Button size="lg" onClick={handlePrintBill}>
-                  <Printer className="mr-2 h-4 w-4" />
-                  Print Bill
+                <Button onClick={() => handlePrintBill('thermal')}>
+                  Print Receipt (79mm)
+                </Button>
+
+                <Button variant="outline" onClick={() => handlePrintBill('a4')}>
+                  Print A4
                 </Button>
               </div>
             </CardFooter>
