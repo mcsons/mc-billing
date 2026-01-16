@@ -17,16 +17,26 @@ import {
   } from '@/components/ui/table';
   import { Badge } from '@/components/ui/badge';
   import { Button } from '@/components/ui/button';
-  import { PlusCircle } from 'lucide-react';
+  import { PlusCircle, Trash2 } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
+import { useAlertDialog } from '@/context/AlertDialogProvider';
   
   
   export default function UsersPage() {
-    const { users, currentUser } = useData();
+    const { users, currentUser, deleteUser } = useData();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const showAlertDialog = useAlertDialog();
 
     const canManageUsers = currentUser?.role === 'CREATOR';
+
+    const handleDeleteUser = (userId: string, username: string) => {
+      showAlertDialog({
+        title: 'Are you sure?',
+        description: `This will permanently delete the user "${username}". This action cannot be undone.`,
+        onConfirm: () => deleteUser(userId),
+      });
+    };
 
     return (
         <>
@@ -53,6 +63,7 @@ import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
                 <TableHead>Username</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
+                {canManageUsers && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -70,6 +81,20 @@ import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
                       {user.status}
                     </Badge>
                   </TableCell>
+                  {canManageUsers && (
+                    <TableCell className="text-right">
+                      {user.id !== currentUser?.id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteUser(user.id, user.username)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <span className="sr-only">Delete user</span>
+                        </Button>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

@@ -41,6 +41,7 @@ interface DataContextType {
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => Promise<void>;
+  deleteUser: (userId: string) => void;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -307,6 +308,52 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }
   };
+
+  const deleteUser = (userId: string) => {
+    if (!firestore || !currentUser) return;
+    if (currentUser.role !== 'CREATOR') {
+      toast({
+        variant: 'destructive',
+        title: 'Permission Denied',
+        description: 'You do not have permission to delete users.',
+      });
+      return;
+    }
+    if (currentUser.id === userId) {
+      toast({
+        variant: 'destructive',
+        title: 'Action Not Allowed',
+        description: 'You cannot delete your own account.',
+      });
+      return;
+    }
+
+    const batch = writeBatch(firestore);
+
+    const userRef = doc(firestore, 'users', userId);
+    batch.delete(userRef);
+
+    // Also attempt to delete their admin role document, if it exists
+    const adminRoleRef = doc(firestore, 'roles_admin', userId);
+    batch.delete(adminRoleRef);
+
+    batch
+      .commit()
+      .then(() => {
+        toast({
+          title: 'User Deleted',
+          description: 'The user has been successfully deleted.',
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to delete user:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Delete Failed',
+          description: 'Could not delete the user.',
+        });
+      });
+  };
   
   const addUom = (uom: Uom) => {
     if (!firestore) return;
@@ -507,6 +554,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         editProduct,
         deleteProduct,
         addUser,
+        deleteUser,
         addUom,
         removeBillItem,
         createOrUpdateLiveBill,
