@@ -27,6 +27,49 @@ export default function PricesPage() {
 
   const selectedProduct = products.find((p) => p.id.toLowerCase() === selectedProductId.toLowerCase());
 
+  const reactSelectStyles = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--background))',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+      boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+      '&:hover': {
+        borderColor: 'hsl(var(--ring))',
+      },
+    }),
+    menu: (baseStyles) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--card))',
+      zIndex: 50,
+    }),
+    option: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: state.isSelected
+        ? 'hsl(var(--accent))'
+        : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+      color: state.isSelected
+        ? 'hsl(var(--accent-foreground))'
+        : 'hsl(var(--foreground))',
+      '&:active': {
+        backgroundColor: 'hsl(var(--accent))',
+      },
+    }),
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+    input: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+     placeholder: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--muted-foreground))',
+    }),
+  };
+
   useEffect(() => {
     if (selectedProduct) {
       const initialPrices: LocalPrices = {};
@@ -91,9 +134,7 @@ export default function PricesPage() {
               onChange={(option) => {
                 setSelectedProductId(option ? option.value : '');
               }}
-              styles={{
-                menu: (base) => ({ ...base, zIndex: 50 }),
-              }}
+              styles={reactSelectStyles}
               filterOption={(option, input) =>
                 option.label.toLowerCase().includes(input.toLowerCase()) ||
                 option.value.toLowerCase().includes(input.toLowerCase())

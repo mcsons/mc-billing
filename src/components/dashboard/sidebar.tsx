@@ -16,7 +16,7 @@ import {
   Cuboid,
   ClipboardPaste,
   Truck,
-  CircleUser
+  CircleUser,
 } from 'lucide-react';
 import React from 'react';
 
@@ -31,7 +31,8 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarTrigger,
-  SidebarMenuSubItem
+  SidebarMenuSubItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
@@ -61,8 +62,15 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const { currentUser } = useData();
   const currentUserRole = currentUser?.role;
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const isMenuItemActive = (href: string, exact = false) => {
     if (exact) {
@@ -89,7 +97,7 @@ export function DashboardSidebar() {
             {menuItems.map((item) => 
                 (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
                     <SidebarMenuItem key={item.label}>
-                        <Link href={item.href}>
+                        <Link href={item.href} onClick={handleLinkClick}>
                             <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, item.href === '/dashboard' || item.href.includes('profile'))}>
                                 <item.icon />
                                 <span>{item.label}</span>
@@ -108,7 +116,7 @@ export function DashboardSidebar() {
                     <SidebarMenuSub open={isSettingsOpen}>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href}>
+                                <Link href={subItem.href} onClick={handleLinkClick}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>

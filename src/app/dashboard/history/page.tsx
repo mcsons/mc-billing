@@ -51,6 +51,49 @@ export default function HistoryPage() {
 
   const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>(liveBillSummaries);
 
+  const reactSelectStyles = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--background))',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+      boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+      '&:hover': {
+        borderColor: 'hsl(var(--ring))',
+      },
+    }),
+    menu: (baseStyles) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--card))',
+      zIndex: 50,
+    }),
+    option: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: state.isSelected
+        ? 'hsl(var(--accent))'
+        : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+      color: state.isSelected
+        ? 'hsl(var(--accent-foreground))'
+        : 'hsl(var(--foreground))',
+      '&:active': {
+        backgroundColor: 'hsl(var(--accent))',
+      },
+    }),
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+    input: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+     placeholder: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--muted-foreground))',
+    }),
+  };
+
   useEffect(() => {
     // Keep the filtered list in sync with the source if no filters are active
     if (!date && !selectedCustomer) {
@@ -137,7 +180,7 @@ export default function HistoryPage() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row justify-between items-center">
+      <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle className="font-headline">Bill History</CardTitle>
           <CardDescription>
@@ -152,7 +195,7 @@ export default function HistoryPage() {
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end mb-6">
           <div className="grid gap-2 flex-1">
             <Label htmlFor="customer-search">Customer</Label>
             <ReactSelect
@@ -174,9 +217,7 @@ export default function HistoryPage() {
               onChange={(option) => {
                 setSelectedCustomer(option ? option.value : '');
               }}
-              styles={{
-                menu: (base) => ({ ...base, zIndex: 50 }),
-              }}
+              styles={reactSelectStyles}
               filterOption={(option, input) =>
                 option.label.toLowerCase().includes(input.toLowerCase()) ||
                 option.value.toLowerCase().includes(input.toLowerCase())
@@ -208,7 +249,7 @@ export default function HistoryPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="self-end flex gap-2">
+          <div className="flex gap-2">
             <Button onClick={handleSearch}>
               <Search className="mr-2 h-4 w-4" />
               Search
@@ -220,66 +261,68 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {canDelete && (
-                <TableHead className="w-[40px] text-center">
-                  <Checkbox
-                    checked={
-                      filteredBills.length > 0 &&
-                      selectedBills.size === filteredBills.length
-                    }
-                    onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                    aria-label="Select all"
-                  />
-                </TableHead>
-              )}
-              <TableHead>Bill No</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead>Created By</TableHead>
-              <TableHead>Stall</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredBills.length > 0 ? (
-              filteredBills.map((bill) => (
-                <TableRow
-                  key={bill.billNo}
-                  className="cursor-pointer"
-                  onDoubleClick={() => handleEditBill(bill.billNo)}
-                  data-state={selectedBills.has(bill.billNo) && 'selected'}
-                >
-                  {canDelete && (
-                    <TableCell className="w-[40px] text-center">
-                      <Checkbox
-                        checked={selectedBills.has(bill.billNo)}
-                        onCheckedChange={(checked) =>
-                          handleSelectBill(bill.billNo, !!checked)
-                        }
-                        aria-label={`Select bill ${bill.billNo}`}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell className="font-medium">{bill.billNo}</TableCell>
-                  <TableCell>{bill.customerName}</TableCell>
-                  <TableCell className="text-right">
-                    ₹{bill.amount.toFixed(2)}
-                  </TableCell>
-                  <TableCell>{bill.createdBy}</TableCell>
-                  <TableCell>{bill.stall}</TableCell>
-                </TableRow>
-              ))
-            ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
-                  No results found.
-                </TableCell>
+                {canDelete && (
+                  <TableHead className="w-[40px] text-center">
+                    <Checkbox
+                      checked={
+                        filteredBills.length > 0 &&
+                        selectedBills.size === filteredBills.length
+                      }
+                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
+                      aria-label="Select all"
+                    />
+                  </TableHead>
+                )}
+                <TableHead>Bill No</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead>Created By</TableHead>
+                <TableHead>Stall</TableHead>
               </TableRow>
-            )}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {filteredBills.length > 0 ? (
+                filteredBills.map((bill) => (
+                  <TableRow
+                    key={bill.billNo}
+                    className="cursor-pointer"
+                    onDoubleClick={() => handleEditBill(bill.billNo)}
+                    data-state={selectedBills.has(bill.billNo) && 'selected'}
+                  >
+                    {canDelete && (
+                      <TableCell className="w-[40px] text-center">
+                        <Checkbox
+                          checked={selectedBills.has(bill.billNo)}
+                          onCheckedChange={(checked) =>
+                            handleSelectBill(bill.billNo, !!checked)
+                          }
+                          aria-label={`Select bill ${bill.billNo}`}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="font-medium">{bill.billNo}</TableCell>
+                    <TableCell>{bill.customerName}</TableCell>
+                    <TableCell className="text-right">
+                      ₹{bill.amount.toFixed(2)}
+                    </TableCell>
+                    <TableCell>{bill.createdBy}</TableCell>
+                    <TableCell>{bill.stall}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
+                    No results found.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

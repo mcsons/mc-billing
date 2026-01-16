@@ -106,6 +106,49 @@ export default function BillingPage() {
   }, [firestore, activeBillNo]);
   const { data: billItems } = useCollection<BillItem>(billItemsQuery);
 
+  const reactSelectStyles = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--background))',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+      boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+      '&:hover': {
+        borderColor: 'hsl(var(--ring))',
+      },
+    }),
+    menu: (baseStyles) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--card))',
+      zIndex: 50,
+    }),
+    option: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: state.isSelected
+        ? 'hsl(var(--accent))'
+        : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+      color: state.isSelected
+        ? 'hsl(var(--accent-foreground))'
+        : 'hsl(var(--foreground))',
+      '&:active': {
+        backgroundColor: 'hsl(var(--accent))',
+      },
+    }),
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+    input: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+     placeholder: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--muted-foreground))',
+    }),
+  };
+
 
   // This effect runs when a bill number is passed in the URL (for editing old bills)
   useEffect(() => {
@@ -313,19 +356,14 @@ export default function BillingPage() {
         return null;
     }
     
-    if (currentItems.length === 0) {
-      if (activeBillNo) {
-        // If it's an existing bill with all items deleted, allow saving (which will result in a 0 amount bill)
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Cannot Save Bill',
-          description: 'Please add at least one item for a new bill.',
-        });
-        return null;
-      }
+    if (currentItems.length === 0 && !activeBillNo) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Save Bill',
+        description: 'Please add at least one item for a new bill.',
+      });
+      return null;
     }
-
 
     const billSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
@@ -431,10 +469,10 @@ export default function BillingPage() {
 
 
   return (
-    <div className="grid auto-rows-max items-start gap-4 lg:gap-8 lg:grid-cols-2">
+    <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
       <div className="grid gap-4">
         <Card>
-          <CardHeader className="flex flex-row justify-between items-start">
+          <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="font-headline">
                 {activeBillNo
@@ -445,13 +483,13 @@ export default function BillingPage() {
                 Select customer, add products, and generate a bill.
               </CardDescription>
             </div>
-            <div className="flex flex-col gap-2 items-end">
+            <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
                     variant={'outline'}
                     className={cn(
-                      'w-[240px] justify-start text-left font-normal',
+                      'w-full sm:w-[240px] justify-start text-left font-normal',
                       !date && 'text-muted-foreground'
                     )}
                   >
@@ -462,7 +500,7 @@ export default function BillingPage() {
                 <PopoverContent className="w-auto p-0">
                   <Calendar
                     mode="single"
-                    selected={date}
+                    selected={date instanceof Timestamp ? date.toDate() : date}
                     onSelect={setDate}
                     initialFocus
                   />
@@ -500,9 +538,7 @@ export default function BillingPage() {
                     setSelectedCustomerId(option ? option.value : '');
                     handleCustomerSelect(option ? option.value : '')
                   }}
-                  styles={{
-                    menu: (base) => ({ ...base, zIndex: 50 }),
-                  }}
+                  styles={reactSelectStyles}
                 />
 
               </div>
@@ -565,9 +601,7 @@ export default function BillingPage() {
                         setUom(product.uom_allowed[0]);
                       }
                     }}
-                    styles={{
-                      menu: (base) => ({ ...base, zIndex: 50 }),
-                    }}
+                    styles={reactSelectStyles}
                     filterOption={(option, input) =>
                       option.label.toLowerCase().includes(input.toLowerCase()) ||
                       option.value.toLowerCase().includes(input.toLowerCase())
@@ -580,6 +614,7 @@ export default function BillingPage() {
                     className="absolute right-1 top-1 h-7 w-7"
                     onClick={() => setIsProductLocked(!isProductLocked)}
                     disabled={!selectedCustomerId}
+                    tabIndex={-1}
                   >
                     {isProductLocked ? (
                       <Unlock className="h-4 w-4" />
@@ -660,75 +695,77 @@ export default function BillingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="max-h-[40vh] overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]">S/N</TableHead>
-                  <TableHead>Product (பெயர்)</TableHead>
-                  <TableHead>UOM</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right w-40">Rate (₹)</TableHead>
-                  <TableHead className="text-right">Amount (₹)</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {billItems && billItems.length > 0 ? (
-                  billItems.map((item, index) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{index + 1}</TableCell>
-                      <TableCell className="font-medium">
-                        {item.product}
-                      </TableCell>
-                      <TableCell>{item.uom}</TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          defaultValue={item.qty}
-                          onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="h-8 text-right w-24 ml-auto"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Input
-                          type="number"
-                          defaultValue={item.rate}
-                          onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="h-8 text-right w-24 ml-auto"
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {item.amount.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveItem(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                          <span className="sr-only">Delete item</span>
-                        </Button>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]">S/N</TableHead>
+                    <TableHead>Product (பெயர்)</TableHead>
+                    <TableHead>UOM</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right w-40">Rate (₹)</TableHead>
+                    <TableHead className="text-right">Amount (₹)</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {billItems && billItems.length > 0 ? (
+                    billItems.map((item, index) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.product}
+                        </TableCell>
+                        <TableCell>{item.uom}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            defaultValue={item.qty}
+                            onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="h-8 w-24 ml-auto text-right"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            defaultValue={item.rate}
+                            onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="h-8 w-24 ml-auto text-right"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {item.amount.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveItem(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                            <span className="sr-only">Delete item</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center h-24">
+                        {selectedCustomerId
+                          ? 'No items added yet.'
+                          : 'Select a customer to begin.'}
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center h-24">
-                      {selectedCustomerId
-                        ? 'No items added yet.'
-                        : 'Select a customer to begin.'}
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
           {selectedCustomerId && (
-            <CardFooter className="flex flex-col items-stretch sm:items-end gap-4 pt-4">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg w-full max-w-md self-end">
+            <CardFooter className="flex flex-col items-stretch gap-4 pt-4 sm:items-end">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-2 w-full max-w-md self-end text-lg text-right">
                 <span className="font-semibold">Total:</span>
                 <span className="font-bold font-mono">
                   ₹{totalAmount.toFixed(2)}
@@ -737,7 +774,7 @@ export default function BillingPage() {
                 <span className="font-mono">₹{previousBalance.toFixed(2)}</span>
                 <span className="font-semibold">Paid:</span>
                 <Input
-                  className="max-w-32 text-right font-mono ml-auto"
+                  className="max-w-32 ml-auto text-right font-mono"
                   placeholder="0.00"
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}

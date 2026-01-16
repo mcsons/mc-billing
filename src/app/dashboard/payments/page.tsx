@@ -55,6 +55,49 @@ export default function PaymentsPage() {
     const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
     const [openingBalance, setOpeningBalance] = useState<number>(0);
 
+    const reactSelectStyles = {
+      control: (baseStyles, state) => ({
+        ...baseStyles,
+        backgroundColor: 'hsl(var(--background))',
+        borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+        boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+        '&:hover': {
+          borderColor: 'hsl(var(--ring))',
+        },
+      }),
+      menu: (baseStyles) => ({
+        ...baseStyles,
+        backgroundColor: 'hsl(var(--card))',
+        zIndex: 50,
+      }),
+      option: (baseStyles, state) => ({
+        ...baseStyles,
+        backgroundColor: state.isSelected
+          ? 'hsl(var(--accent))'
+          : state.isFocused
+          ? 'hsl(var(--muted))'
+          : 'transparent',
+        color: state.isSelected
+          ? 'hsl(var(--accent-foreground))'
+          : 'hsl(var(--foreground))',
+        '&:active': {
+          backgroundColor: 'hsl(var(--accent))',
+        },
+      }),
+      singleValue: (baseStyles) => ({
+        ...baseStyles,
+        color: 'hsl(var(--foreground))',
+      }),
+      input: (baseStyles) => ({
+        ...baseStyles,
+        color: 'hsl(var(--foreground))',
+      }),
+       placeholder: (baseStyles) => ({
+        ...baseStyles,
+        color: 'hsl(var(--muted-foreground))',
+      }),
+    };
+
 
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
@@ -143,7 +186,7 @@ export default function PaymentsPage() {
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
 
     return (
-        <div className="grid gap-8 lg:grid-cols-2">
+        <div className="grid auto-rows-max gap-8 lg:grid-cols-2">
             <Card>
                 <CardHeader>
                     <CardTitle className="font-headline">Record Payment</CardTitle>
@@ -173,9 +216,7 @@ export default function PaymentsPage() {
                             onChange={(option) => {
                                 setRecordSelectedCustomerId(option ? option.value : '');
                             }}
-                            styles={{
-                                menu: (base) => ({ ...base, zIndex: 50 }),
-                            }}
+                            styles={reactSelectStyles}
                             filterOption={(option, input) =>
                                 option.label.toLowerCase().includes(input.toLowerCase()) ||
                                 option.value.toLowerCase().includes(input.toLowerCase())
@@ -256,9 +297,7 @@ export default function PaymentsPage() {
                             onChange={(option) => {
                                 setHistorySelectedCustomerId(option ? option.value : '');
                             }}
-                            styles={{
-                                menu: (base) => ({ ...base, zIndex: 50 }),
-                            }}
+                            styles={reactSelectStyles}
                             filterOption={(option, input) =>
                                 option.label.toLowerCase().includes(input.toLowerCase()) ||
                                 option.value.toLowerCase().includes(input.toLowerCase())
@@ -309,49 +348,51 @@ export default function PaymentsPage() {
                     <Separator />
 
                     <div className="max-h-60 overflow-y-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Description</TableHead>
-                                    <TableHead className="text-right">Billed (+)</TableHead>
-                                    <TableHead className="text-right">Received (-)</TableHead>
-                                    <TableHead className="text-right">Balance</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {historySelectedCustomerId ? (
-                                    filteredTransactions.length > 0 || openingBalance !== 0 ? (
-                                        <>
-                                            <TableRow className="bg-muted/50">
-                                                <TableCell colSpan={4} className="font-semibold">Opening Balance</TableCell>
-                                                <TableCell className="text-right font-mono font-semibold">{openingBalance.toFixed(2)}</TableCell>
-                                            </TableRow>
-                                            {filteredTransactions.map((t, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
-                                                    <TableCell>{t.description}</TableCell>
-                                                    <TableCell className="text-right font-mono text-green-600">{t.billedAmount?.toFixed(2)}</TableCell>
-                                                    <TableCell className="text-right font-mono text-red-600">{t.receivedAmount?.toFixed(2)}</TableCell>
-                                                    <TableCell className="text-right font-mono">{t.balance.toFixed(2)}</TableCell>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Description</TableHead>
+                                        <TableHead className="text-right">Billed (+)</TableHead>
+                                        <TableHead className="text-right">Received (-)</TableHead>
+                                        <TableHead className="text-right">Balance</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {historySelectedCustomerId ? (
+                                        filteredTransactions.length > 0 || openingBalance !== 0 ? (
+                                            <>
+                                                <TableRow className="bg-muted/50">
+                                                    <TableCell colSpan={4} className="font-semibold">Opening Balance</TableCell>
+                                                    <TableCell className="text-right font-mono font-semibold">{openingBalance.toFixed(2)}</TableCell>
                                                 </TableRow>
-                                            ))}
-                                        </>
+                                                {filteredTransactions.map((t, i) => (
+                                                    <TableRow key={i}>
+                                                        <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
+                                                        <TableCell>{t.description}</TableCell>
+                                                        <TableCell className="text-right font-mono text-green-600">{t.billedAmount?.toFixed(2)}</TableCell>
+                                                        <TableCell className="text-right font-mono text-red-600">{t.receivedAmount?.toFixed(2)}</TableCell>
+                                                        <TableCell className="text-right font-mono">{t.balance.toFixed(2)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </>
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="h-24 text-center">No transactions found for this criteria.</TableCell>
+                                            </TableRow>
+                                        )
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="h-24 text-center">No transactions found for this criteria.</TableCell>
+                                            <TableCell colSpan={5} className="h-24 text-center">Select a customer and date range.</TableCell>
                                         </TableRow>
-                                    )
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="h-24 text-center">Select a customer and date range.</TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-wrap gap-2">
                     <Button onClick={() => openPaymentsPrint('thermal')}>
                         🧾 Print Receipt (79mm)
                     </Button>

@@ -74,6 +74,49 @@ export default function VehicleBillingPage() {
   const [historyDriverId, setHistoryDriverId] = useState('');
   const [filteredBills, setFilteredBills] = useState<VehicleBill[]>([]);
 
+  const reactSelectStyles = {
+    control: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--background))',
+      borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
+      boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+      '&:hover': {
+        borderColor: 'hsl(var(--ring))',
+      },
+    }),
+    menu: (baseStyles) => ({
+      ...baseStyles,
+      backgroundColor: 'hsl(var(--card))',
+      zIndex: 50,
+    }),
+    option: (baseStyles, state) => ({
+      ...baseStyles,
+      backgroundColor: state.isSelected
+        ? 'hsl(var(--accent))'
+        : state.isFocused
+        ? 'hsl(var(--muted))'
+        : 'transparent',
+      color: state.isSelected
+        ? 'hsl(var(--accent-foreground))'
+        : 'hsl(var(--foreground))',
+      '&:active': {
+        backgroundColor: 'hsl(var(--accent))',
+      },
+    }),
+    singleValue: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+    input: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--foreground))',
+    }),
+     placeholder: (baseStyles) => ({
+      ...baseStyles,
+      color: 'hsl(var(--muted-foreground))',
+    }),
+  };
+
   // Load bill for editing from URL param
   useEffect(() => {
     const billIdFromParams = searchParams.get('billId');
@@ -120,7 +163,7 @@ export default function VehicleBillingPage() {
         return null;
     }
 
-    const billData: Omit<VehicleBill, 'id' | 'createdBy'> = {
+    const billData: Omit<VehicleBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
       date,
       vehicleId,
       vehicleName: vehicle.name,
@@ -212,11 +255,13 @@ export default function VehicleBillingPage() {
   const activeDrivers = useMemo(() => drivers.filter(d => d.active), [drivers]);
   
   const balance = useMemo(() => (parseFloat(advance) || 0) - (parseFloat(expenses) || 0), [advance, expenses]);
+  
+  const selectedVehicle = useMemo(() => vehicles.find(v => v.id === vehicleId), [vehicleId, vehicles]);
 
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
       <Card>
-        <CardHeader className="flex flex-row justify-between items-start">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <CardTitle className="font-headline">
               {editingBillId ? `Editing Bill ${editingBillId.slice(0,5)}...` : 'Create Vehicle Bill'}
@@ -225,7 +270,7 @@ export default function VehicleBillingPage() {
               Enter details for vehicle trips, expenses, and advances.
             </CardDescription>
           </div>
-          <div className="flex flex-col gap-2 items-end">
+          <div className="flex flex-col items-stretch sm:items-end w-full sm:w-auto gap-2">
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')}>
@@ -244,48 +289,58 @@ export default function VehicleBillingPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-x-8 gap-y-4 md:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="vehicle">Vehicle Number</Label>
-              <ReactSelect
-                instanceId="vehicle-select"
-                options={activeVehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})` }))}
-                value={activeVehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})` })).find(v => v.value === vehicleId) || null}
-                onChange={(option) => setVehicleId(option ? option.value : '')}
-                placeholder="Select vehicle..."
-                isClearable
-              />
+            <div className="grid gap-x-8 gap-y-4 md:grid-cols-2 lg:grid-cols-3">
+                 <div className="grid gap-2">
+                    <Label htmlFor="vehicle">Vehicle Number</Label>
+                    <ReactSelect
+                        instanceId="vehicle-select"
+                        options={activeVehicles.map(v => ({ value: v.id, label: `${v.id}` }))}
+                        value={activeVehicles.map(v => ({ value: v.id, label: v.id })).find(v => v.value === vehicleId) || null}
+                        onChange={(option) => setVehicleId(option ? option.value : '')}
+                        placeholder="Select vehicle..."
+                        isClearable
+                        styles={reactSelectStyles}
+                    />
+                </div>
+                 {selectedVehicle && (
+                     <div className="grid gap-2">
+                        <Label>Vehicle Name</Label>
+                        <p className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                            {selectedVehicle.name}
+                        </p>
+                    </div>
+                )}
+                <div className="grid gap-2">
+                    <Label htmlFor="driver">Driver Name</Label>
+                    <ReactSelect
+                        instanceId="driver-select"
+                        options={activeDrivers.map(d => ({ value: d.id, label: d.name }))}
+                        value={activeDrivers.map(d => ({ value: d.id, label: d.name })).find(d => d.value === driverId) || null}
+                        onChange={(option) => setDriverId(option ? option.value : '')}
+                        placeholder="Select driver..."
+                        isClearable
+                        styles={reactSelectStyles}
+                    />
+                </div>
+                 <div className="grid gap-2">
+                    <Label htmlFor="destination">Destination</Label>
+                    <Input id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="advance">Advance (₹)</Label>
+                    <Input id="advance" type="number" value={advance} onChange={(e) => setAdvance(e.target.value)} />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="expenses">Expenses (₹)</Label>
+                    <Input id="expenses" type="number" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
+                </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="driver">Driver Name</Label>
-              <ReactSelect
-                instanceId="driver-select"
-                options={activeDrivers.map(d => ({ value: d.id, label: d.name }))}
-                value={activeDrivers.map(d => ({ value: d.id, label: d.name })).find(d => d.value === driverId) || null}
-                onChange={(option) => setDriverId(option ? option.value : '')}
-                placeholder="Select driver..."
-                isClearable
-              />
+             <div className="mt-6 border-t pt-4">
+                <Label>Balance (₹)</Label>
+                <p className="text-2xl font-bold font-mono">₹{balance.toFixed(2)}</p>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="destination">Destination</Label>
-              <Input id="destination" value={destination} onChange={(e) => setDestination(e.target.value)} />
-            </div>
-             <div className="grid gap-2">
-              <Label htmlFor="advance">Advance (₹)</Label>
-              <Input id="advance" type="number" value={advance} onChange={(e) => setAdvance(e.target.value)} />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="expenses">Expenses (₹)</Label>
-              <Input id="expenses" type="number" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
-            </div>
-             <div className="grid gap-2">
-              <Label>Balance (₹)</Label>
-              <p className="text-2xl font-bold font-mono">₹{balance.toFixed(2)}</p>
-            </div>
-          </div>
         </CardContent>
-        <CardFooter className="flex justify-end gap-2">
+        <CardFooter className="flex flex-wrap justify-end gap-2">
             <Button size="lg" variant="outline" onClick={handleSaveBill}>
                 <Save className="mr-2 h-4 w-4" /> Save Bill
             </Button>
@@ -304,7 +359,7 @@ export default function VehicleBillingPage() {
             <CardDescription>Search and manage previous vehicle bills.</CardDescription>
         </CardHeader>
         <CardContent>
-            <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
                 <div className="grid gap-2 flex-1">
                     <Label>Vehicle</Label>
                     <ReactSelect
@@ -313,6 +368,7 @@ export default function VehicleBillingPage() {
                         onChange={(o) => setHistoryVehicleId(o ? o.value : '')}
                         isClearable
                         placeholder="Filter by vehicle..."
+                        styles={reactSelectStyles}
                     />
                 </div>
                  <div className="grid gap-2 flex-1">
@@ -323,6 +379,7 @@ export default function VehicleBillingPage() {
                         onChange={(o) => setHistoryDriverId(o ? o.value : '')}
                         isClearable
                         placeholder="Filter by driver..."
+                        styles={reactSelectStyles}
                     />
                 </div>
                  <div className="grid gap-2">
@@ -337,52 +394,54 @@ export default function VehicleBillingPage() {
                         <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
                     </Popover>
                 </div>
-                <div className="self-end flex gap-2">
+                <div className="flex gap-2">
                     <Button onClick={handleSearchHistory}><Search className="mr-2 h-4 w-4" /> Search</Button>
                     <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
                 </div>
             </div>
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Vehicle</TableHead>
-                        <TableHead>Driver</TableHead>
-                        <TableHead>Destination</TableHead>
-                        <TableHead className="text-right">Advance (₹)</TableHead>
-                        <TableHead className="text-right">Expenses (₹)</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {filteredBills.length > 0 ? (
-                        filteredBills.map(bill => (
-                            <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
-                                <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
-                                <TableCell>{bill.vehicleId}</TableCell>
-                                <TableCell>{bill.driverName}</TableCell>
-                                <TableCell>{bill.destination}</TableCell>
-                                <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
-                                        <Printer className="h-4 w-4" />
-                                        <span className="sr-only">Print</span>
-                                    </Button>
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                        <span className="sr-only">Delete</span>
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">No vehicle bills found.</TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
+            <div className="overflow-x-auto">
+              <Table>
+                  <TableHeader>
+                      <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Vehicle</TableHead>
+                          <TableHead>Driver</TableHead>
+                          <TableHead>Destination</TableHead>
+                          <TableHead className="text-right">Advance (₹)</TableHead>
+                          <TableHead className="text-right">Expenses (₹)</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                      {filteredBills.length > 0 ? (
+                          filteredBills.map(bill => (
+                              <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
+                                  <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
+                                  <TableCell>{bill.vehicleId}</TableCell>
+                                  <TableCell>{bill.driverName}</TableCell>
+                                  <TableCell>{bill.destination}</TableCell>
+                                  <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
+                                  <TableCell className="text-right">
+                                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
+                                          <Printer className="h-4 w-4" />
+                                          <span className="sr-only">Print</span>
+                                      </Button>
+                                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                          <span className="sr-only">Delete</span>
+                                      </Button>
+                                  </TableCell>
+                              </TableRow>
+                          ))
+                      ) : (
+                          <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center">No vehicle bills found.</TableCell>
+                          </TableRow>
+                      )}
+                  </TableBody>
+              </Table>
+            </div>
         </CardContent>
       </Card>
     </div>
