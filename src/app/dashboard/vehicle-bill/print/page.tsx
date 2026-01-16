@@ -99,13 +99,13 @@ function PrintPageContent() {
               </TableRow>
                <TableRow>
                 <TableCell className="font-semibold">Date</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="text-right font-bold">
                   {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
                 </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-semibold">Vehicle Number</TableCell>
-                <TableCell className="text-right">{vehicleId}</TableCell>
+                <TableCell className="text-right font-bold">{vehicleId}</TableCell>
               </TableRow>
                <TableRow>
                 <TableCell className="font-semibold">Vehicle Name</TableCell>
@@ -113,11 +113,11 @@ function PrintPageContent() {
               </TableRow>
               <TableRow>
                 <TableCell className="font-semibold">Driver Name</TableCell>
-                <TableCell className="text-right">{driverName}</TableCell>
+                <TableCell className="text-right font-bold">{driverName}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-semibold">Destination</TableCell>
-                <TableCell className="text-right">{destination}</TableCell>
+                <TableCell className="text-right font-bold">{destination}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-semibold">Advance Amount</TableCell>
