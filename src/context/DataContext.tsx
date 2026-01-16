@@ -16,6 +16,7 @@ import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
 
 type ProductPrices = Record<string, Record<string, number>>;
@@ -276,6 +277,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
         return;
     };
+    if (currentUser?.role !== 'CREATOR') {
+      toast({ variant: "destructive", title: "Permission Denied", description: "Only the Creator can add new users."});
+      return;
+    }
     if (!user.password) {
         toast({ variant: "destructive", title: "Password Required", description: "A password must be provided."});
         return;
@@ -290,7 +295,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             role: user.role,
             status: 'Active'
         };
-        // This setDoc is now authenticated as the new user, so it needs permission
+        
         await setDoc(doc(firestore, 'users', newUser.id), newUser);
 
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
@@ -338,7 +343,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>, 
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
@@ -348,52 +353,55 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
     const customerId = summary.customerId;
 
-    if (existingBillNo) {
-        const billRef = doc(firestore, 'bills', existingBillNo);
-        updateDocumentNonBlocking(billRef, { ...summary, amount: totalAmount, updatedAt: serverTimestamp() });
-        // Update bill items subcollection
-        const batch = writeBatch(firestore);
-        const itemsCollectionRef = collection(firestore, 'bills', existingBillNo, 'billItems');
-        // This is simplified. In reality, you'd need to fetch existing items and diff.
-        items.forEach(item => {
-            const itemRef = doc(itemsCollectionRef, item.id.toString());
-            batch.set(itemRef, item);
-        });
-        batch.commit();
-        return existingBillNo;
-    } else {
+    // 1. Determine Bill Number
+    const billNo = existingBillNo || (() => {
         const maxBillNo = (liveBillSummaries || [])
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
             .filter(num => !isNaN(num))
             .reduce((max, num) => Math.max(max, num), 1237);
-        const newBillNo = `B${maxBillNo + 1}`;
-        
-        const newSummary: LiveBillSummary = {
-            ...summary,
-            billNo: newBillNo,
-            amount: totalAmount,
-        };
-        const billRef = doc(firestore, 'bills', newBillNo);
-        setDocumentNonBlocking(billRef, { ...newSummary, createdAt: serverTimestamp() }, {});
+        return `B${maxBillNo + 1}`;
+    })();
+    
+    const billRef = doc(firestore, 'bills', billNo);
 
-        const batch = writeBatch(firestore);
-        const itemsCollectionRef = collection(firestore, 'bills', newBillNo, 'billItems');
-        items.forEach(item => {
-            const itemRef = doc(itemsCollectionRef, item.id.toString());
-            batch.set(itemRef, item);
-        });
-        batch.commit();
-
-        if (paidAmount > 0) {
-            addPayment({
-                customerId,
-                amount: paidAmount,
-                notes: `Payment for new bill ${newBillNo}`
-            });
-        }
-        
-        return newBillNo;
+    // 2. Create or Update Bill Summary Document
+    if (existingBillNo) {
+      updateDocumentNonBlocking(billRef, { ...summary, amount: totalAmount, updatedAt: serverTimestamp() });
+    } else {
+      const newSummary: LiveBillSummary = { ...summary, billNo: billNo, amount: totalAmount };
+      setDocumentNonBlocking(billRef, { ...newSummary, createdAt: serverTimestamp() }, {});
+      
+      if (paidAmount > 0) {
+        addPayment({ customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
+      }
     }
+
+    // 3. Batch write all items with correct billId
+    const batch = writeBatch(firestore);
+    const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
+    items.forEach(item => {
+      // Ensure billId is included in the item data being written
+      const itemData: BillItem = { ...item, billId: billNo };
+      const itemRef = doc(itemsCollectionRef, item.id.toString());
+      // Here we use set with merge true to handle both new and existing items in the list
+      batch.set(itemRef, itemData, { merge: true });
+    });
+
+    // 4. Commit batch and handle errors
+    batch.commit().catch(error => {
+      console.error("Batch commit failed:", error);
+      // Create a contextual error for easier debugging
+      errorEmitter.emit(
+        'permission-error',
+        new FirestorePermissionError({
+          path: `bills/${billNo}/billItems`,
+          operation: 'write',
+          requestResourceData: items.map(i => ({...i, billId: billNo})),
+        })
+      );
+    });
+
+    return billNo;
   };
 
     const deleteBills = (billNos: string[]) => {
@@ -530,6 +538,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    
-    

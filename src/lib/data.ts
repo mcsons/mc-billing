@@ -26,6 +26,7 @@ export type Product = {
 
 export type BillItem = {
   id: number;
+  billId?: string;
   product: string; // This is the Tamil name for display
   productId: string; // The actual product ID
   uom: string;
