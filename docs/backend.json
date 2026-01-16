@@ -454,6 +454,137 @@
         "totalQtyNos",
         "status"
       ]
+    },
+    "Vehicle": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Vehicle",
+      "type": "object",
+      "description": "Represents a vehicle used for transport.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the vehicle (Registration Number)."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name or model of the vehicle."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indicates whether the vehicle is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the vehicle was added.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the vehicle was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "name", "active", "createdAt", "updatedAt"]
+    },
+    "Driver": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Driver",
+      "type": "object",
+      "description": "Represents a driver.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the driver.",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string",
+          "description": "Driver's full name."
+        },
+        "licenseNumber": {
+          "type": "string",
+          "description": "Driver's license number."
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Indicates whether the driver is active."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the driver was added.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the driver was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "name", "licenseNumber", "active", "createdAt", "updatedAt"]
+    },
+    "VehicleBill": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VehicleBill",
+      "type": "object",
+      "description": "Represents a bill for a vehicle trip.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the vehicle bill.",
+          "format": "uuid"
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the vehicle bill.",
+          "format": "date"
+        },
+        "vehicleId": {
+          "type": "string",
+          "description": "Reference to the Vehicle (Registration Number)."
+        },
+        "driverId": {
+          "type": "string",
+          "description": "Reference to the Driver.",
+          "format": "uuid"
+        },
+        "advance": {
+          "type": "number",
+          "description": "Advance amount given."
+        },
+        "destination": {
+          "type": "string",
+          "description": "Trip destination."
+        },
+        "expenses": {
+          "type": "number",
+          "description": "Total expenses for the trip."
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Reference to User who created the bill.",
+          "format": "uuid"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the bill was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the bill was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "vehicleId",
+        "driverId",
+        "advance",
+        "destination",
+        "expenses",
+        "createdBy"
+      ]
     }
   },
   "auth": {
@@ -642,6 +773,33 @@
               "description": "User ID of the administrator."
             }
           ]
+        }
+      },
+      {
+        "path": "/vehicles/{vehicleId}",
+        "definition": {
+          "entityName": "Vehicle",
+          "schema": { "$ref": "#/backend/entities/Vehicle" },
+          "description": "Stores vehicle data. Secured to allow any authenticated user to manage.",
+          "params": [{ "name": "vehicleId", "description": "Vehicle Registration Number." }]
+        }
+      },
+      {
+        "path": "/drivers/{driverId}",
+        "definition": {
+          "entityName": "Driver",
+          "schema": { "$ref": "#/backend/entities/Driver" },
+          "description": "Stores driver data. Secured to allow any authenticated user to manage.",
+          "params": [{ "name": "driverId", "description": "Unique identifier for the driver." }]
+        }
+      },
+      {
+        "path": "/vehicleBills/{vehicleBillId}",
+        "definition": {
+          "entityName": "VehicleBill",
+          "schema": { "$ref": "#/backend/entities/VehicleBill" },
+          "description": "Stores vehicle bill data. Secured by ownership.",
+          "params": [{ "name": "vehicleBillId", "description": "Unique identifier for the vehicle bill." }]
         }
       }
     ],

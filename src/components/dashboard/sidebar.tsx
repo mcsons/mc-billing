@@ -14,6 +14,9 @@ import {
   Wallet,
   ShieldCheck,
   Cuboid,
+  ClipboardPaste,
+  Truck,
+  SteeringWheel
 } from 'lucide-react';
 import React from 'react';
 
@@ -36,10 +39,13 @@ import { ThemeToggle } from '../ui/theme-toggle';
 
 const menuItems = [
   { href: '/dashboard', label: 'Billing', icon: ClipboardList },
+  { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/drivers', label: 'Manage Drivers', icon: SteeringWheel, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
@@ -122,3 +128,5 @@ export function DashboardSidebar() {
       </Sidebar>
   );
 }
+
+    

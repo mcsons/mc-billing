@@ -242,5 +242,37 @@ service cloud.firestore {
       allow list, update, delete: if isAdmin();
       allow create: if (isOwner(userId) && request.auth.token.email == 'creator@mcandsons.com') || isAdmin();
     }
+    
+    /**
+     * @description Manages vehicle data. Any authenticated user can manage.
+     *   Admins and Creators have full control.
+     * @path /vehicles/{vehicleId}
+     */
+    match /vehicles/{vehicleId} {
+      allow read, write: if isSignedIn();
+    }
+
+    /**
+     * @description Manages driver data. Any authenticated user can manage.
+     *   Admins and Creators have full control.
+     * @path /drivers/{driverId}
+     */
+    match /drivers/{driverId} {
+      allow read, write: if isSignedIn();
+    }
+
+    /**
+     * @description Manages vehicle bills. Any authenticated user can read bills.
+     *   Only the creator can modify or delete a bill.
+     * @path /vehicleBills/{vehicleBillId}
+     */
+    match /vehicleBills/{vehicleBillId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy);
+    }
   }
 }
+
+    

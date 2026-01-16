@@ -10,10 +10,13 @@ import {
   User,
   Transaction,
   Uom,
+  Vehicle,
+  Driver,
+  VehicleBill,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
@@ -28,6 +31,9 @@ interface DataContextType {
   products: Product[];
   users: User[];
   uoms: Uom[];
+  vehicles: Vehicle[];
+  drivers: Driver[];
+  vehicleBills: VehicleBill[];
   liveBillSummaries: LiveBillSummary[];
   productPrices: ProductPrices;
   customerBalances: CustomerBalances;
@@ -45,6 +51,14 @@ interface DataContextType {
   deleteUser: (userId: string) => void;
   promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
   addUom: (uom: Uom) => void;
+  addVehicle: (vehicle: Omit<Vehicle, 'active'>) => void;
+  editVehicle: (vehicleId: string, data: Partial<Vehicle>) => void;
+  deleteVehicle: (vehicleId: string) => void;
+  addDriver: (driver: Omit<Driver, 'id' | 'active'>) => void;
+  editDriver: (driverId: string, data: Partial<Driver>) => void;
+  deleteDriver: (driverId: string) => void;
+  addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string) => Promise<VehicleBill | null>;
+  deleteVehicleBill: (billId: string) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
@@ -89,6 +103,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const uomsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'uoms') : null, [firestore, firebaseUser]);
   const { data: uomsData } = useCollection<{name: string}>(uomsCollection);
   const uoms = useMemo(() => uomsData ? uomsData.map(u => u.name) : [], [uomsData]);
+  
+  const vehiclesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'vehicles') : null, [firestore, firebaseUser]);
+  const { data: vehiclesData } = useCollection<Vehicle>(vehiclesCollection);
+  const vehicles = useMemo(() => vehiclesData || [], [vehiclesData]);
+
+  const driversCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'drivers') : null, [firestore, firebaseUser]);
+  const { data: driversData } = useCollection<Driver>(driversCollection);
+  const drivers = useMemo(() => driversData || [], [driversData]);
+
+  const vehicleBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'vehicleBills') : null, [firestore, firebaseUser]);
+  const { data: vehicleBillsData } = useCollection<VehicleBill>(vehicleBillsCollection);
+  const vehicleBills = useMemo(() => vehicleBillsData || [], [vehicleBillsData]);
 
 
   const billsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'bills') : null, [firestore, firebaseUser]);
@@ -285,35 +311,36 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
   
+    // Secure pattern: The UI should only allow creating MANAGER roles.
+    // Promotion to ADMIN/CREATOR is a separate, secure step.
+    if (user.role !== 'MANAGER') {
+        toast({
+            variant: 'destructive',
+            title: 'Invalid Role',
+            description: 'New users must be created with the MANAGER role. You can promote them after creation.',
+        });
+        return;
+    }
+
     try {
       const email = `${user.username.toLowerCase()}@mcandsons.com`;
-      // This function inherently logs in the new user, which is a problem for subsequent admin actions.
-      // The secure pattern is to create the user, then have the admin (who is still logged in) grant roles.
-      // This is handled via the two-step promote feature in the UI.
       const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);
       
       const newUser: User = {
         id: userCredential.user.uid,
         username: user.username,
-        role: 'MANAGER', // Always create as Manager first
+        role: 'MANAGER',
         status: 'Active'
       };
   
       const userRef = doc(firestore, 'users', newUser.id);
       await setDoc(userRef, newUser);
 
-      // Re-authenticate the original admin user
-      if(auth.currentUser?.email !== currentUser.username+'@mcandsons.com') {
-         // This is a tricky part. Re-signing in the admin is complex and has security implications.
-         // The current best practice is letting the createUser function complete, which logs out the admin,
-         // and then the admin must log back in. The UI flow should guide this.
-         // For now, we'll just log a warning.
-         console.warn("Admin was logged out after user creation. This is expected Firebase behavior.");
-         // In a real-world scenario, you might use a server-side function to create users to avoid this.
-      }
-  
-      toast({ title: 'User Created', description: `User ${user.username} has been created as a Manager.` });
-  
+      // Warn admin they are logged out. In a real app, you might force a re-login of the admin.
+      console.warn("Admin was logged out after user creation. This is expected Firebase behavior. Please log in again to continue managing users.");
+      toast({ title: 'User Created', description: `User ${user.username} created. You have been logged out and need to sign in again.`, duration: 10000 });
+      await signOut(auth);
+
     } catch (error: any) {
       console.error('Error creating user:', error);
       if (error.code === 'auth/email-already-in-use') {
@@ -594,6 +621,80 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return { transactions: finalTransactions, openingBalance };
   };
 
+  // Vehicle and Driver Management
+  const addVehicle = (vehicle: Omit<Vehicle, 'active'>) => {
+    if (!firestore) return;
+    const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+    setDocumentNonBlocking(vehicleRef, { ...vehicle, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, {});
+    toast({ title: 'Vehicle Added' });
+  };
+
+  const editVehicle = (vehicleId: string, data: Partial<Vehicle>) => {
+    if (!firestore) return;
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    updateDocumentNonBlocking(vehicleRef, { ...data, updatedAt: serverTimestamp() });
+    toast({ title: 'Vehicle Updated' });
+  };
+
+  const deleteVehicle = (vehicleId: string) => {
+    if (!firestore) return;
+    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+    deleteDocumentNonBlocking(vehicleRef);
+    toast({ title: 'Vehicle Deleted' });
+  };
+
+  const addDriver = (driver: Omit<Driver, 'id' | 'active'>) => {
+    if (!firestore) return;
+    const driversCol = collection(firestore, 'drivers');
+    addDocumentNonBlocking(driversCol, { ...driver, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    toast({ title: 'Driver Added' });
+  };
+
+  const editDriver = (driverId: string, data: Partial<Driver>) => {
+    if (!firestore) return;
+    const driverRef = doc(firestore, 'drivers', driverId);
+    updateDocumentNonBlocking(driverRef, { ...data, updatedAt: serverTimestamp() });
+    toast({ title: 'Driver Updated' });
+  };
+
+  const deleteDriver = (driverId: string) => {
+    if (!firestore) return;
+    const driverRef = doc(firestore, 'drivers', driverId);
+    deleteDocumentNonBlocking(driverRef);
+    toast({ title: 'Driver Deleted' });
+  };
+
+  const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string): Promise<VehicleBill | null> => {
+    if (!firestore || !currentUser) return null;
+    
+    const finalBillData = {
+        ...bill,
+        createdBy: currentUser.id,
+        updatedAt: serverTimestamp(),
+    };
+
+    if (existingBillId) {
+        const billRef = doc(firestore, 'vehicleBills', existingBillId);
+        await updateDoc(billRef, finalBillData);
+        return { ...finalBillData, id: existingBillId };
+    } else {
+        const billWithCreationDate = {
+            ...finalBillData,
+            createdAt: serverTimestamp(),
+        };
+        const docRef = await addDoc(collection(firestore, 'vehicleBills'), billWithCreationDate);
+        return { ...billWithCreationDate, id: docRef.id };
+    }
+  };
+
+  const deleteVehicleBill = (billId: string) => {
+    if (!firestore) return;
+    const billRef = doc(firestore, 'vehicleBills', billId);
+    deleteDocumentNonBlocking(billRef);
+    toast({ title: 'Vehicle Bill Deleted' });
+  };
+
+
   return (
     <DataContext.Provider
       value={{
@@ -601,6 +702,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         products,
         users,
         uoms,
+        vehicles,
+        drivers,
+        vehicleBills,
         liveBillSummaries,
         productPrices,
         customerBalances,
@@ -618,6 +722,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteUser,
         promoteUser,
         addUom,
+        addVehicle,
+        editVehicle,
+        deleteVehicle,
+        addDriver,
+        editDriver,
+        deleteDriver,
+        addOrUpdateVehicleBill,
+        deleteVehicleBill,
         removeBillItem,
         createOrUpdateLiveBill,
         deleteBills,
@@ -640,3 +752,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    

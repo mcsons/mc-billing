@@ -64,6 +64,32 @@ export type Transaction = {
   type: 'bill' | 'payment';
 };
 
+export type Vehicle = {
+  id: string; // Registration Number
+  name: string;
+  active: boolean;
+};
+
+export type Driver = {
+  id: string;
+  name: string;
+  licenseNumber: string;
+  active: boolean;
+};
+
+export type VehicleBill = {
+  id: string;
+  date: any; // Can be Date or Firestore Timestamp
+  vehicleId: string; // Registration Number
+  vehicleName: string;
+  driverId: string;
+  driverName: string;
+  destination: string;
+  advance: number;
+  expenses: number;
+  createdBy: string;
+};
+
 
 export const users: User[] = [
   { id: 'U01', username: 'creator', password: 'password', role: 'CREATOR', status: 'Active' },
@@ -110,3 +136,5 @@ export const samplePayments: Payment[] = [
     { id: 3, customerId: 'C001', amount: 500, date: subDays(new Date(), 1), notes: 'Partial payment' },
     { id: 4, customerId: 'C004', amount: 1000, date: subDays(new Date(), 2) },
 ];
+
+    
