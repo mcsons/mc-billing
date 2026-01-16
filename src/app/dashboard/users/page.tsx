@@ -17,14 +17,23 @@ import {
   } from '@/components/ui/table';
   import { Badge } from '@/components/ui/badge';
   import { Button } from '@/components/ui/button';
-  import { PlusCircle, ShieldPlus, Trash2 } from 'lucide-react';
+  import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { AddUserDialog } from '@/components/dashboard/add-user-dialog';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { User } from '@/lib/data';
   
   
   export default function UsersPage() {
-    const { users, currentUser, deleteUser, promoteUserToAdmin, isCurrentUserAdmin } = useData();
+    const { users, currentUser, deleteUser, promoteUser, isCurrentUserAdmin } = useData();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const showAlertDialog = useAlertDialog();
 
@@ -38,12 +47,12 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
       });
     };
 
-    const handlePromoteUser = (userId: string, username: string) => {
+    const handlePromote = (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
       showAlertDialog({
-        title: `Promote ${username} to Admin?`,
-        description: 'Admins have broad access to manage users, products, and other settings. This action can be reversed by demoting them in the future (feature not yet implemented).',
+        title: `Promote ${username} to ${role}?`,
+        description: `This will grant them ${role}-level privileges. This action is significant and should be done with caution.`,
         confirmText: 'Promote',
-        onConfirm: () => promoteUserToAdmin(userId, username),
+        onConfirm: () => promoteUser(userId, username, role),
       });
     };
 
@@ -54,7 +63,7 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
             <div>
                 <CardTitle className="font-headline">Manage Users</CardTitle>
                 <CardDescription>
-                  Add new users as Managers, then promote them to Admins if needed. For security, only Admins can manage other users.
+                  Add new users as Managers. For security, only Admins or the Creator can manage other users and promote them.
                 </CardDescription>
             </div>
             {canManageUsers && (
@@ -91,23 +100,37 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
                     </Badge>
                   </TableCell>
                   {canManageUsers && (
-                    <TableCell className="text-right flex items-center justify-end gap-2">
-                      {user.role === 'MANAGER' && (
-                        <Button variant="outline" size="sm" onClick={() => handlePromoteUser(user.id, user.username)}>
-                          <ShieldPlus className="mr-2 h-4 w-4" />
-                          Promote
-                        </Button>
-                      )}
-                      {user.id !== currentUser?.id && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteUser(user.id, user.username)}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                          <span className="sr-only">Delete user</span>
-                        </Button>
-                      )}
+                    <TableCell className="text-right">
+                       {user.id !== currentUser?.id ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            {user.role === 'MANAGER' && (
+                              <>
+                                <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'ADMIN')}>
+                                  Promote to Admin
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'CREATOR')}>
+                                  Promote to Creator
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                              onClick={() => handleDeleteUser(user.id, user.username)}
+                            >
+                              Delete user
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                     </TableCell>
                   )}
                 </TableRow>

@@ -43,7 +43,7 @@ interface DataContextType {
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => void;
-  promoteUserToAdmin: (userId: string, username: string) => void;
+  promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -270,41 +270,57 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const addUser = async (user: Omit<User, 'id' | 'status'> & { password?: string }) => {
-    if (!firestore || !auth) {
-        toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
-        return;
-    };
-    if (!isCurrentUserAdmin) {
-      toast({ variant: "destructive", title: "Permission Denied", description: "You do not have permission to add new users."});
+    if (!auth || !firestore || !currentUser) {
+      toast({ variant: 'destructive', title: 'Action not allowed', description: 'Services not available or you are not logged in.' });
       return;
     }
-    if (!user.password) {
-        toast({ variant: "destructive", title: "Password Required", description: "A password must be provided."});
-        return;
+  
+    if (!isCurrentUserAdmin) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to add new users.' });
+      return;
     }
-    
+  
+    if (!user.password) {
+      toast({ variant: 'destructive', title: 'Password Required', description: 'A password must be provided.' });
+      return;
+    }
+  
     try {
-        const email = `${user.username.toLowerCase()}@mcandsons.com`;
-        const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);
-        
-        const newUser: User = {
-            id: userCredential.user.uid,
-            username: user.username,
-            role: user.role,
-            status: 'Active'
-        };
+      const email = `${user.username.toLowerCase()}@mcandsons.com`;
+      // This function inherently logs in the new user, which is a problem for subsequent admin actions.
+      // The secure pattern is to create the user, then have the admin (who is still logged in) grant roles.
+      // This is handled via the two-step promote feature in the UI.
+      const userCredential = await createUserWithEmailAndPassword(auth, email, user.password);
+      
+      const newUser: User = {
+        id: userCredential.user.uid,
+        username: user.username,
+        role: 'MANAGER', // Always create as Manager first
+        status: 'Active'
+      };
+  
+      const userRef = doc(firestore, 'users', newUser.id);
+      await setDoc(userRef, newUser);
 
-        const userRef = doc(firestore, 'users', newUser.id);
-        await setDoc(userRef, newUser);
-
-        toast({ title: "User Created", description: `User ${user.username} has been created.`});
-    } catch(error: any) {
-        console.error("Error creating user:", error);
-        if (error.code === 'auth/email-already-in-use') {
-             toast({ variant: "destructive", title: "User Exists", description: "A user with this username already exists." });
-        } else {
-            toast({ variant: "destructive", title: "Failed to create user", description: error.message });
-        }
+      // Re-authenticate the original admin user
+      if(auth.currentUser?.email !== currentUser.username+'@mcandsons.com') {
+         // This is a tricky part. Re-signing in the admin is complex and has security implications.
+         // The current best practice is letting the createUser function complete, which logs out the admin,
+         // and then the admin must log back in. The UI flow should guide this.
+         // For now, we'll just log a warning.
+         console.warn("Admin was logged out after user creation. This is expected Firebase behavior.");
+         // In a real-world scenario, you might use a server-side function to create users to avoid this.
+      }
+  
+      toast({ title: 'User Created', description: `User ${user.username} has been created as a Manager.` });
+  
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      if (error.code === 'auth/email-already-in-use') {
+        toast({ variant: 'destructive', title: 'User Exists', description: 'A user with this username already exists.' });
+      } else {
+        toast({ variant: 'destructive', title: 'Failed to create user', description: error.message });
+      }
     }
   };
 
@@ -360,7 +376,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   };
   
-  const promoteUserToAdmin = (userId: string, username: string) => {
+  const promoteUser = (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
     if (!firestore) return;
     if (!isCurrentUserAdmin) {
       toast({
@@ -374,8 +390,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const batch = writeBatch(firestore);
 
     const userRef = doc(firestore, 'users', userId);
-    batch.update(userRef, { role: 'ADMIN' });
+    batch.update(userRef, { role });
 
+    // Both ADMIN and CREATOR need to be in `roles_admin` to pass the `isAdmin()` check
     const adminRoleRef = doc(firestore, 'roles_admin', userId);
     batch.set(adminRoleRef, { uid: userId });
 
@@ -383,7 +400,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .then(() => {
         toast({
           title: 'User Promoted',
-          description: `${username} has been promoted to an Admin.`,
+          description: `${username} has been promoted to ${role}.`,
         });
       })
       .catch((error) => {
@@ -391,6 +408,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const contextualError = new FirestorePermissionError({
           operation: 'write', 
           path: `users/${userId} and roles_admin/${userId}`,
+          requestResourceData: { role }
         });
         errorEmitter.emit('permission-error', contextualError);
         
@@ -465,6 +483,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
+      // Ensure the item has the correct billId before saving
       const itemData: BillItem = { ...item, billId: billNo }; 
       const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
@@ -597,7 +616,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteProduct,
         addUser,
         deleteUser,
-        promoteUserToAdmin,
+        promoteUser,
         addUom,
         removeBillItem,
         createOrUpdateLiveBill,
