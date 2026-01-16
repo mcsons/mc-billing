@@ -38,7 +38,7 @@ import {
   Save,
   Trash2,
 } from 'lucide-react';
-import { BillItem } from '@/lib/data';
+import { BillItem, Customer } from '@/lib/data';
 import {
   Popover,
   PopoverContent,
@@ -55,6 +55,17 @@ import ReactSelect from 'react-select';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 
+interface BillPrintData {
+  billNo: string;
+  date: string;
+  customer: Customer;
+  items: BillItem[];
+  totalAmount: number;
+  previousBalance: number;
+  paidAmount: number;
+  finalBalance: number;
+  stall: string;
+}
 
 export default function BillingPage() {
   const searchParams = useSearchParams();
@@ -76,13 +87,9 @@ export default function BillingPage() {
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
-
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-
   const [selectedProductId, setSelectedProductId] = useState<string>('');
-
   const [isProductLocked, setIsProductLocked] = useState(false);
-
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
 
@@ -114,12 +121,9 @@ export default function BillingPage() {
           setPaidAmount('');
 
           const dateFromBill = billToEdit.date;
-          // When loading from Firestore, `date` can be a Timestamp object.
-          // We must convert it to a JS Date object before using it with `format`.
           if (dateFromBill && typeof (dateFromBill as any).toDate === 'function') {
             setDate((dateFromBill as any).toDate());
           } else {
-            // Fallback for regular JS Dates or if the date is missing.
             setDate(new Date(dateFromBill || new Date()));
           }
         }
@@ -145,7 +149,6 @@ export default function BillingPage() {
         setActiveBillNo(existingBill.billNo);
         setInitialBillTotal(existingBill.amount);
       } else {
-        // No existing bill, start a new one
         setActiveBillNo(null);
         setInitialBillTotal(0);
       }
@@ -184,13 +187,12 @@ export default function BillingPage() {
       rate: rateNum,
       amount: qtyNum * rateNum,
       addedBy: currentUser?.id || 'unknown-user',
-      stall: '1', // This should be dynamic
+      stall: '1', 
     };
 
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (customer) {
       const currentItems = billItems || [];
-      // This is a temporary local representation. The source of truth is Firestore.
       const newBillItems = [...currentItems, {...newItem, id: Date.now().toString()}];
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
@@ -200,15 +202,13 @@ export default function BillingPage() {
         customerId: selectedCustomerId,
       };
 
-      const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
+      const { billNo } = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
 
       if (!activeBillNo) {
-        setActiveBillNo(updatedBillNo);
+        setActiveBillNo(billNo);
       }
     }
 
-
-    // Reset fields
     setQty('');
     if (!isProductLocked) {
       setSelectedProductId('');
@@ -232,7 +232,6 @@ export default function BillingPage() {
       amount: newAmount,
     };
 
-    // Use a batch to update item and bill total atomically
     const batch = writeBatch(firestore);
 
     const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
@@ -256,7 +255,6 @@ export default function BillingPage() {
     });
   };
 
-
   const handleRemoveItem = (itemId: string) => {
     showAlertDialog({
       title: "Delete Item?",
@@ -265,18 +263,14 @@ export default function BillingPage() {
         if (!activeBillNo || !firestore) return;
 
         const batch = writeBatch(firestore);
-
-        // Mark item for deletion
         const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
         batch.delete(itemRef);
 
-        // Recalculate total and mark bill for update
         const remainingItems = billItems?.filter(i => i.id !== itemId) || [];
         const newTotalAmount = remainingItems.reduce((sum, item) => sum + item.amount, 0);
         const billRef = doc(firestore, 'bills', activeBillNo);
         batch.update(billRef, { amount: newTotalAmount });
 
-        // Commit the batch
         batch.commit().then(() => {
           toast({
             title: "Item Removed",
@@ -306,80 +300,95 @@ export default function BillingPage() {
     router.replace('/dashboard');
   };
 
-  const handleSaveBill = () => {
+  const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
     const currentItems = billItems || [];
-    if (!customer || (currentItems.length === 0 && !activeBillNo)) {
-      toast({
-        variant: 'destructive',
-        title: 'Cannot Save Bill',
-        description:
-          'A customer must be selected and at least one item must be added.',
-      });
-      return;
+
+    if (!customer) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Save Bill',
+            description: 'A customer must be selected.',
+        });
+        return null;
     }
 
-    const newBillSummary = {
-      customerName: `${customer.name_en} (${customer.name_ta})`,
-      createdBy: currentUser?.id || 'unknown-user',
-      stall: '1', // Should be dynamic
-      date: date || new Date(),
-      customerId: selectedCustomerId,
+    if (currentItems.length === 0 && !activeBillNo) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Save Bill',
+            description: 'Please add at least one item for a new bill.',
+        });
+        return null;
+    }
+
+    const billSummary = {
+        customerName: `${customer.name_en} (${customer.name_ta})`,
+        createdBy: currentUser?.id || 'unknown-user',
+        stall: '1',
+        date: date || new Date(),
+        customerId: selectedCustomerId,
     };
 
     const paidAmountNum = parseFloat(paidAmount) || 0;
 
-    const billNo = createOrUpdateLiveBill(
-      newBillSummary,
-      currentItems,
-      paidAmountNum,
-      activeBillNo
+    const { billNo, commitPromise } = createOrUpdateLiveBill(
+        billSummary,
+        currentItems,
+        paidAmountNum,
+        activeBillNo
     );
 
-    if (activeBillNo) {
-      toast({
-        title: 'Bill Updated',
-        description: `Bill ${billNo} has been successfully updated.`,
-      });
-    } else {
-      toast({
-        title: 'Bill Saved',
-        description: `A new bill (${billNo}) has been successfully created.`,
-      });
-    }
+    try {
+        await commitPromise;
 
-    handleNewBill(); // Clear everything for the next bill
+        toast({
+            title: activeBillNo ? 'Bill Updated' : 'Bill Saved',
+            description: `Bill ${billNo} has been successfully saved.`,
+        });
+        
+        if (!activeBillNo) {
+            setActiveBillNo(billNo);
+        }
+
+        const finalTotalAmount = currentItems.reduce((sum, item) => sum + item.amount, 0);
+        const finalPreviousBalance = (customerBalances[selectedCustomerId] || 0) - (activeBillNo ? initialBillTotal : 0);
+        const finalFinalBalance = finalPreviousBalance + finalTotalAmount - paidAmountNum;
+        
+        return {
+            billNo,
+            date: date?.toISOString() || new Date().toISOString(),
+            customer: customer,
+            items: currentItems,
+            totalAmount: finalTotalAmount,
+            previousBalance: finalPreviousBalance,
+            paidAmount: paidAmountNum,
+            finalBalance: finalFinalBalance,
+            stall: '1',
+        };
+    } catch (error) {
+        console.error('Save failed:', error);
+        return null;
+    }
+  };
+  
+  const handleSaveBill = async () => {
+    const savedData = await handleSaveAndGetData();
+    if (savedData) {
+        handleNewBill();
+    }
   };
 
-  const handlePrintBill = (paper: 'thermal' | 'a4') => {
-    const currentItems = billItems || [];
-    if (!selectedCustomerId || currentItems.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Cannot Print Bill',
-        description: 'A customer must be selected and items must be added.',
-      });
-      return;
+  const handlePrintBill = async (paper: 'thermal' | 'a4') => {
+    const billData = await handleSaveAndGetData();
+
+    if (billData) {
+        const encodedData = encodeURIComponent(JSON.stringify(billData));
+        window.open(
+          `/dashboard/print?data=${encodedData}&paper=${paper}`,
+          '_blank'
+        );
     }
-
-    const billData = {
-      billNo: activeBillNo || 'NEW',
-      date: date?.toISOString() || new Date().toISOString(),
-      customer: selectedCustomerData,
-      items: billItems,
-      totalAmount,
-      previousBalance,
-      paidAmount: parseFloat(paidAmount) || 0,
-      finalBalance,
-      stall: '1',
-    };
-
-    const encodedData = encodeURIComponent(JSON.stringify(billData));
-
-    window.open(
-      `/dashboard/print?data=${encodedData}&paper=${paper}`,
-      '_blank'
-    );
   };
 
 
@@ -390,8 +399,6 @@ export default function BillingPage() {
 
   const previousBalance = useMemo(() => {
     if (!selectedCustomerId) return 0;
-    // When loading an existing bill, the `initialBillTotal` is part of the customer's balance already.
-    // We subtract it to show the balance *before* this bill was created/loaded.
     return (customerBalances[selectedCustomerId] || 0) - initialBillTotal;
   }, [selectedCustomerId, customerBalances, initialBillTotal]);
 
@@ -416,7 +423,6 @@ export default function BillingPage() {
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8 lg:grid-cols-2">
       <div className="grid gap-4">
-        {/* Left Column: Inputs */}
         <Card>
           <CardHeader className="flex flex-row justify-between items-start">
             <div>
@@ -634,7 +640,6 @@ export default function BillingPage() {
       </div>
 
       <div className="grid gap-4">
-        {/* Right Column: Bill Items and Totals */}
         <Card>
           <CardHeader>
             <CardTitle className="font-headline">Current Bill</CardTitle>

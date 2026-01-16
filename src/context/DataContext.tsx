@@ -16,7 +16,7 @@ import {
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc } from 'firebase/firestore';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
@@ -65,7 +65,7 @@ interface DataContextType {
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
-  ) => string;
+  ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => void;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
@@ -311,13 +311,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
   
-    // Secure pattern: The UI should only allow creating MANAGER roles.
-    // Promotion to ADMIN/CREATOR is a separate, secure step.
     if (user.role !== 'MANAGER') {
         toast({
             variant: 'destructive',
             title: 'Invalid Role',
-            description: 'New users must be created with the MANAGER role. You can promote them after creation.',
+            description: 'New users can only be created with the MANAGER role. Promote them to Admin/Creator after creation.',
         });
         return;
     }
@@ -336,7 +334,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const userRef = doc(firestore, 'users', newUser.id);
       await setDoc(userRef, newUser);
 
-      // Warn admin they are logged out. In a real app, you might force a re-login of the admin.
       console.warn("Admin was logged out after user creation. This is expected Firebase behavior. Please log in again to continue managing users.");
       toast({ title: 'User Created', description: `User ${user.username} created. You have been logged out and need to sign in again.`, duration: 10000 });
       await signOut(auth);
@@ -394,12 +391,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           path: `users/${userId}`
         });
         errorEmitter.emit('permission-error', contextualError);
-        
-        toast({
-          variant: 'destructive',
-          title: 'Delete Failed',
-          description: 'Could not delete the user data from the database. Check permissions.',
-        });
       });
   };
   
@@ -419,7 +410,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const userRef = doc(firestore, 'users', userId);
     batch.update(userRef, { role });
 
-    // Both ADMIN and CREATOR need to be in `roles_admin` to pass the `isAdmin()` check
     const adminRoleRef = doc(firestore, 'roles_admin', userId);
     batch.set(adminRoleRef, { uid: userId });
 
@@ -438,12 +428,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           requestResourceData: { role }
         });
         errorEmitter.emit('permission-error', contextualError);
-        
-        toast({
-          variant: 'destructive',
-          title: 'Promotion Failed',
-          description: 'Could not promote the user. Check permissions.',
-        });
       });
   };
 
@@ -480,8 +464,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     items: BillItem[],
     paidAmount: number,
     existingBillNo?: string | null
-  ) => {
-    if (!firestore) return "error-no-firestore";
+  ): { billNo: string; commitPromise: Promise<void> } => {
+    if (!firestore) {
+        toast({
+            variant: "destructive",
+            title: "Database not available",
+            description: "Could not connect to Firestore.",
+        });
+        return { billNo: "error-no-firestore", commitPromise: Promise.reject(new Error("Firestore not available")) };
+    }
 
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
     const customerId = summary.customerId;
@@ -497,11 +488,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    const summaryPayload: LiveBillSummary = { ...summary, billNo, amount: totalAmount };
+    const summaryPayload: Omit<LiveBillSummary, 'date'> & {date: any, createdAt?: any, updatedAt?: any} = { ...summary, billNo, amount: totalAmount };
     if (existingBillNo) {
-      batch.update(billRef, { ...summaryPayload, updatedAt: serverTimestamp() });
+      summaryPayload.updatedAt = serverTimestamp();
+      batch.update(billRef, summaryPayload);
     } else {
-      batch.set(billRef, { ...summaryPayload, createdAt: serverTimestamp() }, {});
+      summaryPayload.createdAt = serverTimestamp();
+      batch.set(billRef, summaryPayload, {});
       
       if (paidAmount > 0) {
         addPayment({ customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
@@ -510,13 +503,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
-      // Ensure the item has the correct billId before saving
       const itemData: BillItem = { ...item, billId: billNo }; 
       const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
     });
 
-    batch.commit().catch(error => {
+    const commitPromise = batch.commit().catch(error => {
       console.error("Batch commit failed:", error);
       errorEmitter.emit(
         'permission-error',
@@ -526,9 +518,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           requestResourceData: items.map(i => ({...i, billId: billNo})),
         })
       );
+      throw error;
     });
 
-    return billNo;
+    return { billNo, commitPromise };
   };
 
     const deleteBills = (billNos: string[]) => {
@@ -667,7 +660,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string): Promise<VehicleBill | null> => {
     if (!firestore || !currentUser) return null;
     
-    const finalBillData = {
+    const finalBillData: Omit<VehicleBill, 'id'> = {
         ...bill,
         createdBy: currentUser.id,
         updatedAt: serverTimestamp(),
@@ -752,5 +745,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    
