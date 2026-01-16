@@ -256,8 +256,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (isUserLoading || !firestore || !products.length) return;
 
     const calculateStats = async () => {
-      const todayStart = startOfToday();
-      const todayEnd = endOfToday();
+      const todayStart = startOfDay(new Date());
+      const todayEnd = endOfDay(new Date());
       const yesterdayStart = startOfYesterday();
       const yesterdayEnd = endOfYesterday();
 
