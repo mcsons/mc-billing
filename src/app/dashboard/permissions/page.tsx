@@ -28,11 +28,14 @@ type Role = typeof roles[number];
 
 const pages = [
   'Billing',
+  'Vehicle Bill',
   'Bill History',
   'Payments',
   'Customers',
   'Products',
   'Set Prices',
+  'Manage Vehicles',
+  'Manage Drivers',
   'Manage Users',
   'Settings',
 ] as const;
@@ -41,14 +44,17 @@ type Page = typeof pages[number];
 const initialPermissions: Record<Role, Page[]> = {
   ADMIN: [
     'Billing',
+    'Vehicle Bill',
     'Bill History',
     'Payments',
     'Customers',
     'Products',
     'Set Prices',
+    'Manage Vehicles',
+    'Manage Drivers',
     'Settings',
   ],
-  MANAGER: ['Billing', 'Bill History', 'Payments'],
+  MANAGER: ['Billing', 'Vehicle Bill', 'Bill History', 'Payments'],
 };
 
 export default function PermissionsPage() {
