@@ -39,7 +39,7 @@ import ReactSelect from 'react-select';
 
 
 export default function HistoryPage() {
-  const { liveBillSummaries, customers, deleteBills, currentUser } = useData();
+  const { liveBillSummaries, customers, users, deleteBills, currentUser } = useData();
   const router = useRouter();
   const showAlertDialog = useAlertDialog();
   const { toast } = useToast();
@@ -72,7 +72,7 @@ export default function HistoryPage() {
         ? 'hsl(var(--accent))'
         : state.isFocused
         ? 'hsl(var(--muted))'
-        : 'transparent',
+        : 'hsl(var(--background))',
       color: state.isSelected
         ? 'hsl(var(--accent-foreground))'
         : 'hsl(var(--foreground))',
@@ -195,8 +195,8 @@ export default function HistoryPage() {
         )}
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-4 md:flex-row md:items-end mb-6">
-          <div className="grid gap-2 flex-1">
+        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+          <div className="grid flex-1 gap-2">
             <Label htmlFor="customer-search">Customer</Label>
             <ReactSelect
               instanceId="history-customer-select"
@@ -286,33 +286,36 @@ export default function HistoryPage() {
             </TableHeader>
             <TableBody>
               {filteredBills.length > 0 ? (
-                filteredBills.map((bill) => (
-                  <TableRow
-                    key={bill.billNo}
-                    className="cursor-pointer"
-                    onDoubleClick={() => handleEditBill(bill.billNo)}
-                    data-state={selectedBills.has(bill.billNo) && 'selected'}
-                  >
-                    {canDelete && (
-                      <TableCell className="w-[40px] text-center">
-                        <Checkbox
-                          checked={selectedBills.has(bill.billNo)}
-                          onCheckedChange={(checked) =>
-                            handleSelectBill(bill.billNo, !!checked)
-                          }
-                          aria-label={`Select bill ${bill.billNo}`}
-                        />
+                filteredBills.map((bill) => {
+                  const creator = users.find((user) => user.id === bill.createdBy);
+                  return (
+                    <TableRow
+                      key={bill.billNo}
+                      className="cursor-pointer"
+                      onDoubleClick={() => handleEditBill(bill.billNo)}
+                      data-state={selectedBills.has(bill.billNo) && 'selected'}
+                    >
+                      {canDelete && (
+                        <TableCell className="w-[40px] text-center">
+                          <Checkbox
+                            checked={selectedBills.has(bill.billNo)}
+                            onCheckedChange={(checked) =>
+                              handleSelectBill(bill.billNo, !!checked)
+                            }
+                            aria-label={`Select bill ${bill.billNo}`}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="font-medium">{bill.billNo}</TableCell>
+                      <TableCell>{bill.customerName}</TableCell>
+                      <TableCell className="text-right">
+                        ₹{bill.amount.toFixed(2)}
                       </TableCell>
-                    )}
-                    <TableCell className="font-medium">{bill.billNo}</TableCell>
-                    <TableCell>{bill.customerName}</TableCell>
-                    <TableCell className="text-right">
-                      ₹{bill.amount.toFixed(2)}
-                    </TableCell>
-                    <TableCell>{bill.createdBy}</TableCell>
-                    <TableCell>{bill.stall}</TableCell>
-                  </TableRow>
-                ))
+                      <TableCell>{creator?.username || bill.createdBy}</TableCell>
+                      <TableCell>{bill.stall}</TableCell>
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
