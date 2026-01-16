@@ -79,7 +79,7 @@ function PrintPageContent() {
         </Button>
       </div>
       <Card className="print:shadow-none print:border-none print:bg-white">
-        <CardContent className="print-content" id="print-area">
+        <CardContent id="print-area" className="p-6 md:p-8">
           <header className="text-center mb-6">
             <h1 className="text-2xl font-bold font-headline text-primary">
               M.C & SONS FISH COMPANY
@@ -141,7 +141,7 @@ function PrintPageContent() {
       </Card>
       <style jsx global>{`
 /* ===============================
-   GLOBAL PRINT RESET
+   GLOBAL PRINT ISOLATION (CRITICAL)
 ================================ */
 @media print {
   * {
@@ -155,12 +155,19 @@ function PrintPageContent() {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  
+
+  /* Hide EVERYTHING */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show ONLY the bill */
   #print-area,
   #print-area * {
     visibility: visible;
   }
 
+  /* Lock print area to page */
   #print-area {
     position: absolute;
     left: 0;
@@ -168,6 +175,7 @@ function PrintPageContent() {
     width: 100%;
   }
 
+  /* Hide UI-only elements */
   .print\\:hidden {
     display: none !important;
   }
@@ -186,23 +194,19 @@ function PrintPageContent() {
   .print-root.thermal #print-area {
     padding: 4mm;
   }
-  
-  .print-root.thermal .print-table td,
-  .print-root.thermal .print-table th {
+
+  .print-root.thermal table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-root.thermal td {
     padding: 2px 0;
+    font-size: 11px;
   }
 
   .print-root.thermal h1 {
-    font-size: 16px;
-    margin-bottom: 4px;
-  }
-  
-  .print-root.thermal h2 {
-    font-size: 14px;
-  }
-
-  .print-root.thermal p {
-    margin: 2px 0;
+    font-size: 15px;
   }
 
   @page {
@@ -212,7 +216,7 @@ function PrintPageContent() {
 }
 
 /* ===============================
-   A4 / DESKTOP PRINT
+   A4 PRINT
 ================================ */
 @media print {
   .print-root.a4 {
@@ -224,19 +228,15 @@ function PrintPageContent() {
   .print-root.a4 #print-area {
     padding: 15mm;
   }
-  
-  .print-root.a4 .print-table td,
-  .print-root.a4 .print-table th {
-    padding: 6px;
+
+  .print-root.a4 table {
+    width: 100%;
+    border-collapse: collapse;
   }
 
-  .print-root.a4 h1 {
-    font-size: 22px;
-    margin-bottom: 8px;
-  }
-  
-  .print-root.a4 h2 {
-    font-size: 18px;
+  .print-root.a4 td {
+    padding: 6px;
+    border-bottom: 1px solid #ddd;
   }
 
   @page {
@@ -245,6 +245,7 @@ function PrintPageContent() {
   }
 }
 `}</style>
+
     </div>
   );
 }

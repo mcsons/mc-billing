@@ -53,7 +53,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 
 interface BillPrintData {
   billNo: string;
@@ -121,10 +121,10 @@ export default function BillingPage() {
           setPaidAmount('');
 
           const dateFromBill = billToEdit.date;
-          if (dateFromBill && typeof (dateFromBill as any).toDate === 'function') {
-            setDate((dateFromBill as any).toDate());
+          if (dateFromBill) {
+            setDate(dateFromBill instanceof Timestamp ? dateFromBill.toDate() : new Date(dateFromBill));
           } else {
-            setDate(new Date(dateFromBill || new Date()));
+             setDate(new Date());
           }
         }
       }
@@ -312,15 +312,20 @@ export default function BillingPage() {
         });
         return null;
     }
-
-    if (currentItems.length === 0 && !activeBillNo) {
+    
+    if (currentItems.length === 0) {
+      if (activeBillNo) {
+        // If it's an existing bill with all items deleted, allow saving (which will result in a 0 amount bill)
+      } else {
         toast({
-            variant: 'destructive',
-            title: 'Cannot Save Bill',
-            description: 'Please add at least one item for a new bill.',
+          variant: 'destructive',
+          title: 'Cannot Save Bill',
+          description: 'Please add at least one item for a new bill.',
         });
         return null;
+      }
     }
+
 
     const billSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
@@ -368,6 +373,11 @@ export default function BillingPage() {
         };
     } catch (error) {
         console.error('Save failed:', error);
+        toast({
+          variant: "destructive",
+          title: "Save failed",
+          description: "There was an issue saving the bill."
+        })
         return null;
     }
   };
@@ -520,8 +530,8 @@ export default function BillingPage() {
             <CardTitle className="font-headline">Add Item</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 grid-cols-12 items-end">
-              <div className="grid gap-2 col-span-12 lg:col-span-5">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="grid gap-2 flex-grow-[3] basis-72">
                 <Label htmlFor="product">Product (ID, பெயர், Name)</Label>
                 <div className="relative">
                   <ReactSelect
@@ -582,7 +592,7 @@ export default function BillingPage() {
                   </Button>
                 </div>
               </div>
-              <div className="grid gap-2 col-span-4 lg:col-span-2">
+              <div className="grid gap-2 flex-grow-[1] basis-28">
                 <Label htmlFor="uom">UOM</Label>
                 <Select
                   value={uom}
@@ -601,7 +611,7 @@ export default function BillingPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2 col-span-4 lg:col-span-2">
+              <div className="grid gap-2 flex-grow-[1] basis-28">
                 <Label htmlFor="qty">Qty</Label>
                 <Input
                   id="qty"
@@ -612,7 +622,7 @@ export default function BillingPage() {
                   disabled={!selectedCustomerId}
                 />
               </div>
-              <div className="grid gap-2 col-span-4 lg:col-span-2">
+              <div className="grid gap-2 flex-grow-[1] basis-28">
                 <Label htmlFor="rate">Rate (₹)</Label>
                 <Input
                   id="rate"
@@ -623,7 +633,7 @@ export default function BillingPage() {
                   disabled={!selectedCustomerId}
                 />
               </div>
-              <div className="col-span-12 lg:col-span-1">
+              <div className='flex-grow-[1] basis-16'>
                 <Button
                   onClick={handleAddItem}
                   className="w-full"
@@ -717,8 +727,8 @@ export default function BillingPage() {
             </Table>
           </CardContent>
           {selectedCustomerId && (
-            <CardFooter className="flex flex-col items-end gap-4 pt-4">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg">
+            <CardFooter className="flex flex-col items-stretch sm:items-end gap-4 pt-4">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-right text-lg w-full max-w-md self-end">
                 <span className="font-semibold">Total:</span>
                 <span className="font-bold font-mono">
                   ₹{totalAmount.toFixed(2)}
@@ -727,7 +737,7 @@ export default function BillingPage() {
                 <span className="font-mono">₹{previousBalance.toFixed(2)}</span>
                 <span className="font-semibold">Paid:</span>
                 <Input
-                  className="max-w-32 text-right font-mono"
+                  className="max-w-32 text-right font-mono ml-auto"
                   placeholder="0.00"
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}
@@ -737,7 +747,7 @@ export default function BillingPage() {
                   ₹{finalBalance.toFixed(2)}
                 </span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button size="lg" variant="outline" onClick={handleSaveBill}>
                   <Save className="mr-2 h-4 w-4" />
                   Save Bill

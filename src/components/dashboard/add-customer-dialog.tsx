@@ -56,49 +56,37 @@ export function AddCustomerDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="id" className="text-right">
-              ID (Optional)
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="id">ID (Optional)</Label>
             <Input
               id="id"
               value={id}
               onChange={(e) => setId(e.target.value.toUpperCase())}
-              className="col-span-3"
               placeholder="e.g., C010"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name_en" className="text-right">
-              Name (English)
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="name_en">Name (English)</Label>
             <Input
               id="name_en"
               value={nameEn}
               onChange={(e) => setNameEn(e.target.value)}
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name_ta" className="text-right">
-              Name (Tamil)
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="name_ta">Name (Tamil)</Label>
             <Input
               id="name_ta"
               value={nameTa}
               onChange={(e) => setNameTa(e.target.value)}
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="phone" className="text-right">
-              Phone
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="col-span-3"
             />
           </div>
         </div>

@@ -78,39 +78,29 @@ export function AddDriverDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Name
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="name">Name</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="license" className="text-right">
-              License No.
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="license">License No.</Label>
             <Input
               id="license"
               value={licenseNumber}
               onChange={(e) => setLicenseNumber(e.target.value)}
-              className="col-span-3"
             />
           </div>
-           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="active" className="text-right">
-              Active
-            </Label>
-            <div className="col-span-3">
-              <Switch
-                id="active"
-                checked={active}
-                onCheckedChange={setActive}
-              />
-            </div>
+           <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+            <Label htmlFor="active">Active</Label>
+            <Switch
+              id="active"
+              checked={active}
+              onCheckedChange={setActive}
+            />
           </div>
         </div>
         <DialogFooter>
@@ -122,5 +112,3 @@ export function AddDriverDialog({
     </Dialog>
   );
 }
-
-    

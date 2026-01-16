@@ -83,42 +83,38 @@ export function AddVehicleDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="id" className="text-right">
-              Reg. Number
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="id">Reg. Number</Label>
             <Input
               id="id"
               value={id}
               onChange={(e) => setId(e.target.value)}
-              className="col-span-3 uppercase"
+              className="uppercase"
               placeholder="e.g., TN39AC7786"
               disabled={isEditing}
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Vehicle Name
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="name">Vehicle Name</Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="col-span-3"
               placeholder="e.g., Tata Ace"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="active" className="text-right">
-              Active
+          <div className="flex items-center justify-between space-x-2 rounded-lg border p-4">
+            <Label htmlFor="active" className="flex flex-col space-y-1">
+                <span>Active</span>
+                <span className="font-normal leading-snug text-muted-foreground">
+                    Inactive vehicles won't appear in selection lists.
+                </span>
             </Label>
-            <div className="col-span-3">
-              <Switch
-                id="active"
-                checked={active}
-                onCheckedChange={setActive}
-              />
-            </div>
+            <Switch
+              id="active"
+              checked={active}
+              onCheckedChange={setActive}
+            />
           </div>
         </div>
         <DialogFooter>
@@ -130,5 +126,3 @@ export function AddVehicleDialog({
     </Dialog>
   );
 }
-
-    

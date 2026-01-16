@@ -228,7 +228,7 @@ export default function VehicleBillingPage() {
           <div className="flex flex-col gap-2 items-end">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, 'PPP') : <span>Pick a date</span>}
                 </Button>
@@ -329,7 +329,7 @@ export default function VehicleBillingPage() {
                     <Label>Date</Label>
                      <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                            <Button variant="outline" className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                             </Button>

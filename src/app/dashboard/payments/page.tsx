@@ -265,14 +265,14 @@ export default function PaymentsPage() {
                             }
                         />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="from-date">From Date</Label>
                             <Popover>
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant={'outline'}
-                                        className={cn('justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
+                                        className={cn('w-full justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {fromDate ? format(fromDate, 'PPP') : <span>Pick a date</span>}
@@ -289,7 +289,7 @@ export default function PaymentsPage() {
                                 <PopoverTrigger asChild>
                                     <Button
                                         variant={'outline'}
-                                        className={cn('justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
+                                        className={cn('w-full justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {toDate ? format(toDate, 'PPP') : <span>Pick a date</span>}

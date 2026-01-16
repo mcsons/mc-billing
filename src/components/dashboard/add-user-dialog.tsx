@@ -66,35 +66,27 @@ export function AddUserDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="username" className="text-right">
-              Username
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="username">Username</Label>
             <Input
               id="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="password" className="text-right">
-              Password
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="password">Password</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="col-span-3"
             />
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="role" className="text-right">
-              Role
-            </Label>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="role">Role</Label>
             <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
-                <SelectTrigger className="col-span-3">
+                <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>

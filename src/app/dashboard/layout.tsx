@@ -21,7 +21,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
   if (isUserLoading || !user) {
     return (
-      <div className="flex h-screen w-full items-center justify-center">
+      <div className="flex h-screen w-full items-center justify-center print:hidden">
         <div className="text-center">
           <p className="text-lg font-semibold">Loading Dashboard...</p>
           <p className="text-muted-foreground">Please wait a moment.</p>
@@ -35,9 +35,14 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
       <AlertDialogProvider>
         <div className="flex min-h-screen w-full flex-col">
           <div className="flex min-h-screen">
-            <DashboardSidebar />
+            <div className="print:hidden">
+              <DashboardSidebar />
+            </div>
             <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
-              <DashboardHeader />
+              <div className="print:hidden">
+                <DashboardHeader />
+              </div>
+
               <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
                 {children}
               </main>
