@@ -102,7 +102,7 @@ export function DashboardSidebar() {
                     <SidebarMenuSub open={isSettingsOpen}>
                         {settingsSubItems.map(subItem => (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} asChild>
+                                <Link href={subItem.href}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
