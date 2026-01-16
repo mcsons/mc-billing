@@ -43,6 +43,7 @@ interface DataContextType {
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => void;
+  promoteUserToAdmin: (userId: string, username: string) => void;
   addUom: (uom: Uom) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
   createOrUpdateLiveBill: (
@@ -118,7 +119,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return users.find(u => u.id === firebaseUser.uid) || null;
   }, [firebaseUser, isUserLoading, users, isUsersLoading]);
   
-  // NEW: Check for admin role
   const adminRoleDocRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
     return doc(firestore, 'roles_admin', currentUser.id);
@@ -136,11 +136,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const userDocRef = doc(firestore, 'users', firebaseUser.uid);
       const userDocSnap = await getDoc(userDocRef);
 
-      // Only proceed if the user document does *not* exist.
       if (!userDocSnap.exists()) {
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
         
-        // Default new users to Manager. Special creator logic is in the login page.
         const newUser: User = {
           id: firebaseUser.uid,
           username,
@@ -152,7 +150,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             await setDoc(userDocRef, newUser);
         } catch (error) {
             console.error("Failed to create initial user profile:", error);
-            // Don't show a toast here as it might be a transient permissions issue during setup
         }
       }
     };
@@ -312,7 +309,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const deleteUser = (userId: string) => {
-    if (!firestore || !currentUser) return;
+    if (!firestore) return;
     if (!isCurrentUserAdmin) {
       toast({
         variant: 'destructive',
@@ -321,7 +318,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
       return;
     }
-    if (currentUser.id === userId) {
+    if (currentUser?.id === userId) {
       toast({
         variant: 'destructive',
         title: 'Action Not Allowed',
@@ -335,7 +332,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const userRef = doc(firestore, 'users', userId);
     batch.delete(userRef);
 
-    // Also attempt to delete their admin role document, if it exists
     const adminRoleRef = doc(firestore, 'roles_admin', userId);
     batch.delete(adminRoleRef);
 
@@ -344,7 +340,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .then(() => {
         toast({
           title: 'User Data Removed',
-          description: 'To fully delete their login, remove the user from the Firebase Authentication console.',
+          description: 'To fully delete their login, you must also remove the user from the Firebase Authentication console.',
           duration: 10000,
         });
       })
@@ -364,6 +360,48 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   };
   
+  const promoteUserToAdmin = (userId: string, username: string) => {
+    if (!firestore) return;
+    if (!isCurrentUserAdmin) {
+      toast({
+        variant: 'destructive',
+        title: 'Permission Denied',
+        description: 'You do not have permission to promote users.',
+      });
+      return;
+    }
+
+    const batch = writeBatch(firestore);
+
+    const userRef = doc(firestore, 'users', userId);
+    batch.update(userRef, { role: 'ADMIN' });
+
+    const adminRoleRef = doc(firestore, 'roles_admin', userId);
+    batch.set(adminRoleRef, { uid: userId });
+
+    batch.commit()
+      .then(() => {
+        toast({
+          title: 'User Promoted',
+          description: `${username} has been promoted to an Admin.`,
+        });
+      })
+      .catch((error) => {
+        console.error('Failed to promote user:', error);
+        const contextualError = new FirestorePermissionError({
+          operation: 'write', 
+          path: `users/${userId} and roles_admin/${userId}`,
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        
+        toast({
+          variant: 'destructive',
+          title: 'Promotion Failed',
+          description: 'Could not promote the user. Check permissions.',
+        });
+      });
+  };
+
   const addUom = (uom: Uom) => {
     if (!firestore) return;
     const uomRef = doc(firestore, 'uoms', uom.toUpperCase());
@@ -403,7 +441,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
     const customerId = summary.customerId;
 
-    // 1. Determine Bill Number
     const billNo = existingBillNo || (() => {
         const maxBillNo = (liveBillSummaries || [])
             .map(b => parseInt(b.billNo.replace('B', ''), 10))
@@ -415,7 +452,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    // 2. Create or Update Bill Summary Document
     const summaryPayload: LiveBillSummary = { ...summary, billNo, amount: totalAmount };
     if (existingBillNo) {
       batch.update(billRef, { ...summaryPayload, updatedAt: serverTimestamp() });
@@ -427,16 +463,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
-    // 3. Batch write all items with correct billId
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
-      // Ensure the billId is part of the item data being written.
       const itemData: BillItem = { ...item, billId: billNo }; 
       const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
     });
 
-    // 4. Commit batch and handle errors
     batch.commit().catch(error => {
       console.error("Batch commit failed:", error);
       errorEmitter.emit(
@@ -564,6 +597,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteProduct,
         addUser,
         deleteUser,
+        promoteUserToAdmin,
         addUom,
         removeBillItem,
         createOrUpdateLiveBill,
