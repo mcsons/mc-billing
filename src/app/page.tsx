@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Fish } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore } from '@/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, writeBatch } from 'firebase/firestore';
 
 function CompanyHeader() {
@@ -50,101 +50,88 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth || !firestore) {
-        toast({
-            variant: 'destructive',
-            title: 'Authentication service not available',
-            description: 'Please try again later.',
-        });
-        return;
+      toast({
+        variant: 'destructive',
+        title: 'Authentication service not available',
+        description: 'Please try again later.',
+      });
+      return;
     }
-    
+
     const email = `${username.toLowerCase()}@mcandsons.com`;
 
     try {
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        
-        // **Explicitly set CREATOR role and admin rights on successful login for this specific user**
-        if (username.toLowerCase() === 'creator') {
-            const batch = writeBatch(firestore);
-            const userDocRef = doc(firestore, 'users', userCredential.user.uid);
-            const adminRoleRef = doc(firestore, 'roles_admin', userCredential.user.uid);
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
-            batch.set(userDocRef, {
-                id: userCredential.user.uid,
-                username: 'creator',
-                role: 'CREATOR',
-                status: 'Active'
-            }, { merge: true });
+      // **Explicitly set CREATOR role and admin rights on successful login for this specific user**
+      if (username.toLowerCase() === 'creator') {
+        const batch = writeBatch(firestore);
+        const userDocRef = doc(firestore, 'users', userCredential.user.uid);
+        const adminRoleRef = doc(
+          firestore,
+          'roles_admin',
+          userCredential.user.uid
+        );
 
-            batch.set(adminRoleRef, { uid: userCredential.user.uid });
-            
-            await batch.commit();
-        }
+        batch.set(
+          userDocRef,
+          {
+            id: userCredential.user.uid,
+            username: 'creator',
+            role: 'CREATOR',
+            status: 'Active',
+          },
+          { merge: true }
+        );
 
-        toast({
-            title: 'Login Successful',
-            description: `Welcome back, ${username}!`,
-        });
-        router.push('/dashboard');
-        
+        batch.set(adminRoleRef, { uid: userCredential.user.uid });
+
+        await batch.commit();
+      }
+
+      toast({
+        title: 'Login Successful',
+        description: `Welcome back, ${username}!`,
+      });
+      router.push('/dashboard');
     } catch (error: any) {
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-            // If user does not exist, try to create them.
-            try {
-                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-                
-                if (username.toLowerCase() === 'creator' && firestore) {
-                    const batch = writeBatch(firestore);
-                    const userDocRef = doc(firestore, 'users', userCredential.user.uid);
-                    const adminRoleRef = doc(firestore, 'roles_admin', userCredential.user.uid);
-                    
-                    batch.set(userDocRef, {
-                      id: userCredential.user.uid,
-                      username: 'creator',
-                      role: 'CREATOR', 
-                      status: 'Active'
-                    });
-                    
-                    batch.set(adminRoleRef, { uid: userCredential.user.uid });
-                    
-                    await batch.commit();
-                }
-
-                toast({
-                    title: 'Account Created & Logged In',
-                    description: `Welcome, ${username}! Your account has been created.`,
-                });
-                router.push('/dashboard');
-                 
-            } catch (createError: any) {
-                console.error("Creation Error:", createError.code, createError.message);
-                 toast({
-                    variant: 'destructive',
-                    title: 'Registration Failed',
-                    description: createError.message || 'Could not create a new account. Please try again.',
-                });
-            }
-        } else {
-             console.error("Login Error:", error.code, error.message);
-             toast({
-                variant: 'destructive',
-                title: 'Login Failed',
-                description: error.message || 'Invalid username or password. Please try again.',
-            });
-        }
+      // Handle all login errors, including not found, invalid credential, wrong password etc.
+      if (
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/wrong-password'
+      ) {
+        toast({
+          variant: 'destructive',
+          title: 'Login Failed',
+          description: 'Invalid username or password. Please try again.',
+        });
+      } else {
+        console.error('Login Error:', error.code, error.message);
+        toast({
+          variant: 'destructive',
+          title: 'Login Failed',
+          description:
+            error.message || 'An unexpected error occurred. Please try again.',
+        });
+      }
     }
   };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted p-4">
       <div className="flex flex-col items-center gap-2 mb-6 text-primary">
-          <Fish className="h-10 w-10" />
-          <h1 className="text-3xl font-bold font-headline">MC Billing</h1>
+        <Fish className="h-10 w-10" />
+        <h1 className="text-3xl font-bold font-headline">MC Billing</h1>
       </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-2">
-            <CompanyHeader />
-            <CardTitle className="text-2xl pt-4 text-center">Login</CardTitle>
+          <CompanyHeader />
+          <CardTitle className="text-2xl pt-4 text-center">Login</CardTitle>
           <CardDescription className="text-center">
             Enter your credentials to access the billing system.
           </CardDescription>
@@ -167,10 +154,10 @@ export default function LoginPage() {
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
               </div>
-              <Input 
-                id="password" 
-                type="password" 
-                required 
+              <Input
+                id="password"
+                type="password"
+                required
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
