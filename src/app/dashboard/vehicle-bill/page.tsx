@@ -146,13 +146,32 @@ export default function VehicleBillingPage() {
     }
   };
 
-  const handlePrint = async () => {
+  const handlePrintBill = (billToPrint: VehicleBill) => {
+    if (!billToPrint) return;
+    const encodedData = encodeURIComponent(JSON.stringify(billToPrint));
+    window.open(`/dashboard/vehicle-bill/print?data=${encodedData}&paper=a4`, '_blank');
+  };
+
+  const handleSaveAndPrint = async () => {
     const savedBill = await handleSaveBill();
     if (savedBill) {
-      const encodedData = encodeURIComponent(JSON.stringify(savedBill));
-      window.open(`/dashboard/vehicle-bill/print?data=${encodedData}&paper=a4`, '_blank');
+      handlePrintBill(savedBill);
     }
   };
+  
+  const handleDirectPrint = () => {
+    if (!editingBillId) {
+        toast({ variant: 'destructive', title: 'No Bill Loaded', description: 'Please load a bill from history to print it.' });
+        return;
+    }
+    const billToPrint = vehicleBills.find(b => b.id === editingBillId);
+    if (billToPrint) {
+        handlePrintBill(billToPrint);
+    } else {
+        toast({ variant: 'destructive', title: 'Bill Not Found', description: 'Could not find the bill to print.' });
+    }
+  };
+
 
   const handleEditFromHistory = (bill: VehicleBill) => {
     router.push(`/dashboard/vehicle-bill?billId=${bill.id}`);
@@ -161,7 +180,7 @@ export default function VehicleBillingPage() {
   const handleDeleteFromHistory = (bill: VehicleBill) => {
     showAlertDialog({
         title: 'Delete Vehicle Bill?',
-        description: `Are you sure you want to delete the bill for vehicle ${bill.vehicleId} on ${format(bill.date.toDate(), 'PPP')}?`,
+        description: `Are you sure you want to delete the bill for vehicle ${bill.vehicleId} on ${bill.date instanceof Timestamp ? format(bill.date.toDate(), 'PPP') : 'this date'}?`,
         onConfirm: () => deleteVehicleBill(bill.id),
     });
   };
@@ -262,7 +281,10 @@ export default function VehicleBillingPage() {
             <Button size="lg" variant="outline" onClick={handleSaveBill}>
                 <Save className="mr-2 h-4 w-4" /> Save Bill
             </Button>
-            <Button size="lg" onClick={handlePrint}>
+            <Button size="lg" variant="secondary" onClick={handleDirectPrint} disabled={!editingBillId}>
+                <Printer className="mr-2 h-4 w-4" /> Print Bill
+            </Button>
+            <Button size="lg" onClick={handleSaveAndPrint}>
                 <Printer className="mr-2 h-4 w-4" /> Save & Print
             </Button>
         </CardFooter>
@@ -335,7 +357,11 @@ export default function VehicleBillingPage() {
                                 <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
                                 <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteFromHistory(bill)}>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
+                                        <Printer className="h-4 w-4" />
+                                        <span className="sr-only">Print</span>
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
                                         <Trash2 className="h-4 w-4 text-destructive" />
                                         <span className="sr-only">Delete</span>
                                     </Button>
@@ -354,5 +380,3 @@ export default function VehicleBillingPage() {
     </div>
   );
 }
-
-    
