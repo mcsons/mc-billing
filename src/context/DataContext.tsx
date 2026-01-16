@@ -129,36 +129,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (!userDocSnap.exists()) {
         const username = firebaseUser.email?.split('@')[0] || 'new-user';
         
-        let role: User['role'] = 'MANAGER'; // Default role
-        
-        // Special check for the 'creator' user.
-        if (username.toLowerCase() === 'creator' && firebaseUser.email === 'creator@mcandsons.com') {
-            role = 'CREATOR';
-        }
-
+        // Default new users to Manager. Special creator logic is in the login page.
         const newUser: User = {
           id: firebaseUser.uid,
           username,
-          role,
+          role: 'MANAGER',
           status: 'Active',
         };
 
-        const batch = writeBatch(firestore);
-        batch.set(userDocRef, newUser);
-
-        // If the role is Creator, also grant them admin privileges.
-        if (role === 'CREATOR') {
-            const adminRoleRef = doc(firestore, 'roles_admin', firebaseUser.uid);
-            batch.set(adminRoleRef, { uid: firebaseUser.uid });
-        }
-        
-        // This commit can still fail if the rules are not set up for the first user.
         try {
-            await batch.commit();
-            toast({
-              title: 'Profile Created',
-              description: `Your user profile has been set up with the role: ${role}`,
-            });
+            await setDoc(userDocRef, newUser);
         } catch (error) {
             console.error("Failed to create initial user profile:", error);
             // Don't show a toast here as it might be a transient permissions issue during setup
@@ -323,7 +303,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (error.code === 'auth/email-already-in-use') {
              toast({ variant: "destructive", title: "User Exists", description: "A user with this username already exists." });
         } else if (error.code?.includes('permission-denied')) {
-             toast({ variant: "destructive", title: "Permission Denied", description: "Could not set admin privileges. Please do this manually in the Firebase console." });
+             toast({ variant: "destructive", title: "Permission Denied", description: "Could not set user role. Please manage roles in the Firebase console." });
         }
         else {
             toast({ variant: "destructive", title: "Failed to create user", description: error.message });
@@ -363,16 +343,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       .commit()
       .then(() => {
         toast({
-          title: 'User Deleted',
-          description: 'The user has been successfully deleted.',
+          title: 'User Data Removed',
+          description: 'To fully delete their login, remove the user from the Firebase Authentication console.',
+          duration: 10000,
         });
       })
       .catch((error) => {
-        console.error('Failed to delete user:', error);
+        console.error('Failed to delete user data:', error);
+        const contextualError = new FirestorePermissionError({
+          operation: 'delete',
+          path: `users/${userId}`
+        });
+        errorEmitter.emit('permission-error', contextualError);
+        
         toast({
           variant: 'destructive',
           title: 'Delete Failed',
-          description: 'Could not delete the user.',
+          description: 'Could not delete the user data from the database. Check permissions.',
         });
       });
   };
