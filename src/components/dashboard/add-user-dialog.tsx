@@ -99,8 +99,6 @@ export function AddUserDialog({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="MANAGER">Manager</SelectItem>
-                    <SelectItem value="ADMIN">Admin</SelectItem>
-                    <SelectItem value="CREATOR">Creator</SelectItem>
                 </SelectContent>
             </Select>
           </div>

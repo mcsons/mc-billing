@@ -277,8 +277,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", title: "Action not allowed", description: "Services not available."});
         return;
     };
-    if (currentUser?.role !== 'CREATOR') {
-      toast({ variant: "destructive", title: "Permission Denied", description: "Only the Creator can add new users."});
+    if (!isCurrentUserAdmin) {
+      toast({ variant: "destructive", title: "Permission Denied", description: "You do not have permission to add new users."});
       return;
     }
     if (!user.password) {
@@ -297,26 +297,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             status: 'Active'
         };
 
-        const batch = writeBatch(firestore);
         const userRef = doc(firestore, 'users', newUser.id);
-        batch.set(userRef, newUser);
-        
-        if (user.role === 'ADMIN' || user.role === 'CREATOR') {
-            const adminRoleRef = doc(firestore, 'roles_admin', newUser.id);
-            batch.set(adminRoleRef, { uid: newUser.id });
-        }
-        
-        await batch.commit();
+        await setDoc(userRef, newUser);
 
         toast({ title: "User Created", description: `User ${user.username} has been created.`});
     } catch(error: any) {
         console.error("Error creating user:", error);
         if (error.code === 'auth/email-already-in-use') {
              toast({ variant: "destructive", title: "User Exists", description: "A user with this username already exists." });
-        } else if (error.code?.includes('permission-denied')) {
-             toast({ variant: "destructive", title: "Permission Denied", description: "Could not set user role. Please manage roles in the Firebase console." });
-        }
-        else {
+        } else {
             toast({ variant: "destructive", title: "Failed to create user", description: error.message });
         }
     }
