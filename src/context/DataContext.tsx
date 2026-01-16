@@ -443,7 +443,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // 3. Batch write all items with correct billId
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
-      const itemData: BillItem = { ...item, billId: billNo };
+      // Ensure the billId is part of the item data being written.
+      const itemData: BillItem = { ...item, billId: billNo }; 
       const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
     });
