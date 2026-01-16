@@ -42,7 +42,7 @@ interface DataContextType {
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status' | 'role'> & {role: 'MANAGER', password?: string}) => Promise<void>;
   addUom: (uom: Uom) => void;
-  removeBillItem: (itemId: number, billNo: string) => void;
+  removeBillItem: (itemId: string, billNo: string) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
@@ -53,7 +53,6 @@ interface DataContextType {
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
-  getBillItems: (billNo: string) => BillItem[];
   getBill: (billNo: string) => LiveBillSummary | undefined;
   getCustomerLedger: (
     customerId: string, 
@@ -315,9 +314,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     setDocumentNonBlocking(uomRef, { name: uom.toUpperCase() }, {});
   };
 
-  const removeBillItem = (itemId: number, billNo: string) => {
+  const removeBillItem = (itemId: string, billNo: string) => {
     if (!firestore) return;
-    const itemRef = doc(firestore, 'bills', billNo, 'billItems', itemId.toString());
+    const itemRef = doc(firestore, 'bills', billNo, 'billItems', itemId);
     deleteDocumentNonBlocking(itemRef);
   };
   
@@ -332,11 +331,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const getBillItems = useCallback((billNo: string) => {
-    // This will need to be replaced with a `useCollection` call for the subcollection
-    return liveBillItems[billNo] || [];
-  }, [liveBillItems]);
-  
   const getBill = (billNo: string) => {
     return (liveBillSummaries || []).find(b => b.billNo === billNo);
   };
@@ -363,34 +357,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     })();
     
     const billRef = doc(firestore, 'bills', billNo);
+    const batch = writeBatch(firestore);
 
     // 2. Create or Update Bill Summary Document
+    const summaryPayload: LiveBillSummary = { ...summary, billNo, amount: totalAmount };
     if (existingBillNo) {
-      updateDocumentNonBlocking(billRef, { ...summary, amount: totalAmount, updatedAt: serverTimestamp() });
+      batch.update(billRef, { ...summaryPayload, updatedAt: serverTimestamp() });
     } else {
-      const newSummary: LiveBillSummary = { ...summary, billNo: billNo, amount: totalAmount };
-      setDocumentNonBlocking(billRef, { ...newSummary, createdAt: serverTimestamp() }, {});
+      batch.set(billRef, { ...summaryPayload, createdAt: serverTimestamp() }, {});
       
       if (paidAmount > 0) {
+        // This is not ideal inside a batch, as addDoc can't be in a batch.
+        // It's better to handle payment logic separately.
         addPayment({ customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
       }
     }
 
     // 3. Batch write all items with correct billId
-    const batch = writeBatch(firestore);
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
-      // Ensure billId is included in the item data being written
       const itemData: BillItem = { ...item, billId: billNo };
-      const itemRef = doc(itemsCollectionRef, item.id.toString());
-      // Here we use set with merge true to handle both new and existing items in the list
+      const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
     });
 
     // 4. Commit batch and handle errors
     batch.commit().catch(error => {
       console.error("Batch commit failed:", error);
-      // Create a contextual error for easier debugging
       errorEmitter.emit(
         'permission-error',
         new FirestorePermissionError({
@@ -521,7 +514,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updateProductPrice,
         addPayment,
         findBillForCustomerToday,
-        getBillItems,
         getBill,
         getCustomerLedger,
       }}

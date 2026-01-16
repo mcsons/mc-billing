@@ -52,6 +52,8 @@ import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection, doc, updateDoc, writeBatch } from 'firebase/firestore';
 
 
 export default function BillingPage() {
@@ -59,6 +61,8 @@ export default function BillingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
+  const firestore = useFirestore();
+
   const {
     customers,
     products,
@@ -66,7 +70,6 @@ export default function BillingPage() {
     customerBalances,
     currentUser,
     findBillForCustomerToday,
-    getBillItems,
     createOrUpdateLiveBill,
     removeBillItem,
     getBill,
@@ -81,7 +84,6 @@ export default function BillingPage() {
   const [isProductLocked, setIsProductLocked] = useState(false);
 
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
-  const [billItems, setBillItems] = useState<BillItem[]>([]);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
 
   // Form state for new item
@@ -90,6 +92,12 @@ export default function BillingPage() {
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
 
+  // --- Reactive Bill Items from Firestore ---
+  const billItemsQuery = useMemoFirebase(() => {
+    if (!firestore || !activeBillNo) return null;
+    return collection(firestore, 'bills', activeBillNo, 'billItems');
+  }, [firestore, activeBillNo]);
+  const { data: billItems } = useCollection<BillItem>(billItemsQuery);
 
 
   // This effect runs when a bill number is passed in the URL (for editing old bills)
@@ -102,14 +110,13 @@ export default function BillingPage() {
         if (customer) {
           setSelectedCustomerId(customer.id);
           setActiveBillNo(billToEdit.billNo);
-          setBillItems(getBillItems(billToEdit.billNo));
           setInitialBillTotal(billToEdit.amount);
           setPaidAmount('');
           setDate(new Date(billToEdit.date || new Date()));
         }
       }
     }
-  }, [searchParams, customers, getBillItems, getBill]);
+  }, [searchParams, customers, getBill]);
 
   // Effect to set the rate when product/uom changes
   useEffect(() => {
@@ -127,17 +134,15 @@ export default function BillingPage() {
       const existingBill = findBillForCustomerToday(selectedCustomerId);
       if (existingBill) {
         setActiveBillNo(existingBill.billNo);
-        setBillItems(getBillItems(existingBill.billNo));
         setInitialBillTotal(existingBill.amount);
       } else {
         // No existing bill, start a new one
         setActiveBillNo(null);
-        setBillItems([]);
         setInitialBillTotal(0);
       }
       setPaidAmount('');
     }
-  }, [selectedCustomerId, findBillForCustomerToday, getBillItems, searchParams]);
+  }, [selectedCustomerId, findBillForCustomerToday, searchParams]);
 
   const handleAddItem = () => {
     if (!selectedCustomerId) {
@@ -163,7 +168,7 @@ export default function BillingPage() {
     const rateNum = parseFloat(rate);
 
     const newItem: BillItem = {
-      id: Date.now(), // Use timestamp for unique ID in local state
+      id: Date.now().toString(), // Use timestamp string for unique ID
       product: productInfo.name_ta,
       productId: productInfo.id,
       uom: uom,
@@ -174,12 +179,10 @@ export default function BillingPage() {
       stall: '1', // This should be dynamic
     };
 
-    const newBillItems = [...billItems, newItem];
-    setBillItems(newBillItems);
-
-    // Save immediately
     const customer = customers.find(c => c.id === selectedCustomerId);
     if (customer) {
+      const currentItems = billItems || [];
+      const newBillItems = [...currentItems, newItem];
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
         createdBy: currentUser?.id || 'unknown-user',
@@ -187,7 +190,9 @@ export default function BillingPage() {
         date: date || new Date(),
         customerId: selectedCustomerId,
       };
+      
       const updatedBillNo = createOrUpdateLiveBill(newBillSummary, newBillItems, parseFloat(paidAmount) || 0, activeBillNo);
+      
       if (!activeBillNo) {
         setActiveBillNo(updatedBillNo);
       }
@@ -204,58 +209,77 @@ export default function BillingPage() {
     productSelectRef.current?.focus();
   };
 
-  const handleItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
-    const updatedItems = billItems.map(item => {
-      if (item.id === itemId) {
-        const newQty = field === 'qty' ? parseFloat(value) || 0 : item.qty;
-        const newRate = field === 'rate' ? parseFloat(value) || 0 : item.rate;
-        return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
-      }
-      return item;
+  const persistItemUpdate = (itemId: string, field: 'rate' | 'qty', value: string) => {
+    const itemToUpdate = billItems?.find(item => item.id === itemId);
+    if (!itemToUpdate || !activeBillNo || !firestore) return;
+
+    const parsedValue = parseFloat(value) || 0;
+    const newQty = field === 'qty' ? parsedValue : itemToUpdate.qty;
+    const newRate = field === 'rate' ? parsedValue : itemToUpdate.rate;
+    const newAmount = newQty * newRate;
+
+    const updateData = {
+        [field]: parsedValue,
+        amount: newAmount,
+    };
+    
+    // Use a batch to update item and bill total atomically
+    const batch = writeBatch(firestore);
+
+    const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
+    batch.update(itemRef, updateData);
+
+    const newTotalAmount = (billItems || []).reduce((sum, item) => {
+        if (item.id === itemId) return sum + newAmount;
+        return sum + item.amount;
+    }, 0);
+
+    const billRef = doc(firestore, 'bills', activeBillNo);
+    batch.update(billRef, { amount: newTotalAmount });
+    
+    batch.commit().catch(error => {
+      console.error("Failed to update item:", error);
+      toast({
+        variant: "destructive",
+        title: "Update Failed",
+        description: "Could not save item changes."
+      });
     });
-    setBillItems(updatedItems);
   };
 
-  const persistItemUpdate = (itemId: number, field: 'rate' | 'qty', value: string) => {
-    const updatedItems = billItems.map(item => {
-      if (item.id === itemId) {
-        const parsedValue = parseFloat(value) || 0;
-        const newQty = field === 'qty' ? parsedValue : item.qty;
-        const newRate = field === 'rate' ? parsedValue : item.rate;
-        return { ...item, qty: newQty, rate: newRate, amount: newQty * newRate };
-      }
-      return item;
-    });
-    setBillItems(updatedItems);
 
-    // Auto-save on update
-    const customer = customers.find(c => c.id === selectedCustomerId);
-    if (customer && activeBillNo) {
-      const newBillSummary = {
-        customerName: `${customer.name_en} (${customer.name_ta})`,
-        createdBy: currentUser?.id || 'unknown-user',
-        stall: '1',
-        date: date || new Date(),
-        customerId: selectedCustomerId,
-      };
-      createOrUpdateLiveBill(newBillSummary, updatedItems, parseFloat(paidAmount) || 0, activeBillNo);
-    }
-  };
-
-
-  const handleRemoveItem = (itemId: number) => {
+  const handleRemoveItem = (itemId: string) => {
     showAlertDialog({
       title: "Delete Item?",
       description: "Are you sure you want to remove this item from the bill? This cannot be undone.",
       onConfirm: () => {
-        const itemToRemove = billItems.find(item => item.id === itemId);
-        if (!itemToRemove || !activeBillNo) return;
+        if (!activeBillNo || !firestore) return;
 
-        removeBillItem(itemId, activeBillNo);
-        setBillItems(prev => prev.filter(item => item.id !== itemId));
-        toast({
-          title: "Item Removed",
-          description: "The item has been removed from the bill.",
+        const batch = writeBatch(firestore);
+        
+        // Mark item for deletion
+        const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
+        batch.delete(itemRef);
+
+        // Recalculate total and mark bill for update
+        const remainingItems = billItems?.filter(i => i.id !== itemId) || [];
+        const newTotalAmount = remainingItems.reduce((sum, item) => sum + item.amount, 0);
+        const billRef = doc(firestore, 'bills', activeBillNo);
+        batch.update(billRef, { amount: newTotalAmount });
+        
+        // Commit the batch
+        batch.commit().then(() => {
+          toast({
+            title: "Item Removed",
+            description: "The item has been removed from the bill.",
+          });
+        }).catch(error => {
+          console.error("Failed to delete item:", error);
+          toast({
+            variant: "destructive",
+            title: "Delete Failed",
+            description: "Could not remove the item."
+          });
         });
       }
     });
@@ -264,7 +288,6 @@ export default function BillingPage() {
   const handleNewBill = () => {
     setSelectedCustomerId('');
     setActiveBillNo(null);
-    setBillItems([]);
     setDate(new Date());
     setSelectedProductId('');
     setQty('');
@@ -276,7 +299,8 @@ export default function BillingPage() {
 
   const handleSaveBill = () => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
-    if (!customer || (billItems.length === 0 && !activeBillNo)) {
+    const currentItems = billItems || [];
+    if (!customer || (currentItems.length === 0 && !activeBillNo)) {
       toast({
         variant: 'destructive',
         title: 'Cannot Save Bill',
@@ -298,7 +322,7 @@ export default function BillingPage() {
 
     const billNo = createOrUpdateLiveBill(
       newBillSummary,
-      billItems,
+      currentItems,
       paidAmountNum,
       activeBillNo
     );
@@ -319,7 +343,8 @@ export default function BillingPage() {
   };
 
   const handlePrintBill = () => {
-    if (!selectedCustomerId || billItems.length === 0) {
+    const currentItems = billItems || [];
+    if (!selectedCustomerId || currentItems.length === 0) {
       toast({
         variant: 'destructive',
         title: 'Cannot Print Bill',
@@ -332,7 +357,7 @@ export default function BillingPage() {
       billNo: activeBillNo || 'NEW',
       date: date?.toISOString() || new Date().toISOString(),
       customer: selectedCustomerData,
-      items: billItems,
+      items: currentItems,
       totalAmount,
       previousBalance,
       paidAmount: parseFloat(paidAmount) || 0,
@@ -345,7 +370,7 @@ export default function BillingPage() {
   };
 
   const totalAmount = useMemo(
-    () => billItems.reduce((sum, item) => sum + item.amount, 0),
+    () => (billItems || []).reduce((sum, item) => sum + item.amount, 0),
     [billItems]
   );
 
@@ -619,7 +644,7 @@ export default function BillingPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {billItems.length > 0 ? (
+                {billItems && billItems.length > 0 ? (
                   billItems.map((item, index) => (
                     <TableRow key={item.id}>
                       <TableCell>{index + 1}</TableCell>
@@ -628,13 +653,18 @@ export default function BillingPage() {
                       </TableCell>
                       <TableCell>{item.uom}</TableCell>
                       <TableCell className="text-right">
-                        {item.qty.toFixed(3)}
+                        <Input
+                          type="number"
+                          defaultValue={item.qty}
+                          onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="h-8 text-right w-24 ml-auto"
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <Input
                           type="number"
-                          value={item.rate}
-                          onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                          defaultValue={item.rate}
                           onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
                           onFocus={(e) => e.target.select()}
                           className="h-8 text-right w-24 ml-auto"

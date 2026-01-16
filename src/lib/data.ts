@@ -25,7 +25,7 @@ export type Product = {
 };
 
 export type BillItem = {
-  id: number;
+  id: string;
   billId?: string;
   product: string; // This is the Tamil name for display
   productId: string; // The actual product ID
@@ -98,10 +98,10 @@ export const liveBillSummaries: LiveBillSummary[] = [
 ];
 
 export const liveHistoryItems: Record<string, BillItem[]> = {
-    'B1234': [{ id: 1, productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 10, rate: 220, amount: 2200, addedBy: 'Admin', stall: '1' }],
-    'B1235': [{ id: 2, productId: 'P02', product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, addedBy: 'Manager', stall: '2' }],
-    'B1236': [{ id: 3, productId: 'P03', product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, addedBy: 'Admin', stall: '1' }],
-    'B1237': [{ id: 4, productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 14, rate: 250, amount: 3500, addedBy: 'Admin', stall: '1' }],
+    'B1234': [{ id: '1', productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 10, rate: 220, amount: 2200, addedBy: 'Admin', stall: '1' }],
+    'B1235': [{ id: '2', productId: 'P02', product: 'இறால்', uom: 'BOX', qty: 2, rate: 3000, amount: 6000, addedBy: 'Manager', stall: '2' }],
+    'B1236': [{ id: '3', productId: 'P03', product: 'நண்டு', uom: 'KGS', qty: 5.5, rate: 450, amount: 2475, addedBy: 'Admin', stall: '1' }],
+    'B1237': [{ id: '4', productId: 'P01', product: 'டூனா', uom: 'KGS', qty: 14, rate: 250, amount: 3500, addedBy: 'Admin', stall: '1' }],
 };
 
 export const samplePayments: Payment[] = [
