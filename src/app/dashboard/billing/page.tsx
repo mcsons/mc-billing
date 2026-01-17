@@ -127,7 +127,7 @@ export default function BillingPage() {
         ? 'hsl(var(--accent))'
         : state.isFocused
         ? 'hsl(var(--muted))'
-        : 'transparent',
+        : 'hsl(var(--background))',
       color: state.isSelected
         ? 'hsl(var(--accent-foreground))'
         : 'hsl(var(--foreground))',
@@ -489,7 +489,7 @@ export default function BillingPage() {
                   <Button
                     variant={'outline'}
                     className={cn(
-                      'w-full sm:w-[240px] justify-start text-left font-normal',
+                      'w-full justify-start text-left font-normal sm:w-[240px]',
                       !date && 'text-muted-foreground'
                     )}
                   >
@@ -513,10 +513,9 @@ export default function BillingPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6">
               <div className="grid gap-2">
                 <Label htmlFor="customer">Customer (ID, பெயர், Name)</Label>
-
                 <ReactSelect
                   instanceId="customer-select"
                   placeholder="Select customer..."
@@ -540,22 +539,6 @@ export default function BillingPage() {
                   }}
                   styles={reactSelectStyles}
                 />
-
-              </div>
-
-
-              <div className="grid gap-2">
-                <Label htmlFor="stall">Stall</Label>
-                <Select defaultValue="1">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select stall" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Stall 1</SelectItem>
-                    <SelectItem value="2">Stall 2</SelectItem>
-                    <SelectItem value="3">Stall 3</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
             </div>
           </CardContent>
@@ -567,7 +550,7 @@ export default function BillingPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-end gap-4">
-              <div className="grid gap-2 flex-grow-[3] basis-72">
+              <div className="grid flex-grow-[3] basis-72 gap-2">
                 <Label htmlFor="product">Product (ID, பெயர், Name)</Label>
                 <div className="relative">
                   <ReactSelect
@@ -627,7 +610,7 @@ export default function BillingPage() {
                   </Button>
                 </div>
               </div>
-              <div className="grid gap-2 flex-grow-[1] basis-28">
+              <div className="grid flex-grow-[1] basis-28 gap-2">
                 <Label htmlFor="uom">UOM</Label>
                 <Select
                   value={uom}
@@ -646,7 +629,7 @@ export default function BillingPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2 flex-grow-[1] basis-28">
+              <div className="grid flex-grow-[1] basis-28 gap-2">
                 <Label htmlFor="qty">Qty</Label>
                 <Input
                   id="qty"
@@ -657,7 +640,7 @@ export default function BillingPage() {
                   disabled={!selectedCustomerId}
                 />
               </div>
-              <div className="grid gap-2 flex-grow-[1] basis-28">
+              <div className="grid flex-grow-[1] basis-28 gap-2">
                 <Label htmlFor="rate">Rate (₹)</Label>
                 <Input
                   id="rate"
@@ -703,7 +686,7 @@ export default function BillingPage() {
                     <TableHead>Product (பெயர்)</TableHead>
                     <TableHead>UOM</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right w-40">Rate (₹)</TableHead>
+                    <TableHead className="w-40 text-right">Rate (₹)</TableHead>
                     <TableHead className="text-right">Amount (₹)</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -723,7 +706,7 @@ export default function BillingPage() {
                             defaultValue={item.qty}
                             onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)}
                             onFocus={(e) => e.target.select()}
-                            className="h-8 w-24 ml-auto text-right"
+                            className="ml-auto h-8 w-24 text-right"
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -732,7 +715,7 @@ export default function BillingPage() {
                             defaultValue={item.rate}
                             onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
                             onFocus={(e) => e.target.select()}
-                            className="h-8 w-24 ml-auto text-right"
+                            className="ml-auto h-8 w-24 text-right"
                           />
                         </TableCell>
                         <TableCell className="text-right">
@@ -752,7 +735,7 @@ export default function BillingPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center h-24">
+                      <TableCell colSpan={7} className="h-24 text-center">
                         {selectedCustomerId
                           ? 'No items added yet.'
                           : 'Select a customer to begin.'}
@@ -765,22 +748,22 @@ export default function BillingPage() {
           </CardContent>
           {selectedCustomerId && (
             <CardFooter className="flex flex-col items-stretch gap-4 pt-4 sm:items-end">
-              <div className="grid grid-cols-2 gap-x-8 gap-y-2 w-full max-w-md self-end text-lg text-right">
+              <div className="grid w-full max-w-md grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
                 <span className="font-semibold">Total:</span>
-                <span className="font-bold font-mono">
+                <span className="font-mono font-bold">
                   ₹{totalAmount.toFixed(2)}
                 </span>
                 <span className="font-semibold">Prev Balance:</span>
                 <span className="font-mono">₹{previousBalance.toFixed(2)}</span>
                 <span className="font-semibold">Paid:</span>
                 <Input
-                  className="max-w-32 ml-auto text-right font-mono"
+                  className="ml-auto max-w-32 text-right font-mono"
                   placeholder="0.00"
                   value={paidAmount}
                   onChange={(e) => setPaidAmount(e.target.value)}
                 />
                 <span className="font-semibold">Balance:</span>
-                <span className="font-bold font-mono">
+                <span className="font-mono font-bold">
                   ₹{finalBalance.toFixed(2)}
                 </span>
               </div>
