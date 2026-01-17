@@ -193,13 +193,13 @@ export default function PaymentsPage() {
             customer,
             transactions: filteredTransactions,
             openingBalance: openingBalanceForLedger,
-            dateRange: { from: fromDate, to: toDate },
+            dateRange: { from: fromDate?.toISOString(), to: toDate?.toISOString() },
         };
 
         const encodedData = encodeURIComponent(JSON.stringify(printData));
 
         window.open(
-            `/dashboard/payments/print?data=${encodedData}&paper=${paper}`,
+            `/print/payments?data=${encodedData}&paper=${paper}`,
             '_blank'
         );
     };
@@ -426,7 +426,7 @@ export default function PaymentsPage() {
                 </CardContent>
                 <CardFooter className="flex-wrap gap-2">
                     <Button onClick={() => openPaymentsPrint('thermal')}>
-                        🧾 Print Receipt (79mm)
+                        🧾 Print Receipt (83mm)
                     </Button>
 
                     <Button variant="outline" onClick={() => openPaymentsPrint('a4')}>

@@ -5,7 +5,7 @@ import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
-import { DataProvider, useData } from '@/context/DataContext';
+import { DataProvider } from '@/context/DataContext';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -38,23 +38,24 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
             <div className="print:hidden">
               <DashboardSidebar />
             </div>
+
             <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
               <div className="print:hidden">
                 <DashboardHeader />
               </div>
 
-              <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+              <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8 print:hidden">
                 {children}
               </main>
             </div>
           </div>
         </div>
+
         <AlertDialogComponent />
       </AlertDialogProvider>
     </SidebarProvider>
   );
 }
-
 
 export default function DashboardLayout({
   children,

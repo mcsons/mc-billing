@@ -205,7 +205,7 @@ export default function VehicleBillingPage() {
   const handlePrintBill = (billToPrint: VehicleBill) => {
     if (!billToPrint) return;
     const encodedData = encodeURIComponent(JSON.stringify(billToPrint));
-    window.open(`/dashboard/vehicle-bill/print?data=${encodedData}&paper=a4`, '_blank');
+    window.open(`/print/vehicle?data=${encodedData}&paper=a4`, '_blank');
   };
 
   const handleSaveAndPrint = async () => {
@@ -303,11 +303,11 @@ export default function VehicleBillingPage() {
         id: statementId,
         transactions: statementTransactions,
         openingBalance: 0,
-        dateRange: { from: statementFromDate, to: statementToDate },
+        dateRange: { from: statementFromDate.toISOString(), to: statementToDate.toISOString() },
     };
 
     const encodedData = encodeURIComponent(JSON.stringify(printData));
-    window.open(`/dashboard/vehicle-bill/statement/print?data=${encodedData}`, '_blank');
+    window.open(`/print/vehicle-statement?data=${encodedData}&paper=a4`, '_blank');
 };
 
 
@@ -422,14 +422,14 @@ export default function VehicleBillingPage() {
         </CardFooter>
       </Card>
 
-      <div className="grid auto-rows-max items-start gap-8">
-        <Card className="flex flex-col">
+      <div className="grid auto-rows-max items-start gap-8 lg:grid-cols-3">
+        <Card className="flex flex-col lg:col-span-2">
             <CardHeader>
                 <CardTitle className="font-headline">Vehicle Bill History</CardTitle>
                 <CardDescription>Search and manage previous vehicle bills.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-6">
-                <div className="grid md:grid-cols-2 lg:grid-cols-4 items-end gap-4">
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 items-end gap-4">
                     <div className="grid gap-2">
                         <Label>Vehicle</Label>
                         <ReactSelect
@@ -464,10 +464,10 @@ export default function VehicleBillingPage() {
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
                         </Popover>
                     </div>
-                    <div className="flex gap-2">
-                        <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
-                        <Button variant="ghost" onClick={handleClearHistorySearch} className="w-full sm:w-auto"><X className="mr-2 h-4 w-4" /> Clear</Button>
-                    </div>
+                </div>
+                 <div className="flex gap-2">
+                    <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
+                    <Button variant="ghost" onClick={handleClearHistorySearch} className="w-full sm:w-auto"><X className="mr-2 h-4 w-4" /> Clear</Button>
                 </div>
                 <div className="relative flex-1 min-h-[300px]">
                   <div className="absolute inset-0 overflow-y-auto">

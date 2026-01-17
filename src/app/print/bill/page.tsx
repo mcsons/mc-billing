@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/table';
 import { BillItem, Customer } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 interface BillPrintData {
@@ -52,11 +51,7 @@ function PrintPageContent() {
   }, [searchParams, router]);
 
   if (!billData) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <p>Loading bill data...</p>
-      </div>
-    );
+    return null;
   }
 
   const {
@@ -73,8 +68,8 @@ function PrintPageContent() {
   } = billData;
 
   return (
-    <div className={`print-root ${paper}`}>
-      <div className="flex justify-between items-center mb-4 print:hidden">
+    <div>
+      <div className="p-4 print:hidden flex justify-between items-center">
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Billing
@@ -84,19 +79,19 @@ function PrintPageContent() {
           Print
         </Button>
       </div>
-      <Card className="print:shadow-none print:border-none print:bg-white">
-        <CardContent className="print-content" id="print-area">
+      <div className={`print-root ${paper}`}>
+        <div id="print-area">
           <header className="text-center mb-6">
-            <h1 className="text-2xl font-bold font-headline text-primary">
+            <h1 className="text-2xl font-bold">
               M.C & SONS FISH COMPANY
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p>
               No. 1, Fish Market, Palladam Road, Tiruppur-641604
             </p>
-            <p className="text-sm text-muted-foreground">📞 9894089889</p>
+            <p>📞 9894089889</p>
           </header>
 
-          <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
+          <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <p className="font-semibold">Bill To:</p>
               <p>{customer.name_en}</p>
@@ -109,19 +104,19 @@ function PrintPageContent() {
               </p>
               <p>
                 <span className="font-semibold">Date:</span>{' '}
-                {format(new Date(date), 'P')}
+                {format(new Date(date), 'dd-MM-yyyy')}
               </p>
             </div>
           </div>
 
-          <Table className="print-table">
+          <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[50px]">S/N</TableHead>
+                <TableHead>S/N</TableHead>
                 <TableHead>Product (பெயர்)</TableHead>
                 <TableHead className="text-center">Qty</TableHead>
-                <TableHead className="text-right">Rate (₹)</TableHead>
-                <TableHead className="text-right">Amount (₹)</TableHead>
+                <TableHead className="text-right">Rate</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,12 +125,8 @@ function PrintPageContent() {
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>{item.product}</TableCell>
                   <TableCell className="text-center">
-                    <span className="qty-uom">
-                      <strong>{item.qty}</strong>
-                      <span className="uom-text">{item.uom}</span>
-                    </span>
+                    {item.qty} {item.uom}
                   </TableCell>
-
                   <TableCell className="text-right">
                     {item.rate.toFixed(2)}
                   </TableCell>
@@ -147,143 +138,115 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-6">
-            <div className="w-full max-w-sm space-y-2 text-sm">
-               <div className="flex justify-between">
-                <span className="font-semibold">Items Total:</span>
-                <span className="font-mono">₹{itemsTotal.toFixed(2)}</span>
+          <div className="flex justify-end mt-4">
+            <div className="w-full max-w-[250px] space-y-1">
+              <div className="flex justify-between">
+                <span>Items Total:</span>
+                <span>₹{itemsTotal.toFixed(2)}</span>
               </div>
               {deliveryCharge > 0 && (
                 <div className="flex justify-between">
-                  <span className="font-semibold">Delivery Charge:</span>
-                  <span className="font-mono">₹{deliveryCharge.toFixed(2)}</span>
+                  <span>Delivery Charge:</span>
+                  <span>₹{deliveryCharge.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between border-t pt-2 font-semibold">
+              <div className="flex justify-between font-semibold border-t">
                 <span>Bill Total:</span>
-                <span className="font-mono">₹{totalAmount.toFixed(2)}</span>
+                <span>₹{totalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-semibold">Previous Balance:</span>
-                <span className="font-mono">
+                <span>Previous Balance:</span>
+                <span>
                   ₹{previousBalance.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="font-semibold">Paid Amount:</span>
-                <span className="font-mono">₹{paidAmount.toFixed(2)}</span>
+                <span>Paid Amount:</span>
+                <span>₹{paidAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between border-t pt-2 font-bold text-base">
+              <div className="flex justify-between font-bold text-base border-t">
                 <span>Final Balance:</span>
-                <span className="font-mono">₹{finalBalance.toFixed(2)}</span>
+                <span>₹{finalBalance.toFixed(2)}</span>
               </div>
             </div>
           </div>
 
-          <footer className="text-center mt-8 text-xs text-muted-foreground">
+          <footer className="text-center mt-6 text-xs">
             <p>Thank you for your business!</p>
             <p>This is a computer-generated bill.</p>
           </footer>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <style jsx global>{`
-/* ===============================
-   GLOBAL PRINT
-================================ */
-@media print {
-  body {
-    margin: 0;
-    padding: 0;
-    background: white !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+        @media print {
+          body {
+            margin: 0;
+            padding: 0;
+            background: white;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .print-root.thermal {
+            @page {
+              size: 83mm auto;
+              margin: 0;
+            }
+          }
+          .print-root.a4 {
+            @page {
+              size: A4;
+              margin: 10mm;
+            }
+          }
+        }
+        .print-root {
+            margin: 0 auto;
+        }
+        .print-root.thermal {
+            width: 83mm;
+            font-family: "Courier New", monospace;
+            font-size: 10px;
+        }
+        .print-root.thermal #print-area {
+            padding: 6mm 4mm 15mm 4mm;
+        }
+        .print-root.thermal h1 { font-size: 14px; }
+        .print-root.thermal p, .print-root.thermal div, .print-root.thermal span { font-size: 10px; }
+        .print-root.thermal .text-base { font-size: 11px; }
+        .print-root.thermal .text-xs { font-size: 9px; }
+        .print-root.thermal table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .print-root.thermal th, .print-root.thermal td {
+            padding: 1.5px 0;
+        }
 
-  .print\\:hidden {
-    display: none !important;
-  }
-}
-
-/* ===============================
-   THERMAL 4-INCH (83mm)
-================================ */
-@media print {
-  .print-root.thermal {
-    width: 83mm;
-    max-width: 83mm;
-    margin: 0 auto;
-    font-family: "Courier New", monospace;
-    font-size: 12px;
-  }
-
-  #print-area {
-    padding: 6mm 4mm 15mm 4mm; /* bottom gap */
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th, td {
-    padding: 2px 0;
-    font-size: 12px;
-  }
-
-  @page {
-    size: 83mm auto;
-    margin: 0;
-  }
-}
-
-/* ===============================
-   A4 PRINT
-================================ */
-@media print {
-  .print-root.a4 {
-    width: 210mm;
-    margin: 0 auto;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-  }
-
-  .print-root.a4 #print-area {
-    padding: 15mm;
-  }
-
-  .print-root.a4 table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  .print-root.a4 th,
-  .print-root.a4 td {
-    padding: 6px;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .print-root.a4 th {
-    font-weight: bold;
-  }
-
-  @page {
-    size: A4;
-    margin: 10mm;
-  }
-}
-`}</style>
-
-
-
-
+        .print-root.a4 {
+            width: 210mm;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }
+        .print-root.a4 #print-area {
+            padding: 15mm;
+        }
+        .print-root.a4 table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .print-root.a4 th, .print-root.a4 td {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .print-root.a4 h1 { font-size: 20px; }
+      `}</style>
     </div>
   );
 }
 
-
-export default function PrintPage() {
+export default function PrintBillPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
+    <Suspense>
       <PrintPageContent />
     </Suspense>
   );

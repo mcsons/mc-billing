@@ -500,7 +500,7 @@ export default function BillingPage() {
     if (billData) {
       const encodedData = encodeURIComponent(JSON.stringify(billData));
       window.open(
-        `/dashboard/print?data=${encodedData}&paper=${paper}`,
+        `/print/bill?data=${encodedData}&paper=${paper}`,
         '_blank'
       );
     }
@@ -884,7 +884,7 @@ export default function BillingPage() {
                     Save Bill
                   </Button>
                   <Button onClick={() => handlePrintBill('thermal')}>
-                    Print Receipt (79mm)
+                    Print Receipt (83mm)
                   </Button>
 
                   <Button
