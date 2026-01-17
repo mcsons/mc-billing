@@ -550,7 +550,7 @@ export default function BillingPage() {
   return (
     <div className="relative">
       <div className="grid auto-rows-max items-start gap-4 pb-24 md:pb-4 lg:grid-cols-2 lg:gap-8">
-        <div className="grid gap-4">
+        <div className="grid auto-rows-max gap-4">
           <Card>
             <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -752,7 +752,7 @@ export default function BillingPage() {
           </Card>
         </div>
 
-        <div className="grid gap-4">
+        <div className="lg:sticky lg:top-20">
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Current Bill</CardTitle>
@@ -762,7 +762,7 @@ export default function BillingPage() {
                   : 'Select a customer to view or create a bill.'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="max-h-[50vh] overflow-auto">
+            <CardContent className="max-h-[calc(100vh-32rem)] min-h-[10rem] overflow-auto">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -838,7 +838,7 @@ export default function BillingPage() {
               </div>
             </CardContent>
             {selectedCustomerId && (
-              <CardFooter className="flex flex-col items-stretch gap-4 pt-4 sm:items-end">
+              <CardFooter className="flex flex-col items-stretch gap-4 border-t pt-4 sm:items-end">
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span>
                   <span className="font-mono">
@@ -900,41 +900,51 @@ export default function BillingPage() {
         </div>
       </div>
       {/* Sticky Footer for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 border-t bg-background/95 p-2 md:hidden">
-        <div className="flex w-full items-center justify-between gap-2">
-          <Button
-            size="lg"
-            className="flex-1"
-            onClick={handleAddItem}
-            disabled={!selectedCustomerId || !qty || !rate}
-          >
-            <PlusCircle className="mr-2 h-5 w-5" />
-            Add Item
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="lg" variant="outline" className="px-3">
-                <MoreVertical className="h-5 w-5" />
-                <span className="sr-only">Actions</span>
+      {selectedCustomerId && (
+        <div className="fixed bottom-0 left-0 right-0 z-10 h-20 border-t bg-background/95 px-4 py-2 md:hidden">
+          <div className="flex h-full w-full items-center justify-between gap-4">
+            <div className="text-left">
+              <div className="text-xs text-muted-foreground">Balance</div>
+              <div className="font-mono text-lg font-bold">
+                ₹{finalBalance.toFixed(2)}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                size="lg"
+                className="flex-1"
+                onClick={handleAddItem}
+                disabled={!selectedCustomerId || !qty || !rate}
+              >
+                <PlusCircle className="h-5 w-5 md:mr-2" />
+                <span className="hidden sm:inline">Add Item</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mb-2">
-              <DropdownMenuItem onClick={handleSaveBill}>
-                <Save className="mr-2 h-4 w-4" />
-                <span>Save & New</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePrintBill('thermal')}>
-                <Printer className="mr-2 h-4 w-4" />
-                <span>Print Receipt</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handlePrintBill('a4')}>
-                <Printer className="mr-2 h-4 w-4" />
-                <span>Print A4</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="lg" variant="outline" className="px-3">
+                    <MoreVertical className="h-5 w-5" />
+                    <span className="sr-only">Actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="mb-2">
+                  <DropdownMenuItem onClick={handleSaveBill}>
+                    <Save className="mr-2 h-4 w-4" />
+                    <span>Save & New</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePrintBill('thermal')}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    <span>Print Receipt</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePrintBill('a4')}>
+                    <Printer className="mr-2 h-4 w-4" />
+                    <span>Print A4</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
