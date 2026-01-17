@@ -267,6 +267,14 @@ service cloud.firestore {
     }
 
     /**
+     * @description Manages party data. Any authenticated user can manage.
+     * @path /parties/{partyId}
+     */
+    match /parties/{partyId} {
+        allow read, write: if isSignedIn();
+    }
+
+    /**
      * @description Manages vehicle bills. Any authenticated user can read bills.
      *   Only the creator can modify or delete a bill.
      * @path /vehicleBills/{vehicleBillId}

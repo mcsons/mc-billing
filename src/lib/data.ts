@@ -85,17 +85,33 @@ export type Driver = {
   active: boolean;
 };
 
+export type Party = {
+  id: string;
+  name: string;
+  location: string;
+  active: boolean;
+};
+
 export type VehicleBill = {
   id: string;
   date: any; // Can be Date or Firestore Timestamp
   vehicleId: string; // Registration Number
-  vehicleName: string;
   driverId: string;
   driverName: string;
+  partyId: string;
+  partyName: string;
   destination: string;
   advance: number;
   expenses: number;
   createdBy: string;
+};
+
+export type VehicleStatementTransaction = {
+  date: Date;
+  description: string;
+  advance: number;
+  expenses: number;
+  balance: number;
 };
 
 

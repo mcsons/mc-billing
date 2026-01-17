@@ -57,8 +57,8 @@ function PrintPageContent() {
     id,
     date,
     vehicleId,
-    vehicleName,
     driverName,
+    partyName,
     destination,
     advance,
     expenses
@@ -108,8 +108,8 @@ function PrintPageContent() {
                 <TableCell className="text-right font-bold">{vehicleId}</TableCell>
               </TableRow>
                <TableRow>
-                <TableCell className="font-semibold">Vehicle Name</TableCell>
-                <TableCell className="text-right">{vehicleName}</TableCell>
+                <TableCell className="font-semibold">Party Name</TableCell>
+                <TableCell className="text-right">{partyName}</TableCell>
               </TableRow>
               <TableRow>
                 <TableCell className="font-semibold">Driver Name</TableCell>

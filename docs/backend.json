@@ -524,6 +524,41 @@
       },
       "required": ["id", "name", "licenseNumber", "active", "createdAt", "updatedAt"]
     },
+    "Party": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Party",
+      "type": "object",
+      "description": "Represents a party or a destination for vehicle trips.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the party."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the party."
+        },
+        "location": {
+          "type": "string",
+          "description": "Location of the party."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp of when the party was added.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the party was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "location"
+      ]
+    },
     "VehicleBill": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "VehicleBill",
@@ -548,6 +583,14 @@
           "type": "string",
           "description": "Reference to the Driver.",
           "format": "uuid"
+        },
+        "partyId": {
+          "type": "string",
+          "description": "Reference to the Party."
+        },
+        "partyName": {
+          "type": "string",
+          "description": "Denormalized name of the party for display."
         },
         "advance": {
           "type": "number",
@@ -582,6 +625,8 @@
         "date",
         "vehicleId",
         "driverId",
+        "partyId",
+        "partyName",
         "advance",
         "destination",
         "expenses",
@@ -793,6 +838,15 @@
           "schema": { "$ref": "#/backend/entities/Driver" },
           "description": "Stores driver data. Secured to allow any authenticated user to manage.",
           "params": [{ "name": "driverId", "description": "Unique identifier for the driver." }]
+        }
+      },
+      {
+        "path": "/parties/{partyId}",
+        "definition": {
+          "entityName": "Party",
+          "schema": { "$ref": "#/backend/entities/Party" },
+          "description": "Stores party data. Secured to allow any authenticated user to manage.",
+          "params": [{ "name": "partyId", "description": "Unique identifier for the party." }]
         }
       },
       {

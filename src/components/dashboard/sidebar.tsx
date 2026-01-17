@@ -18,6 +18,7 @@ import {
   Truck,
   CircleUser,
   LayoutDashboard,
+  Briefcase,
 } from 'lucide-react';
 import React from 'react';
 
@@ -49,6 +50,7 @@ const menuItems = [
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
+  { href: '/dashboard/parties', label: 'Manage Parties', icon: Briefcase, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
