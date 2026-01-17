@@ -172,7 +172,7 @@ function PrintPageContent() {
             </footer>
           </CardContent>
         </Card>
-        <style jsx global>{\`
+        <style jsx global>{`
   @media print {
     * {
       box-sizing: border-box;
@@ -185,7 +185,7 @@ function PrintPageContent() {
       print-color-adjust: exact;
     }
 
-    .print\\\\:hidden {
+    .print\\:hidden {
       display: none !important;
     }
   }
@@ -234,7 +234,7 @@ function PrintPageContent() {
       margin: 10mm;
     }
   }
-\`}</style>
+`}</style>
 
     </div>
   );
