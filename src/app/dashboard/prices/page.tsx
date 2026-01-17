@@ -74,7 +74,7 @@ export default function PricesPage() {
     if (selectedProduct) {
       const initialPrices: LocalPrices = {};
       selectedProduct.uom_allowed.forEach((uom) => {
-        initialPrices[uom] = productPrices[selectedProduct.id]?.[uom]?.toString() || '';
+        initialPrices[uom] = productPrices[selectedProduct.id]?.[uom]?.toString() || '1';
       });
       setLocalPrices(initialPrices);
     } else {
