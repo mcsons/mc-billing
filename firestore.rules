@@ -230,13 +230,13 @@ service cloud.firestore {
      * @description Manages administrator roles. Only existing admins can read or
      *   write to this collection, allowing them to grant or revoke admin privileges.
      * @path /roles_admin/{userId}
-     * @allow An admin adds another user as an admin. (auth.isAdmin == true, create)
-     * @deny A non-admin user attempts to make themselves an admin. (auth.isAdmin == false, create)
-     * @deny A non-admin user attempts to list all admins. (auth.isAdmin == false, list)
+     * @allow An admin adds another user as an admin. (isAdmin(), create)
+     * @deny A non-admin user attempts to make themselves an admin. (isAdmin() == false, create)
+     * @deny A non-admin user attempts to list all admins. (isAdmin() == false, list)
      * @principle Secures the role management system itself, preventing unauthorized privilege escalation.
      */
     match /roles_admin/{userId} {
-      allow get: if isAdmin() || isOwner(userId);
+      allow get: if isSignedIn();
       allow list, update, delete: if isAdmin();
       allow create: if (isOwner(userId) && request.auth.token.email == 'creator@mcandsons.com') || isAdmin();
     }

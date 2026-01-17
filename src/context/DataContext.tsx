@@ -679,19 +679,45 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return { billNo, commitPromise };
   };
 
-    const deleteBills = (billNos: string[]) => {
-       if (!firestore) return;
-       const batch = writeBatch(firestore);
-       billNos.forEach(billNo => {
-           const billRef = doc(firestore, 'bills', billNo);
-           batch.delete(billRef);
-       });
-       batch.commit().then(() => {
-           toast({
-                title: 'Bills Deleted',
-                description: `${billNos.length} bill(s) have been permanently deleted.`,
-            });
-       });
+    const deleteBills = async (billNos: string[]) => {
+      if (!firestore) return;
+  
+      try {
+          const batch = writeBatch(firestore);
+  
+          for (const billNo of billNos) {
+              const billRef = doc(firestore, 'bills', billNo);
+  
+              // Find and delete billItems
+              const itemsQuery = query(collection(firestore, 'bills', billNo, 'billItems'));
+              const itemsSnapshot = await getDocs(itemsQuery);
+              itemsSnapshot.forEach(itemDoc => {
+                  batch.delete(itemDoc.ref);
+              });
+  
+              // Delete the bill itself
+              batch.delete(billRef);
+          }
+  
+          await batch.commit();
+          toast({
+              title: 'Bills Deleted',
+              description: `${billNos.length} bill(s) and their items have been permanently deleted.`,
+          });
+  
+      } catch (error) {
+          console.error("Failed to delete bills:", error);
+          toast({
+              variant: "destructive",
+              title: "Deletion Failed",
+              description: "Could not delete one or more bills. Check permissions and console for details.",
+          });
+          const contextualError = new FirestorePermissionError({
+              operation: 'delete',
+              path: `bills collection`, // Generic path
+          });
+          errorEmitter.emit('permission-error', contextualError);
+      }
     };
 
   const addPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
@@ -916,5 +942,3 @@ export const useData = () => {
   }
   return context;
 };
-
-    
