@@ -23,8 +23,8 @@
  *   be created and modified by any authenticated user, fostering a collaborative
  *   environment.
  * - Bill Ownership: While any authenticated user can create a bill, only the
- *   original creator (as defined by the `createdBy` field) can modify or delete it.
- *   This protects the integrity of billing records.
+ *   original creator (as defined by the `createdBy` field), an Admin, or a Creator can modify or delete it.
+ *   This protects the integrity of billing records while allowing for administrative oversight.
  * - User Data Privacy: Users can only read their own data from the `/users`
  *   collection. Listing all users is now allowed for any signed-in user to
  *   facilitate collaboration within the app, but creation/modification is still restricted.
@@ -181,35 +181,33 @@ service cloud.firestore {
 
     /**
      * @description Manages active billing documents. Any authenticated user can read
-     *   all bills and create new ones. Only the original creator can modify or delete a bill.
+     *   all bills and create new ones. Only the original creator, an Admin, or a
+     *   Creator can modify or delete a bill.
      * @path /bills/{billId}
-     * @allow A user creates a new bill for a customer. (auth != null, create)
-     * @allow A user updates a bill they previously created. (auth.uid == resource.data.createdBy, update)
-     * @deny A user attempts to delete a bill created by someone else. (auth.uid != resource.data.createdBy, delete)
-     * @principle Enforces document ownership for writes, ensuring the integrity of billing records.
+     * @allow An admin updates a bill. (isAdmin(), update)
+     * @deny A user attempts to delete a bill created by someone else if they are not an admin. (auth.uid != resource.data.createdBy && !isAdmin(), delete)
+     * @principle Enforces document ownership for writes but grants full control to admins/creators for management.
      */
     match /bills/{billId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow update: if (isExistingOwner(resource.data.createdBy) || isAdmin()) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
 
       /**
-       * @description Manages items within a bill. Rules mirror the parent bill:
-       *   any signed-in user can read items and add new ones. Only the user who
-       *   added an item can modify or delete it.
+       * @description Manages items within a bill. Any signed-in user can read items and
+       *   add new ones. Only the user who added an item, an admin, or a creator can modify or delete it.
        * @path /bills/{billId}/billItems/{billItemId}
        * @allow A user adds an item to an existing bill. (auth != null, create)
-       * @allow A user deletes an item they previously added. (auth.uid == resource.data.addedBy, delete)
-       * @deny A user attempts to change an item added by another user. (auth.uid != resource.data.addedBy, update)
-       * @principle Enforces document ownership for writes and validates relational integrity
-       *   with the parent bill document.
+       * @allow An admin deletes an item they did not add. (isAdmin(), delete)
+       * @deny A regular user attempts to change an item added by another user. (auth.uid != resource.data.addedBy && !isAdmin(), update)
+       * @principle Enforces ownership for item modifications but grants full control to admins/creators.
        */
       match /billItems/{billItemId} {
         allow get, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.addedBy == request.auth.uid && request.resource.data.billId == billId;
-        allow update: if isExistingOwner(resource.data.addedBy) && isImmutable('addedBy') && isImmutable('billId');
-        allow delete: if isExistingOwner(resource.data.addedBy);
+        allow update: if (isExistingOwner(resource.data.addedBy) || isAdmin()) && isImmutable('addedBy') && isImmutable('billId');
+        allow delete: if isExistingOwner(resource.data.addedBy) || isAdmin();
       }
     }
 
@@ -274,5 +272,3 @@ service cloud.firestore {
     }
   }
 }
-
-    
