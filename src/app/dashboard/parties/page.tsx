@@ -77,7 +77,7 @@ export default function PartiesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parties.map((party) => (
+                {(parties || []).map((party) => (
                   <TableRow key={party.id}>
                     <TableCell className="font-medium">{party.id}</TableCell>
                     <TableCell>{party.name}</TableCell>

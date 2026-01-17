@@ -41,7 +41,7 @@ import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
-import { VehicleBill } from '@/lib/data';
+import { VehicleBill, VehicleStatementTransaction } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 
 export default function VehicleBillingPage() {
@@ -53,6 +53,7 @@ export default function VehicleBillingPage() {
   const {
     vehicles,
     drivers,
+    parties,
     vehicleBills,
     currentUser,
     addOrUpdateVehicleBill,
@@ -63,6 +64,7 @@ export default function VehicleBillingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [vehicleId, setVehicleId] = useState('');
   const [driverId, setDriverId] = useState('');
+  const [partyId, setPartyId] = useState('');
   const [destination, setDestination] = useState('');
   const [advance, setAdvance] = useState('');
   const [expenses, setExpenses] = useState('');
@@ -73,6 +75,13 @@ export default function VehicleBillingPage() {
   const [historyVehicleId, setHistoryVehicleId] = useState('');
   const [historyDriverId, setHistoryDriverId] = useState('');
   const [filteredBills, setFilteredBills] = useState<VehicleBill[]>([]);
+
+  // Statement State
+  const [statementType, setStatementType] = useState<'Vehicle' | 'Driver' | ''>('');
+  const [statementId, setStatementId] = useState('');
+  const [statementFromDate, setStatementFromDate] = useState<Date | undefined>();
+  const [statementToDate, setStatementToDate] = useState<Date | undefined>();
+
 
   const reactSelectStyles = {
     control: (baseStyles, state) => ({
@@ -127,6 +136,7 @@ export default function VehicleBillingPage() {
         setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
         setVehicleId(billToEdit.vehicleId);
         setDriverId(billToEdit.driverId);
+        setPartyId(billToEdit.partyId);
         setDestination(billToEdit.destination);
         setAdvance(billToEdit.advance.toString());
         setExpenses(billToEdit.expenses.toString());
@@ -135,7 +145,7 @@ export default function VehicleBillingPage() {
   }, [searchParams, vehicleBills]);
 
   useEffect(() => {
-    setFilteredBills(vehicleBills);
+    setFilteredBills(vehicleBills.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
   }, [vehicleBills]);
 
   const handleNewBill = () => {
@@ -143,6 +153,7 @@ export default function VehicleBillingPage() {
     setDate(new Date());
     setVehicleId('');
     setDriverId('');
+    setPartyId('');
     setDestination('');
     setAdvance('');
     setExpenses('');
@@ -150,25 +161,26 @@ export default function VehicleBillingPage() {
   };
 
   const handleSaveBill = async () => {
-    if (!date || !vehicleId || !driverId || !currentUser) {
-      toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out Date, Vehicle, and Driver.'});
+    if (!date || !vehicleId || !driverId || !partyId || !currentUser) {
+      toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out Date, Vehicle, Driver, and Party.'});
       return null;
     }
 
-    const vehicle = vehicles.find(v => v.id === vehicleId);
     const driver = drivers.find(d => d.id === driverId);
+    const party = parties.find(p => p.id === partyId);
 
-    if (!vehicle || !driver) {
-        toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Selected vehicle or driver not found.' });
+    if (!driver || !party) {
+        toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Selected driver or party not found.' });
         return null;
     }
 
     const billData: Omit<VehicleBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
       date,
       vehicleId,
-      vehicleName: vehicle.name,
       driverId,
       driverName: driver.name,
+      partyId,
+      partyName: party.name,
       destination,
       advance: parseFloat(advance) || 0,
       expenses: parseFloat(expenses) || 0,
@@ -179,7 +191,6 @@ export default function VehicleBillingPage() {
         if (savedBill) {
             toast({ title: editingBillId ? 'Bill Updated' : 'Bill Saved', description: `Vehicle bill for ${vehicleId} has been saved.`});
             if (!editingBillId) {
-                // Don't clear the form, just set the editing ID
                 setEditingBillId(savedBill.id);
                 router.replace(`/dashboard/vehicle-bill?billId=${savedBill.id}`, { scroll: false });
             }
@@ -241,22 +252,76 @@ export default function VehicleBillingPage() {
     if (historyDriverId) {
         results = results.filter(b => b.driverId === historyDriverId);
     }
-    setFilteredBills(results);
+    setFilteredBills(results.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
   };
 
   const handleClearHistorySearch = () => {
     setHistoryDate(undefined);
     setHistoryVehicleId('');
     setHistoryDriverId('');
-    setFilteredBills(vehicleBills);
+    setFilteredBills(vehicleBills.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
   };
+
+  const handlePrintStatement = () => {
+    if (!statementType || !statementId || !statementFromDate || !statementToDate) {
+        toast({ variant: 'destructive', title: 'Missing Info', description: 'Please select a type, an item, and a date range.' });
+        return;
+    }
+
+    let transactions: VehicleBill[] = [];
+    let name = '';
+    
+    if (statementType === 'Vehicle') {
+        transactions = vehicleBills.filter(b => b.vehicleId === statementId);
+        name = vehicles.find(v => v.id === statementId)?.name || statementId;
+    } else if (statementType === 'Driver') {
+        transactions = vehicleBills.filter(b => b.driverId === statementId);
+        name = drivers.find(d => d.id === statementId)?.name || statementId;
+    }
+
+    const filteredTransactions = transactions.filter(t => {
+        const tDate = t.date.toDate();
+        return tDate >= statementFromDate && tDate <= statementToDate;
+    }).sort((a, b) => a.date.toDate().getTime() - b.date.toDate().getTime());
+    
+    // For this simple statement, we assume opening balance is 0
+    let balance = 0;
+    const statementTransactions: VehicleStatementTransaction[] = filteredTransactions.map(t => {
+        balance = balance + t.advance - t.expenses;
+        return {
+            date: t.date.toDate(),
+            description: `${t.destination} (Party: ${t.partyName})`,
+            advance: t.advance,
+            expenses: t.expenses,
+            balance: balance,
+        };
+    });
+
+    const printData = {
+        type: statementType,
+        name: name,
+        id: statementId,
+        transactions: statementTransactions,
+        openingBalance: 0,
+        dateRange: { from: statementFromDate, to: statementToDate },
+    };
+
+    const encodedData = encodeURIComponent(JSON.stringify(printData));
+    window.open(`/dashboard/vehicle-bill/statement/print?data=${encodedData}`, '_blank');
+};
+
 
   const activeVehicles = useMemo(() => vehicles.filter(v => v.active), [vehicles]);
   const activeDrivers = useMemo(() => drivers.filter(d => d.active), [drivers]);
-  
+  const activeParties = useMemo(() => (parties || []).filter(p => p.active), [parties]);
+
   const balance = useMemo(() => (parseFloat(advance) || 0) - (parseFloat(expenses) || 0), [advance, expenses]);
   
-  const selectedVehicle = useMemo(() => vehicles.find(v => v.id === vehicleId), [vehicleId, vehicles]);
+  const statementOptions = useMemo(() => {
+    if (statementType === 'Vehicle') return vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})` }));
+    if (statementType === 'Driver') return drivers.map(d => ({ value: d.id, label: d.name }));
+    return [];
+  }, [statementType, vehicles, drivers]);
 
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
@@ -302,15 +367,7 @@ export default function VehicleBillingPage() {
                         styles={reactSelectStyles}
                     />
                 </div>
-                 {selectedVehicle && (
-                     <div className="grid gap-2">
-                        <Label>Vehicle Name</Label>
-                        <p className="flex h-10 w-full items-center rounded-md border border-input bg-muted px-3 py-2 text-sm">
-                            {selectedVehicle.name}
-                        </p>
-                    </div>
-                )}
-                <div className="grid gap-2">
+                 <div className="grid gap-2">
                     <Label htmlFor="driver">Driver Name</Label>
                     <ReactSelect
                         instanceId="driver-select"
@@ -318,6 +375,18 @@ export default function VehicleBillingPage() {
                         value={activeDrivers.map(d => ({ value: d.id, label: d.name })).find(d => d.value === driverId) || null}
                         onChange={(option) => setDriverId(option ? option.value : '')}
                         placeholder="Select driver..."
+                        isClearable
+                        styles={reactSelectStyles}
+                    />
+                </div>
+                <div className="grid gap-2">
+                    <Label htmlFor="party">Party Name</Label>
+                    <ReactSelect
+                        instanceId="party-select"
+                        options={activeParties.map(p => ({ value: p.id, label: p.name }))}
+                        value={activeParties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
+                        onChange={(option) => setPartyId(option ? option.value : '')}
+                        placeholder="Select party..."
                         isClearable
                         styles={reactSelectStyles}
                     />
@@ -353,97 +422,149 @@ export default function VehicleBillingPage() {
         </CardFooter>
       </Card>
 
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline">Vehicle Bill History</CardTitle>
-            <CardDescription>Search and manage previous vehicle bills.</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
-                <div className="grid gap-2 flex-1">
-                    <Label>Vehicle</Label>
-                    <ReactSelect
-                        options={vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})`}))}
-                        value={vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})`})).find(v => v.value === historyVehicleId) || null}
-                        onChange={(o) => setHistoryVehicleId(o ? o.value : '')}
-                        isClearable
-                        placeholder="Filter by vehicle..."
-                        styles={reactSelectStyles}
-                    />
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Vehicle Bill History</CardTitle>
+                <CardDescription>Search and manage previous vehicle bills.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+                    <div className="grid gap-2 flex-1">
+                        <Label>Vehicle</Label>
+                        <ReactSelect
+                            options={vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})`}))}
+                            value={vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})`})).find(v => v.value === historyVehicleId) || null}
+                            onChange={(o) => setHistoryVehicleId(o ? o.value : '')}
+                            isClearable
+                            placeholder="Filter by vehicle..."
+                            styles={reactSelectStyles}
+                        />
+                    </div>
+                    <div className="grid gap-2 flex-1">
+                        <Label>Driver</Label>
+                        <ReactSelect
+                            options={drivers.map(d => ({ value: d.id, label: d.name}))}
+                            value={drivers.map(d => ({ value: d.id, label: d.name})).find(d => d.value === historyDriverId) || null}
+                            onChange={(o) => setHistoryDriverId(o ? o.value : '')}
+                            isClearable
+                            placeholder="Filter by driver..."
+                            styles={reactSelectStyles}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label>Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
+                        </Popover>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button onClick={handleSearchHistory}><Search className="mr-2 h-4 w-4" /> Search</Button>
+                        <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
+                    </div>
                 </div>
-                 <div className="grid gap-2 flex-1">
-                    <Label>Driver</Label>
-                    <ReactSelect
-                        options={drivers.map(d => ({ value: d.id, label: d.name}))}
-                        value={drivers.map(d => ({ value: d.id, label: d.name})).find(d => d.value === historyDriverId) || null}
-                        onChange={(o) => setHistoryDriverId(o ? o.value : '')}
-                        isClearable
-                        placeholder="Filter by driver..."
-                        styles={reactSelectStyles}
-                    />
+                <div className="overflow-x-auto max-h-96">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Vehicle</TableHead>
+                            <TableHead>Party</TableHead>
+                            <TableHead className="text-right">Advance (₹)</TableHead>
+                            <TableHead className="text-right">Expenses (₹)</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredBills.length > 0 ? (
+                            filteredBills.map(bill => (
+                                <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
+                                    <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
+                                    <TableCell>{bill.vehicleId}</TableCell>
+                                    <TableCell>{bill.partyName}</TableCell>
+                                    <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
+                                            <Printer className="h-4 w-4" />
+                                            <span className="sr-only">Print</span>
+                                        </Button>
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
+                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                            <span className="sr-only">Delete</span>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={7} className="h-24 text-center">No vehicle bills found.</TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                </Table>
                 </div>
-                 <div className="grid gap-2">
-                    <Label>Date</Label>
-                     <Popover>
+            </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Vehicle/Driver Statement</CardTitle>
+            <CardDescription>Generate a statement for a specific vehicle or driver for a period of time.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button variant={statementType === 'Vehicle' ? 'default' : 'outline'} onClick={() => { setStatementType('Vehicle'); setStatementId(''); }}>Vehicle Statement</Button>
+              <Button variant={statementType === 'Driver' ? 'default' : 'outline'} onClick={() => { setStatementType('Driver'); setStatementId(''); }}>Driver Statement</Button>
+            </div>
+            {statementType && (
+              <ReactSelect
+                instanceId="statement-select"
+                options={statementOptions}
+                placeholder={`Select a ${statementType}...`}
+                onChange={(o) => setStatementId(o ? o.value : '')}
+                styles={reactSelectStyles}
+              />
+            )}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                    <Label>From Date</Label>
+                    <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementFromDate && 'text-muted-foreground')}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
-                                {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
+                                {statementFromDate ? format(statementFromDate, 'PPP') : <span>Pick a date</span>}
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={statementFromDate} onSelect={setStatementFromDate} /></PopoverContent>
                     </Popover>
                 </div>
-                <div className="flex gap-2">
-                    <Button onClick={handleSearchHistory}><Search className="mr-2 h-4 w-4" /> Search</Button>
-                    <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
+                 <div className="grid gap-2">
+                    <Label>To Date</Label>
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementToDate && 'text-muted-foreground')}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {statementToDate ? format(statementToDate, 'PPP') : <span>Pick a date</span>}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={statementToDate} onSelect={setStatementToDate} /></PopoverContent>
+                    </Popover>
                 </div>
             </div>
-            <div className="overflow-x-auto">
-              <Table>
-                  <TableHeader>
-                      <TableRow>
-                          <TableHead>Date</TableHead>
-                          <TableHead>Vehicle</TableHead>
-                          <TableHead>Driver</TableHead>
-                          <TableHead>Destination</TableHead>
-                          <TableHead className="text-right">Advance (₹)</TableHead>
-                          <TableHead className="text-right">Expenses (₹)</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                      </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                      {filteredBills.length > 0 ? (
-                          filteredBills.map(bill => (
-                              <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
-                                  <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
-                                  <TableCell>{bill.vehicleId}</TableCell>
-                                  <TableCell>{bill.driverName}</TableCell>
-                                  <TableCell>{bill.destination}</TableCell>
-                                  <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
-                                  <TableCell className="text-right">
-                                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
-                                          <Printer className="h-4 w-4" />
-                                          <span className="sr-only">Print</span>
-                                      </Button>
-                                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
-                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                          <span className="sr-only">Delete</span>
-                                      </Button>
-                                  </TableCell>
-                              </TableRow>
-                          ))
-                      ) : (
-                          <TableRow>
-                              <TableCell colSpan={7} className="h-24 text-center">No vehicle bills found.</TableCell>
-                          </TableRow>
-                      )}
-                  </TableBody>
-              </Table>
-            </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={handlePrintStatement} className="w-full">
+                <Printer className="mr-2 h-4 w-4"/> Generate & Print Statement
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
     </div>
   );
 }

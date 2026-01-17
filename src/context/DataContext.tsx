@@ -14,6 +14,7 @@ import {
   Driver,
   VehicleBill,
   CustomerBalance,
+  Party,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
@@ -51,6 +52,7 @@ interface DataContextType {
   uoms: Uom[];
   vehicles: Vehicle[];
   drivers: Driver[];
+  parties: Party[];
   vehicleBills: VehicleBill[];
   liveBillSummaries: LiveBillSummary[];
   productPrices: ProductPrices;
@@ -77,6 +79,9 @@ interface DataContextType {
   addDriver: (driver: Omit<Driver, 'id' | 'active'>) => void;
   editDriver: (driverId: string, data: Partial<Driver>) => void;
   deleteDriver: (driverId: string) => void;
+  addParty: (party: Omit<Party, 'id' | 'active'> & { id?: string }) => void;
+  editParty: (partyId: string, data: Partial<Omit<Party, 'id' | 'active'>>) => void;
+  deleteParty: (partyId: string) => void;
   addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string) => Promise<VehicleBill | null>;
   deleteVehicleBill: (billId: string) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
@@ -133,6 +138,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const driversCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'drivers') : null, [firestore, firebaseUser]);
   const { data: driversData } = useCollection<Driver>(driversCollection);
   const drivers = useMemo(() => driversData || [], [driversData]);
+
+  const partiesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'parties') : null, [firestore, firebaseUser]);
+  const { data: partiesData } = useCollection<Party>(partiesCollection);
+  const parties = useMemo(() => partiesData || [], [partiesData]);
 
   const vehicleBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'vehicleBills') : null, [firestore, firebaseUser]);
   const { data: vehicleBillsData } = useCollection<VehicleBill>(vehicleBillsCollection);
@@ -869,6 +878,43 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     toast({ title: 'Driver Deleted' });
   };
 
+    const addParty = (party: Omit<Party, 'id' | 'active'> & { id?: string }) => {
+        if (!firestore) return;
+        let newId = party.id;
+        if (!newId) {
+            const maxId = (parties || [])
+                .map(p => parseInt(p.id.replace('PT', ''), 10))
+                .filter(num => !isNaN(num))
+                .reduce((max, num) => Math.max(max, num), 0);
+            newId = `PT${(maxId + 1).toString().padStart(2, '0')}`;
+        }
+        const partyRef = doc(firestore, 'parties', newId);
+        const newPartyData = {
+            id: newId,
+            name: party.name,
+            location: party.location,
+            active: true,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+        setDocumentNonBlocking(partyRef, newPartyData, {});
+        toast({ title: 'Party Added', description: `"${party.name}" has been added.` });
+    };
+
+    const editParty = (partyId: string, data: Partial<Omit<Party, 'id'|'active'>>) => {
+        if (!firestore) return;
+        const partyRef = doc(firestore, 'parties', partyId);
+        updateDocumentNonBlocking(partyRef, { ...data, updatedAt: serverTimestamp() });
+        toast({ title: 'Party Updated' });
+    };
+
+    const deleteParty = (partyId: string) => {
+        if (!firestore) return;
+        const partyRef = doc(firestore, 'parties', partyId);
+        deleteDocumentNonBlocking(partyRef);
+        toast({ title: 'Party Deleted' });
+    };
+
   const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string): Promise<VehicleBill | null> => {
     if (!firestore || !currentUser) return null;
     
@@ -909,6 +955,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         uoms,
         vehicles,
         drivers,
+        parties,
         vehicleBills,
         liveBillSummaries,
         productPrices,
@@ -935,6 +982,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addDriver,
         editDriver,
         deleteDriver,
+        addParty,
+        editParty,
+        deleteParty,
         addOrUpdateVehicleBill,
         deleteVehicleBill,
         removeBillItem,
