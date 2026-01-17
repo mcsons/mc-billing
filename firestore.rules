@@ -81,6 +81,13 @@ service cloud.firestore {
     }
 
     /**
+     * Checks if the user's role is CREATOR or ADMIN by reading their user document.
+     */
+    function isCreatorOrAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['CREATOR', 'ADMIN'];
+    }
+
+    /**
      * Ensures an immutable relationship field on update.
      * Allows partial updates where the field is not present in the request.
      */
@@ -184,30 +191,30 @@ service cloud.firestore {
      *   all bills and create new ones. Only the original creator, an Admin, or a
      *   Creator can modify or delete a bill.
      * @path /bills/{billId}
-     * @allow An admin updates a bill. (isAdmin(), update)
-     * @deny A user attempts to delete a bill created by someone else if they are not an admin. (auth.uid != resource.data.createdBy && !isAdmin(), delete)
+     * @allow An admin updates a bill. (isCreatorOrAdmin(), update)
+     * @deny A user attempts to delete a bill created by someone else if they are not an admin. (auth.uid != resource.data.createdBy && !isCreatorOrAdmin(), delete)
      * @principle Enforces document ownership for writes but grants full control to admins/creators for management.
      */
     match /bills/{billId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if (isExistingOwner(resource.data.createdBy) || isAdmin()) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy) || isAdmin();
+      allow update: if (isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin()) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
 
       /**
        * @description Manages items within a bill. Any signed-in user can read items and
        *   add new ones. Only the user who added an item, an admin, or a creator can modify or delete it.
        * @path /bills/{billId}/billItems/{billItemId}
        * @allow A user adds an item to an existing bill. (auth != null, create)
-       * @allow An admin deletes an item they did not add. (isAdmin(), delete)
-       * @deny A regular user attempts to change an item added by another user. (auth.uid != resource.data.addedBy && !isAdmin(), update)
+       * @allow An admin deletes an item they did not add. (isCreatorOrAdmin(), delete)
+       * @deny A regular user attempts to change an item added by another user. (auth.uid != resource.data.addedBy && !isCreatorOrAdmin(), update)
        * @principle Enforces ownership for item modifications but grants full control to admins/creators.
        */
       match /billItems/{billItemId} {
         allow get, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.addedBy == request.auth.uid && request.resource.data.billId == billId;
-        allow update: if (isExistingOwner(resource.data.addedBy) || isAdmin()) && isImmutable('addedBy') && isImmutable('billId');
-        allow delete: if isExistingOwner(resource.data.addedBy) || isAdmin();
+        allow update: if (isExistingOwner(resource.data.addedBy) || isCreatorOrAdmin()) && isImmutable('addedBy') && isImmutable('billId');
+        allow delete: if isExistingOwner(resource.data.addedBy) || isCreatorOrAdmin();
       }
     }
 
