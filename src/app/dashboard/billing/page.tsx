@@ -264,8 +264,8 @@ export default function BillingPage() {
       const newBillSummary = {
         customerName: `${customer.name_en} (${customer.name_ta})`,
         createdBy: currentUser?.id || 'unknown-user',
-        date: date || new Date(),
         customerId: selectedCustomerId,
+        stall: '1',
       };
 
       const { billNo } = createOrUpdateLiveBill(
@@ -273,6 +273,7 @@ export default function BillingPage() {
         newBillItems,
         parseFloat(paidAmount) || 0,
         parseFloat(deliveryCharge) || 0,
+        date || new Date(),
         activeBillNo
       );
 
@@ -421,8 +422,8 @@ export default function BillingPage() {
     const billSummary = {
       customerName: `${customer.name_en} (${customer.name_ta})`,
       createdBy: currentUser?.id || 'unknown-user',
-      date: date || new Date(),
       customerId: selectedCustomerId,
+      stall: '1',
     };
 
     const paidAmountNum = parseFloat(paidAmount) || 0;
@@ -433,6 +434,7 @@ export default function BillingPage() {
       currentItems,
       paidAmountNum,
       deliveryChargeNum,
+      date || new Date(),
       activeBillNo
     );
 
