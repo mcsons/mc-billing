@@ -712,9 +712,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
               title: "Deletion Failed",
               description: "Could not delete one or more bills. Check permissions and console for details.",
           });
+          // Path for a batch delete is ambiguous. We'll report the first bill path for context.
+          const pathForError = billNos.length > 0 ? `bills/${billNos[0]}` : 'bills';
           const contextualError = new FirestorePermissionError({
               operation: 'delete',
-              path: `bills collection`, // Generic path
+              path: pathForError, 
           });
           errorEmitter.emit('permission-error', contextualError);
       }
