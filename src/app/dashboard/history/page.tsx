@@ -34,6 +34,7 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useToast } from '@/hooks/use-toast';
 import { LiveBillSummary } from '@/lib/data';
 import ReactSelect from 'react-select';
+import { Timestamp } from 'firebase/firestore';
 
 
 export default function HistoryPage() {
@@ -50,7 +51,7 @@ export default function HistoryPage() {
   const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>(liveBillSummaries);
 
   const reactSelectStyles = {
-    control: (baseStyles, state) => ({
+    control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -59,12 +60,12 @@ export default function HistoryPage() {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
-    option: (baseStyles, state) => ({
+    option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
@@ -78,15 +79,15 @@ export default function HistoryPage() {
         backgroundColor: 'hsl(var(--accent))',
       },
     }),
-    singleValue: (baseStyles) => ({
+    singleValue: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    input: (baseStyles) => ({
+    input: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-     placeholder: (baseStyles) => ({
+     placeholder: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -164,7 +165,12 @@ export default function HistoryPage() {
     }
 
     if (date) {
-      results = results.filter(bill => bill.date && isSameDay(bill.date, date));
+      results = results.filter(bill => {
+        if (!bill.date) return false;
+        // The date from firestore can be a Timestamp object
+        const billDate = (bill.date as Timestamp).toDate ? (bill.date as Timestamp).toDate() : bill.date;
+        return isSameDay(billDate, date);
+      });
     }
 
     setFilteredBills(results);
@@ -278,6 +284,7 @@ export default function HistoryPage() {
                   </TableHead>
                 )}
                 <TableHead>Bill No</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Created By</TableHead>
@@ -287,6 +294,8 @@ export default function HistoryPage() {
               {filteredBills.length > 0 ? (
                 filteredBills.map((bill) => {
                   const creator = users.find((user) => user.id === bill.createdBy);
+                  const billDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+
                   return (
                     <TableRow
                       key={bill.billNo}
@@ -306,6 +315,9 @@ export default function HistoryPage() {
                         </TableCell>
                       )}
                       <TableCell className="font-medium">{bill.billNo}</TableCell>
+                      <TableCell>
+                        {billDate ? format(billDate, 'dd-MM-yyyy') : 'N/A'}
+                      </TableCell>
                       <TableCell>{bill.customerName}</TableCell>
                       <TableCell className="text-right">
                         ₹{bill.amount.toFixed(2)}
@@ -316,7 +328,7 @@ export default function HistoryPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canDelete ? 5 : 4} className="h-24 text-center">
+                  <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>
