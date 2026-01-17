@@ -90,9 +90,11 @@ export function DashboardSidebar() {
   return (
       <Sidebar>
         <SidebarHeader className="flex items-center justify-between p-2">
-            <Button variant="ghost" className="h-8 w-full justify-start gap-2 px-2">
-                <Fish className="size-5 text-primary" />
-                <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
+            <Button asChild variant="ghost" className="h-8 w-full justify-start gap-2 px-2">
+                <Link href="/dashboard" onClick={handleLinkClick}>
+                    <Fish className="size-5 text-primary" />
+                    <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
+                </Link>
             </Button>
             <SidebarTrigger />
         </SidebarHeader>
