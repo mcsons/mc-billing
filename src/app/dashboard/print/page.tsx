@@ -21,6 +21,8 @@ interface BillPrintData {
   date: string;
   customer: Customer;
   items: BillItem[];
+  itemsTotal: number;
+  deliveryCharge: number;
   totalAmount: number;
   previousBalance: number;
   paidAmount: number;
@@ -62,6 +64,8 @@ function PrintPageContent() {
     date,
     customer,
     items,
+    itemsTotal,
+    deliveryCharge,
     totalAmount,
     previousBalance,
     paidAmount,
@@ -145,8 +149,18 @@ function PrintPageContent() {
 
           <div className="flex justify-end mt-6">
             <div className="w-full max-w-sm space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="font-semibold">Total:</span>
+               <div className="flex justify-between">
+                <span className="font-semibold">Items Total:</span>
+                <span className="font-mono">₹{itemsTotal.toFixed(2)}</span>
+              </div>
+              {deliveryCharge > 0 && (
+                <div className="flex justify-between">
+                  <span className="font-semibold">Delivery Charge:</span>
+                  <span className="font-mono">₹{deliveryCharge.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t pt-2 font-semibold">
+                <span>Bill Total:</span>
                 <span className="font-mono">₹{totalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">

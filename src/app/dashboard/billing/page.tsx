@@ -70,10 +70,13 @@ interface BillPrintData {
   date: string;
   customer: Customer;
   items: BillItem[];
+  itemsTotal: number;
+  deliveryCharge: number;
   totalAmount: number;
   previousBalance: number;
   paidAmount: number;
   finalBalance: number;
+  stall: string;
 }
 
 export default function BillingPage() {
@@ -106,6 +109,7 @@ export default function BillingPage() {
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
+  const [deliveryCharge, setDeliveryCharge] = useState('');
 
   // Refs for keyboard navigation
   const customerSelectRef = useRef<any>(null);
@@ -174,7 +178,8 @@ export default function BillingPage() {
         }
         setActiveBillNo(billToEdit.billNo);
         setInitialBillTotal(billToEdit.amount);
-        setPaidAmount(billToEdit.paidAmount?.toString() || '');
+        setDeliveryCharge(billToEdit.deliveryCharge?.toString() || '');
+        setPaidAmount(''); // Clear paid amount when editing an existing bill
 
         const dateFromBill = billToEdit.date;
         if (dateFromBill) {
@@ -205,9 +210,11 @@ export default function BillingPage() {
       if (existingBill) {
         setActiveBillNo(existingBill.billNo);
         setInitialBillTotal(existingBill.amount);
+        setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
       } else {
         setActiveBillNo(null);
         setInitialBillTotal(0);
+        setDeliveryCharge('');
       }
       setPaidAmount('');
     }
@@ -265,6 +272,7 @@ export default function BillingPage() {
         newBillSummary,
         newBillItems,
         parseFloat(paidAmount) || 0,
+        parseFloat(deliveryCharge) || 0,
         activeBillNo
       );
 
@@ -281,7 +289,7 @@ export default function BillingPage() {
       setRate('');
       productSelectRef.current?.focus();
     }
-  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, isProductLocked, products, createOrUpdateLiveBill, paidAmount, toast]);
+  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, isProductLocked, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
 
 
   const persistItemUpdate = (
@@ -307,13 +315,15 @@ export default function BillingPage() {
     const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
     batch.update(itemRef, updateData);
 
-    const newTotalAmount = (billItems || []).reduce((sum, item) => {
+    const newItemsTotal = (billItems || []).reduce((sum, item) => {
       if (item.id === itemId) return sum + newAmount;
       return sum + item.amount;
     }, 0);
+    const newBillTotal = newItemsTotal + (parseFloat(deliveryCharge) || 0);
+
 
     const billRef = doc(firestore, 'bills', activeBillNo);
-    batch.update(billRef, { amount: newTotalAmount });
+    batch.update(billRef, { amount: newBillTotal });
 
     batch.commit().catch((error) => {
       console.error('Failed to update item:', error);
@@ -344,12 +354,14 @@ export default function BillingPage() {
         batch.delete(itemRef);
 
         const remainingItems = billItems?.filter((i) => i.id !== itemId) || [];
-        const newTotalAmount = remainingItems.reduce(
+        const newItemsTotal = remainingItems.reduce(
           (sum, item) => sum + item.amount,
           0
         );
+        const newBillTotal = newItemsTotal + (parseFloat(deliveryCharge) || 0);
+
         const billRef = doc(firestore, 'bills', activeBillNo);
-        batch.update(billRef, { amount: newTotalAmount });
+        batch.update(billRef, { amount: newBillTotal });
 
         batch
           .commit()
@@ -379,6 +391,7 @@ export default function BillingPage() {
     setQty('');
     setRate('');
     setPaidAmount('');
+    setDeliveryCharge('');
     setInitialBillTotal(0);
     router.replace('/dashboard/billing');
   };
@@ -413,11 +426,13 @@ export default function BillingPage() {
     };
 
     const paidAmountNum = parseFloat(paidAmount) || 0;
+    const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
 
     const { billNo, commitPromise } = createOrUpdateLiveBill(
       billSummary,
       currentItems,
       paidAmountNum,
+      deliveryChargeNum,
       activeBillNo
     );
 
@@ -433,13 +448,16 @@ export default function BillingPage() {
         setActiveBillNo(billNo);
       }
 
-      const finalTotalAmount = currentItems.reduce(
+      const finalItemsTotal = currentItems.reduce(
         (sum, item) => sum + item.amount,
         0
       );
+      const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
+      
       const finalPreviousBalance =
         (customerBalances[selectedCustomerId] || 0) -
         (activeBillNo ? initialBillTotal : 0);
+
       const finalFinalBalance =
         finalPreviousBalance + finalTotalAmount - paidAmountNum;
 
@@ -448,6 +466,8 @@ export default function BillingPage() {
         date: date?.toISOString() || new Date().toISOString(),
         customer: customer,
         items: currentItems,
+        itemsTotal: finalItemsTotal,
+        deliveryCharge: deliveryChargeNum,
         totalAmount: finalTotalAmount,
         previousBalance: finalPreviousBalance,
         paidAmount: paidAmountNum,
@@ -484,10 +504,12 @@ export default function BillingPage() {
     }
   };
 
-  const totalAmount = useMemo(
+  const itemsTotal = useMemo(
     () => (billItems || []).reduce((sum, item) => sum + item.amount, 0),
     [billItems]
   );
+  const totalAmount = itemsTotal + (parseFloat(deliveryCharge) || 0);
+
 
   const previousBalance = useMemo(() => {
     if (!selectedCustomerId) return 0;
@@ -815,22 +837,40 @@ export default function BillingPage() {
             </CardContent>
             {selectedCustomerId && (
               <CardFooter className="flex flex-col items-stretch gap-4 pt-4 sm:items-end">
-                <div className="grid w-full max-w-md grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
-                  <span className="font-semibold">Total:</span>
+                <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
+                  <span className="font-semibold">Items Total:</span>
+                  <span className="font-mono">
+                    ₹{itemsTotal.toFixed(2)}
+                  </span>
+
+                  <span className="font-semibold">Delivery Charge:</span>
+                  <Input
+                    className="ml-auto max-w-32 text-right font-mono"
+                    placeholder="0.00"
+                    type="number"
+                    value={deliveryCharge}
+                    onChange={(e) => setDeliveryCharge(e.target.value)}
+                  />
+                  
+                  <span className="font-semibold">Bill Total:</span>
                   <span className="font-mono font-bold">
                     ₹{totalAmount.toFixed(2)}
                   </span>
+                  
                   <span className="font-semibold">Prev Balance:</span>
                   <span className="font-mono">
                     ₹{previousBalance.toFixed(2)}
                   </span>
+                  
                   <span className="font-semibold">Paid:</span>
                   <Input
                     className="ml-auto max-w-32 text-right font-mono"
                     placeholder="0.00"
+                    type="number"
                     value={paidAmount}
                     onChange={(e) => setPaidAmount(e.target.value)}
                   />
+
                   <span className="font-semibold">Balance:</span>
                   <span className="font-mono font-bold">
                     ₹{finalBalance.toFixed(2)}

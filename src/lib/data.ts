@@ -48,6 +48,8 @@ export type LiveBillSummary = {
   customerName: string;
   customerId: string;
   amount: number;
+  deliveryCharge?: number;
+  paidAmount?: number;
   createdBy: string;
   stall: string;
   date?: Date;

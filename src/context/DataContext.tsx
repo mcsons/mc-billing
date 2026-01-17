@@ -82,9 +82,10 @@ interface DataContextType {
   removeBillItem: (itemId: string, billNo: string) => void;
   setOpeningBalance: (customerId: string, balance: number) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount'>,
     items: BillItem[],
     paidAmount: number,
+    deliveryCharge: number,
     existingBillNo?: string | null
   ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => void;
@@ -184,7 +185,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const { data: adminRoleDoc } = useDoc(adminRoleDocRef);
 
-  const isCurrentUserAdmin = useMemo(() => !!adminRoleDoc, [adminRoleDoc]);
+  const isCurrentUserAdmin = useMemo(() => {
+      if (!currentUser) return false;
+      return currentUser.role === 'ADMIN' || currentUser.role === 'CREATOR';
+  }, [currentUser]);
 
 
   useEffect(() => {
@@ -565,8 +569,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const userRef = doc(firestore, 'users', userId);
     batch.update(userRef, { role });
 
-    const adminRoleRef = doc(firestore, 'roles_admin', userId);
-    batch.set(adminRoleRef, { uid: userId });
+    // For ADMIN or CREATOR, ensure they have an entry in roles_admin for rule checks
+    if (role === 'ADMIN' || role === 'CREATOR') {
+      const adminRoleRef = doc(firestore, 'roles_admin', userId);
+      batch.set(adminRoleRef, { uid: userId });
+    }
 
     batch.commit()
       .then(() => {
@@ -579,7 +586,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         console.error('Failed to promote user:', error);
         const contextualError = new FirestorePermissionError({
           operation: 'write', 
-          path: `users/${userId} and roles_admin/${userId}`,
+          path: `users/${userId}`,
           requestResourceData: { role }
         });
         errorEmitter.emit('permission-error', contextualError);
@@ -615,9 +622,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount'>,
     items: BillItem[],
     paidAmount: number,
+    deliveryCharge: number,
     existingBillNo?: string | null
   ): { billNo: string; commitPromise: Promise<void> } => {
     if (!firestore) {
@@ -629,7 +637,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return { billNo: "error-no-firestore", commitPromise: Promise.reject(new Error("Firestore not available")) };
     }
 
-    const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+    const itemsTotal = items.reduce((sum, item) => sum + item.amount, 0);
+    const totalAmount = itemsTotal + deliveryCharge;
     const customerId = summary.customerId;
 
     const billNo = existingBillNo || (() => {
@@ -643,7 +652,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    const summaryPayload: Omit<LiveBillSummary, 'date'> & {date: any, createdAt?: any, updatedAt?: any} = { ...summary, billNo, amount: totalAmount };
+    const summaryPayload = { 
+        ...summary, 
+        billNo, 
+        amount: totalAmount, 
+        deliveryCharge: deliveryCharge,
+        paidAmount: paidAmount, // Also save paid amount for reference on the bill
+    };
+
     if (existingBillNo) {
       summaryPayload.updatedAt = serverTimestamp();
       batch.update(billRef, summaryPayload);
