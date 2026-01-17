@@ -28,10 +28,8 @@ function PrintPageContent() {
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'a4';
   const [printData, setPrintData] = useState<PrintData | null>(null);
-  const [statementDate, setStatementDate] = useState('');
 
   useEffect(() => {
-    setStatementDate(new Date().toLocaleDateString());
     const data = searchParams.get('data');
     if (data) {
       try {
@@ -67,7 +65,23 @@ function PrintPageContent() {
     dateRange,
   } = printData;
 
-  const closingBalance = transactions.length > 0 ? transactions[transactions.length - 1].balance : openingBalance;
+  const dailySummary = transactions.reduce((acc, t) => {
+    const dateStr = format(t.date, 'yyyy-MM-dd');
+    if (!acc[dateStr]) {
+        acc[dateStr] = { date: t.date, billed: 0, received: 0 };
+    }
+    acc[dateStr].billed += t.billedAmount || 0;
+    acc[dateStr].received += t.receivedAmount || 0;
+    return acc;
+  }, {} as Record<string, { date: Date; billed: number; received: number; }>);
+
+  const dailyTransactions = Object.values(dailySummary).sort((a,b) => a.date.getTime() - b.date.getTime());
+
+  const totalBilled = dailyTransactions.reduce((sum, day) => sum + day.billed, 0);
+  const totalReceived = dailyTransactions.reduce((sum, day) => sum + day.received, 0);
+
+  const subtotal = openingBalance + totalBilled;
+  const finalBalance = subtotal - totalReceived;
 
   return (
     <div className={`print-root ${paper}`}>
@@ -83,73 +97,89 @@ function PrintPageContent() {
         </div>
         <Card className="print:shadow-none print:border-none print:bg-white">
           <CardContent className="print-content" id="print-area">
-            <header className="text-center mb-6">
+            <header className="text-center mb-4">
               <h1 className="text-2xl font-bold font-headline text-primary">
                 M.C & SONS FISH COMPANY
               </h1>
               <p className="text-sm text-muted-foreground">
                 No. 1, Fish Market, Palladam Road, Tiruppur-641604
               </p>
-               <h2 className="text-lg font-semibold mt-4">Customer Statement</h2>
+               <h2 className="text-lg font-semibold mt-2">Customer Statement</h2>
             </header>
 
-            <div className="grid grid-cols-2 gap-4 mb-6 text-sm">
-              <div>
-                <p className="font-semibold">Customer:</p>
-                <p>{customer?.name_en}</p>
-                <p>{customer?.name_ta}</p>
-                <p>{customer?.phone}</p>
-              </div>
-              <div className="text-right">
+            <div className="text-right text-sm mb-4">
                 <p>
                   <span className="font-semibold">Statement Date:</span>{' '}
-                  {statementDate}
+                  {format(new Date(), 'dd-MM-yyyy')}
                 </p>
-                {dateRange.from && dateRange.to && (
-                     <p>
-                        <span className="font-semibold">Period:</span>{' '}
-                        {format(dateRange.from, 'dd/MM/yy')} - {format(dateRange.to, 'dd/MM/yy')}
-                    </p>
-                )}
-              </div>
             </div>
 
-            <Table className="print-table">
+            {dateRange.from && dateRange.to && (
+                <div className="text-center text-sm font-semibold mb-4 period-section">
+                    <span>From: {format(dateRange.from, 'dd-MM-yyyy')}</span>
+                    <span className="mx-4">To: {format(dateRange.to, 'dd-MM-yyyy')}</span>
+                </div>
+            )}
+
+            <div className="mb-4 text-sm">
+                <p className="font-semibold">Customer Details:</p>
+                <p>{customer?.name_en} ({customer?.name_ta})</p>
+                <p>{customer?.phone}</p>
+            </div>
+
+            <Table className="print-table mb-4">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[100px]">Date</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="text-right">Billed (+)</TableHead>
-                  <TableHead className="text-right">Received (-)</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
+                  <TableHead className="text-right">Billed Amount (₹)</TableHead>
+                  <TableHead className="text-right">Received Amount (₹)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow className="font-semibold">
-                    <TableCell colSpan={4}>Opening Balance</TableCell>
-                    <TableCell className="text-right font-mono">{openingBalance.toFixed(2)}</TableCell>
-                </TableRow>
-                {transactions.map((t, index) => (
+                {dailyTransactions.map((t, index) => (
                   <TableRow key={index}>
                     <TableCell>{format(t.date, 'dd-MM-yyyy')}</TableCell>
-                    <TableCell>{t.description}</TableCell>
-                    <TableCell className="text-right font-mono text-green-700">
-                      {t.billedAmount ? t.billedAmount.toFixed(2) : ''}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-red-700">
-                      {t.receivedAmount ? t.receivedAmount.toFixed(2) : ''}
+                    <TableCell className="text-right font-mono">
+                      {t.billed > 0 ? `₹${t.billed.toFixed(2)}` : '-'}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      {t.balance.toFixed(2)}
+                      {t.received > 0 ? `₹${t.received.toFixed(2)}` : '-'}
                     </TableCell>
                   </TableRow>
                 ))}
-                 <TableRow className="font-bold border-t-2">
-                    <TableCell colSpan={4}>Closing Balance</TableCell>
-                    <TableCell className="text-right font-mono">₹{closingBalance.toFixed(2)}</TableCell>
-                </TableRow>
               </TableBody>
             </Table>
+            
+            <div className="totals-section w-full max-w-sm ml-auto text-right text-sm font-semibold space-y-1 mb-4">
+                <p>Total Billed Amount: <span className="font-mono">₹{totalBilled.toFixed(2)}</span></p>
+                <p>Total Received Amount: <span className="font-mono">₹{totalReceived.toFixed(2)}</span></p>
+            </div>
+
+            <table className="w-full max-w-sm ml-auto balance-summary">
+                <tbody>
+                    <tr>
+                        <td>Opening Balance</td>
+                        <td className="text-right font-mono">₹{openingBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Add: Total Billed Amount</td>
+                        <td className="text-right font-mono">{totalBilled.toFixed(2)}</td>
+                    </tr>
+                    <tr className="border-t">
+                        <td className="pt-1 font-semibold">Subtotal</td>
+                        <td className="pt-1 text-right font-mono font-semibold">{subtotal.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Less: Total Received Amount</td>
+                        <td className="text-right font-mono">- {totalReceived.toFixed(2)}</td>
+                    </tr>
+                    <tr className="border-t-2 border-foreground final-balance-row">
+                        <td className="pt-2 font-bold text-base">Final Balance</td>
+                        <td className="pt-2 text-right font-mono font-bold text-lg">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
+
 
             <footer className="text-center mt-8 text-xs text-muted-foreground">
               <p>This is a computer-generated statement.</p>
@@ -180,12 +210,16 @@ function PrintPageContent() {
     .print-root.thermal {
       width: 79mm;
       font-family: monospace;
-      font-size: 11px;
+      font-size: 10px;
     }
 
     .print-root.thermal .print-content {
-      padding: 4mm;
+      padding: 3mm;
     }
+    
+    .print-root.thermal h1 { font-size: 14px; }
+    .print-root.thermal h2 { font-size: 12px; }
+    .print-root.thermal .period-section { font-size: 9px; }
 
     .print-root.thermal table {
       width: 100%;
@@ -194,12 +228,15 @@ function PrintPageContent() {
 
     .print-root.thermal th,
     .print-root.thermal td {
-      padding: 2px 0;
-      font-size: 11px;
+      padding: 1.5px 0;
+      font-size: 10px;
     }
-
-    .print-root.thermal h1 {
-      font-size: 15px;
+    
+    .print-root.thermal .balance-summary td {
+        padding: 1.5px 0;
+    }
+    .print-root.thermal .final-balance-row td {
+        font-size: 12px !important;
     }
 
     @page {
@@ -213,12 +250,15 @@ function PrintPageContent() {
     .print-root.a4 {
       width: 210mm;
       font-family: Arial, sans-serif;
-      font-size: 14px;
+      font-size: 12px;
     }
 
     .print-root.a4 .print-content {
       padding: 15mm;
     }
+    
+    .print-root.a4 h1 { font-size: 20px; }
+    .print-root.a4 h2 { font-size: 16px; }
 
     .print-root.a4 table {
       width: 100%;
@@ -227,12 +267,22 @@ function PrintPageContent() {
 
     .print-root.a4 th,
     .print-root.a4 td {
-      padding: 6px;
-      border-bottom: 1px solid #ddd;
+      padding: 5px;
+      border-bottom: 1px solid #eee;
     }
 
     .print-root.a4 th {
-      background: #f5f5f5;
+      background: #f9f9f9;
+    }
+    
+    .print-root.a4 .balance-summary {
+        font-size: 14px;
+    }
+    .print-root.a4 .balance-summary td {
+        padding: 4px;
+    }
+    .print-root.a4 .final-balance-row td {
+        font-size: 16px !important;
     }
 
     @page {
