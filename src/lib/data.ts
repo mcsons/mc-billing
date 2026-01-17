@@ -15,6 +15,12 @@ export type Customer = {
   phone: string;
 };
 
+export type CustomerBalance = {
+  customerId: string;
+  balanceAmount: number;
+  updatedAt?: any;
+};
+
 export type Uom = string;
 
 export type Product = {
@@ -136,5 +142,7 @@ export const samplePayments: Payment[] = [
     { id: 3, customerId: 'C001', amount: 500, date: subDays(new Date(), 1), notes: 'Partial payment' },
     { id: 4, customerId: 'C004', amount: 1000, date: subDays(new Date(), 2) },
 ];
+
+    
 
     

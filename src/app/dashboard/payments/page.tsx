@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Card,
     CardContent,
@@ -17,7 +17,7 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 
-import { Check, ChevronsUpDown, Save, Search, Printer, X } from 'lucide-react';
+import { Save, Search, Printer, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -38,22 +38,24 @@ import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
 
 export default function PaymentsPage() {
-    const { customers, customerBalances, addPayment, getCustomerLedger } = useData();
+    const { customers, customerBalances, openingBalances, addPayment, setOpeningBalance, getCustomerLedger } = useData();
     const { toast } = useToast();
 
     // State for Record Payment form
-
     const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState<string>('');
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
 
-    // State for Payment History search
+    // State for Opening Balance form
+    const [balanceSelectedCustomerId, setBalanceSelectedCustomerId] = useState<string>('');
+    const [newOpeningBalance, setNewOpeningBalance] = useState('');
 
+    // State for Payment History search
     const [historySelectedCustomerId, setHistorySelectedCustomerId] = useState<string>('');
     const [fromDate, setFromDate] = useState<Date | undefined>();
     const [toDate, setToDate] = useState<Date | undefined>();
     const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
-    const [openingBalance, setOpeningBalance] = useState<number>(0);
+    const [openingBalanceForLedger, setOpeningBalanceForLedger] = useState<number>(0);
 
     const reactSelectStyles = {
       control: (baseStyles, state) => ({
@@ -98,11 +100,31 @@ export default function PaymentsPage() {
       }),
     };
 
+    useEffect(() => {
+        if (balanceSelectedCustomerId && openingBalances) {
+            setNewOpeningBalance((openingBalances[balanceSelectedCustomerId] || 0).toString());
+        } else {
+            setNewOpeningBalance('');
+        }
+    }, [balanceSelectedCustomerId, openingBalances]);
+
 
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
     const newBalance = currentBalance - (parseFloat(amount) || 0);
 
+    const handleSetOpeningBalance = () => {
+        const balanceValue = parseFloat(newOpeningBalance);
+        if (!balanceSelectedCustomerId || isNaN(balanceValue)) {
+            toast({
+                variant: 'destructive',
+                title: 'Invalid Input',
+                description: 'Please select a customer and enter a valid balance.',
+            });
+            return;
+        }
+        setOpeningBalance(balanceSelectedCustomerId, balanceValue);
+    };
 
     const handleSubmitPayment = () => {
         const paymentAmount = parseFloat(amount);
@@ -144,7 +166,7 @@ export default function PaymentsPage() {
 
         const { transactions, openingBalance } = getCustomerLedger(historySelectedCustomerId, { from: fromDate, to: toDate });
         setFilteredTransactions(transactions);
-        setOpeningBalance(openingBalance);
+        setOpeningBalanceForLedger(openingBalance);
     };
 
     const handleClearSearch = () => {
@@ -152,11 +174,11 @@ export default function PaymentsPage() {
         setFromDate(undefined);
         setToDate(undefined);
         setFilteredTransactions([]);
-        setOpeningBalance(0);
+        setOpeningBalanceForLedger(0);
     };
 
     const openPaymentsPrint = (paper: 'thermal' | 'a4') => {
-        if (!historySelectedCustomerId || (!filteredTransactions.length && openingBalance === 0)) {
+        if (!historySelectedCustomerId || (!filteredTransactions.length && openingBalanceForLedger === 0)) {
             toast({
                 variant: 'destructive',
                 title: 'Nothing to Print',
@@ -170,7 +192,7 @@ export default function PaymentsPage() {
         const printData = {
             customer,
             transactions: filteredTransactions,
-            openingBalance,
+            openingBalance: openingBalanceForLedger,
             dateRange: { from: fromDate, to: toDate },
         };
 
@@ -182,93 +204,118 @@ export default function PaymentsPage() {
         );
     };
 
-
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
+    const balanceSelectedCustomer = customers.find(c => c.id === balanceSelectedCustomerId);
 
     return (
-        <div className="grid auto-rows-max gap-8 lg:grid-cols-2">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">Record Payment</CardTitle>
-                    <CardDescription>
-                        Record a payment received from a customer to update their balance.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="grid gap-2">
-                        <Label htmlFor="customer-record">Customer</Label>
-                        <ReactSelect
-                            instanceId="record-customer-select"
-                            placeholder="Select customer..."
-                            isClearable
-                            options={customers.map((c) => ({
-                                value: c.id,
-                                label: `${c.name_en} (${c.name_ta})`,
-                            }))}
-                            value={
-                                recordSelectedCustomer
-                                    ? {
-                                        value: recordSelectedCustomer.id,
-                                        label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})`,
-                                    }
-                                    : null
-                            }
-                            onChange={(option) => {
-                                setRecordSelectedCustomerId(option ? option.value : '');
-                            }}
-                            styles={reactSelectStyles}
-                            filterOption={(option, input) =>
-                                option.label.toLowerCase().includes(input.toLowerCase()) ||
-                                option.value.toLowerCase().includes(input.toLowerCase())
-                            }
-                        />
-                    </div>
-
-                    {recordSelectedCustomerId && (
-                        <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
-                            <div>
-                                <Label>Current Balance</Label>
-                                <p className="text-2xl font-bold font-mono">₹{currentBalance.toFixed(2)}</p>
-                            </div>
-                            <div className="text-right">
-                                <Label>New Balance</Label>
-                                <p className="text-2xl font-bold font-mono">₹{newBalance.toFixed(2)}</p>
-                            </div>
+        <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:grid-cols-2">
+            <div className="grid auto-rows-max items-start gap-4 md:gap-8">
+                 <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Set Opening Balance</CardTitle>
+                        <CardDescription>
+                           For migrating old data. This sets the starting balance before any new transactions are counted.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="grid gap-2">
+                            <Label htmlFor="customer-balance-set">Customer</Label>
+                            <ReactSelect
+                                instanceId="balance-customer-select"
+                                placeholder="Select customer to set balance..."
+                                options={customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }))}
+                                value={ balanceSelectedCustomer ? { value: balanceSelectedCustomer.id, label: `${balanceSelectedCustomer.name_en} (${balanceSelectedCustomer.name_ta})` } : null }
+                                onChange={(option) => setBalanceSelectedCustomerId(option ? option.value : '')}
+                                styles={reactSelectStyles}
+                            />
                         </div>
-                    )}
+                        <div className="grid gap-2">
+                             <Label htmlFor="opening-balance">Opening Balance Amount (₹)</Label>
+                            <Input
+                                id="opening-balance"
+                                type="number"
+                                placeholder="0.00"
+                                value={newOpeningBalance}
+                                onChange={e => setNewOpeningBalance(e.target.value)}
+                                disabled={!balanceSelectedCustomerId}
+                            />
+                        </div>
+                    </CardContent>
+                    <CardFooter>
+                         <Button size="lg" onClick={handleSetOpeningBalance} disabled={!balanceSelectedCustomerId}>
+                            <Save className="mr-2 h-4 w-4" />
+                            Save Opening Balance
+                        </Button>
+                    </CardFooter>
+                </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline">Record Payment</CardTitle>
+                        <CardDescription>
+                            Record a payment received from a customer to update their balance.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        <div className="grid gap-2">
+                            <Label htmlFor="customer-record">Customer</Label>
+                            <ReactSelect
+                                instanceId="record-customer-select"
+                                placeholder="Select customer..."
+                                isClearable
+                                options={customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})`}))}
+                                value={ recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null }
+                                onChange={(option) => setRecordSelectedCustomerId(option ? option.value : '')}
+                                styles={reactSelectStyles}
+                                filterOption={(option, input) => option.label.toLowerCase().includes(input.toLowerCase()) || option.value.toLowerCase().includes(input.toLowerCase())}
+                            />
+                        </div>
 
-                    <div className="grid gap-2">
-                        <Label htmlFor="amount">Payment Amount (₹)</Label>
-                        <Input
-                            id="amount"
-                            type="number"
-                            placeholder="0.00"
-                            value={amount}
-                            onChange={e => setAmount(e.target.value)}
-                            disabled={!recordSelectedCustomerId}
-                        />
-                    </div>
-                    <div className="grid gap-2">
-                        <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Textarea
-                            id="notes"
-                            placeholder="e.g., Cash payment for last week's bill"
-                            value={notes}
-                            onChange={e => setNotes(e.target.value)}
-                            disabled={!recordSelectedCustomerId}
-                        />
-                    </div>
+                        {recordSelectedCustomerId && (
+                            <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
+                                <div>
+                                    <Label>Current Balance</Label>
+                                    <p className="text-2xl font-bold font-mono">₹{currentBalance.toFixed(2)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <Label>New Balance</Label>
+                                    <p className="text-2xl font-bold font-mono">₹{newBalance.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        )}
 
-                </CardContent>
-                <CardFooter>
-                    <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount}>
-                        <Save className="mr-2 h-4 w-4" />
-                        Record Payment
-                    </Button>
-                </CardFooter>
-            </Card>
+                        <div className="grid gap-2">
+                            <Label htmlFor="amount">Payment Amount (₹)</Label>
+                            <Input
+                                id="amount"
+                                type="number"
+                                placeholder="0.00"
+                                value={amount}
+                                onChange={e => setAmount(e.target.value)}
+                                disabled={!recordSelectedCustomerId}
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="notes">Notes (Optional)</Label>
+                            <Textarea
+                                id="notes"
+                                placeholder="e.g., Cash payment for last week's bill"
+                                value={notes}
+                                onChange={e => setNotes(e.target.value)}
+                                disabled={!recordSelectedCustomerId}
+                            />
+                        </div>
 
-            <Card>
+                    </CardContent>
+                    <CardFooter>
+                        <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount}>
+                            <Save className="mr-2 h-4 w-4" />
+                            Record Payment
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </div>
+
+            <Card className="lg:row-span-2">
                 <CardHeader>
                     <CardTitle className="font-headline">Customer Statement</CardTitle>
                     <CardDescription>
@@ -282,26 +329,11 @@ export default function PaymentsPage() {
                             instanceId="history-customer-select"
                             placeholder="Select customer..."
                             isClearable
-                            options={customers.map((c) => ({
-                                value: c.id,
-                                label: `${c.name_en} (${c.name_ta})`,
-                            }))}
-                            value={
-                                historySelectedCustomer
-                                    ? {
-                                        value: historySelectedCustomer.id,
-                                        label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})`,
-                                    }
-                                    : null
-                            }
-                            onChange={(option) => {
-                                setHistorySelectedCustomerId(option ? option.value : '');
-                            }}
+                            options={customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }))}
+                            value={ historySelectedCustomer ? { value: historySelectedCustomer.id, label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})` } : null }
+                            onChange={(option) => setHistorySelectedCustomerId(option ? option.value : '')}
                             styles={reactSelectStyles}
-                            filterOption={(option, input) =>
-                                option.label.toLowerCase().includes(input.toLowerCase()) ||
-                                option.value.toLowerCase().includes(input.toLowerCase())
-                            }
+                            filterOption={(option, input) => option.label.toLowerCase().includes(input.toLowerCase()) || option.value.toLowerCase().includes(input.toLowerCase()) }
                         />
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -361,11 +393,11 @@ export default function PaymentsPage() {
                                 </TableHeader>
                                 <TableBody>
                                     {historySelectedCustomerId ? (
-                                        filteredTransactions.length > 0 || openingBalance !== 0 ? (
+                                        filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                             <>
                                                 <TableRow className="bg-muted/50">
-                                                    <TableCell colSpan={4} className="font-semibold">Opening Balance</TableCell>
-                                                    <TableCell className="text-right font-mono font-semibold">{openingBalance.toFixed(2)}</TableCell>
+                                                    <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
+                                                    <TableCell className="text-right font-mono font-semibold">{openingBalanceForLedger.toFixed(2)}</TableCell>
                                                 </TableRow>
                                                 {filteredTransactions.map((t, i) => (
                                                     <TableRow key={i}>
@@ -406,3 +438,5 @@ export default function PaymentsPage() {
         </div>
     );
 }
+
+    

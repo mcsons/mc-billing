@@ -195,27 +195,25 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CustomerBalance",
       "type": "object",
-      "description": "Represents the balance of a customer.",
+      "description": "Represents the opening balance of a customer.",
       "properties": {
         "customerId": {
           "type": "string",
-          "description": "Reference to Customer. (Relationship: Customer 1:1 CustomerBalance)",
-          "format": "uuid"
+          "description": "Reference to Customer. (Relationship: Customer 1:1 CustomerBalance)"
         },
         "balanceAmount": {
           "type": "number",
-          "description": "The balance amount for the customer."
+          "description": "The opening balance amount for the customer."
         },
-        "lastPaymentAt": {
+        "updatedAt": {
           "type": "string",
-          "description": "Timestamp of the last payment made by the customer.",
+          "description": "Timestamp of when the balance was last updated.",
           "format": "date-time"
         }
       },
       "required": [
         "customerId",
-        "balanceAmount",
-        "lastPaymentAt"
+        "balanceAmount"
       ]
     },
     "ProductPrice": {
@@ -806,4 +804,5 @@
     "reasoning": "The Firestore structure is designed to support the M.C & SONS FISH COMPANY billing system, focusing on real-time multi-user collaboration, role-based access control, and efficient data retrieval. The structure adheres to the principles of Authorization Independence, Structural Segregation, Access Modeling, and Data Clarity.\n\n**Authorization Independence:**\nAuthorization is enforced using a combination of path-based ownership and denormalized data. For instance, `Bill` documents are stored under `/bills/{billId}`, with the `createdBy` field referencing the `User` who created the bill. Although the `createdBy` is present, authorization rules do not depend on fetching the user document. Instead, the presence of a `User` document with a matching `userId` can determine access.\n\n**Structural Segregation:**\nData with different access needs is segregated into separate collections. For example, `Customer` and `Product` data are stored in their respective top-level collections (`/customers` and `/products`), each with specific security rules tailored to their content. Archived bills are stored in a separate collection (`/billArchives`), allowing for different retention policies and potentially different access controls compared to active bills.\n\n**Access Modeling:**\nOwnership is modeled using path-based access control for user-owned data.  `Bill` documents include the `createdBy` field. Role-based access control is implemented using the `/roles_admin/{uid}` collection for admin users.\n\n**QAPs (Rules are not Filters):**\nThe structure supports secure `list` operations by enforcing security rules directly on the queried collections. For example, listing `Bill` documents can be secured by checking the user's role or the `createdBy` field of the documents, without relying on filtering after retrieval.\n\n**Invariants:**\nThe structure supports the integrity of ownership, timestamps, and denormalized data. Timestamps like `createdAt` and `updatedAt` are enforced on `Customer`, `User`, and `Product` documents to maintain data consistency. The `createdBy` field in the `Bill` collection ensures the integrity of bill ownership.\n\nThis design ensures a secure, scalable, and debuggable Firestore structure for the M.C & SONS FISH COMPANY billing system, facilitating efficient data management and real-time collaboration."
   }
 }
+
     

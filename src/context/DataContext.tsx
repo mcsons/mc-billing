@@ -13,6 +13,7 @@ import {
   Vehicle,
   Driver,
   VehicleBill,
+  CustomerBalance,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
@@ -53,6 +54,7 @@ interface DataContextType {
   vehicleBills: VehicleBill[];
   liveBillSummaries: LiveBillSummary[];
   productPrices: ProductPrices;
+  openingBalances: CustomerBalances;
   customerBalances: CustomerBalances;
   payments: Payment[];
   currentUser: User | null;
@@ -60,7 +62,7 @@ interface DataContextType {
   liveBillItems: LiveBillItems;
   dashboardStats: DashboardStats;
   logout: () => void;
-  addCustomer: (customer: Omit<Customer, 'id'> & { id?: string }) => void;
+  addCustomer: (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => void;
   deleteCustomer: (customerId: string) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
@@ -78,6 +80,7 @@ interface DataContextType {
   addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string) => Promise<VehicleBill | null>;
   deleteVehicleBill: (billId: string) => void;
   removeBillItem: (itemId: string, billNo: string) => void;
+  setOpeningBalance: (customerId: string, balance: number) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount'>,
     items: BillItem[],
@@ -214,11 +217,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [firebaseUser, isUserLoading, isUsersLoading, firestore, toast]);
 
+  const { data: customerBalancesData } = useCollection<CustomerBalance>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'customerBalances') : null, [firestore, firebaseUser]));
+
+  const openingBalances = useMemo(() => {
+    if (!customerBalancesData) return {};
+    return customerBalancesData.reduce((acc, cb) => {
+        acc[cb.id] = cb.balanceAmount;
+        return acc;
+    }, {} as CustomerBalances);
+  }, [customerBalancesData]);
 
   const customerBalances = useMemo(() => {
     const balances: CustomerBalances = {};
-    if (!customers) return balances;
-    customers.forEach(c => balances[c.id] = 0);
+    
+    customers.forEach(c => {
+        balances[c.id] = openingBalances[c.id] || 0;
+    });
 
     const allTransactions: {customerId: string, amount: number, type: 'bill' | 'payment', date: Date | Timestamp}[] = [
         ...(liveBillSummaries || []).map(bill => ({
@@ -250,7 +264,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
     
     return balances;
-  }, [customers, liveBillSummaries, payments]);
+  }, [customers, liveBillSummaries, payments, openingBalances]);
   
   useEffect(() => {
     if (isUserLoading || !firestore || !products.length) return;
@@ -345,7 +359,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     calculateStats();
 
   }, [liveBillSummaries, customerBalances, firestore, products, isUserLoading]);
-
+  
   
   const logout = () => {
     if (auth) {
@@ -353,7 +367,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string }) => {
+  const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => {
     if (!firestore) return;
     let newId = customer.id;
     if (!newId) {
@@ -363,15 +377,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         .reduce((max, num) => Math.max(max, num), 0);
       newId = `C${(maxId + 1).toString().padStart(3, '0')}`;
     }
+
+    const batch = writeBatch(firestore);
+    
     const customerRef = doc(firestore, 'customers', newId);
     const newCustomerData = {
-      ...customer,
       id: newId,
+      name_en: customer.name_en,
+      name_ta: customer.name_ta,
+      phone: customer.phone,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       active: true,
-    }
-    setDocumentNonBlocking(customerRef, newCustomerData, {});
+    };
+    batch.set(customerRef, newCustomerData);
+
+    const balanceRef = doc(firestore, 'customerBalances', newId);
+    const balanceData = {
+        customerId: newId,
+        balanceAmount: customer.openingBalance || 0,
+        updatedAt: serverTimestamp(),
+    };
+    batch.set(balanceRef, balanceData);
+
+    batch.commit().catch(error => {
+        console.error("Failed to add customer with opening balance:", error);
+        toast({ variant: "destructive", title: "Error", description: "Could not save customer."});
+    });
   };
   
   const deleteCustomer = (customerId: string) => {
@@ -671,6 +703,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   }
 
+  const setOpeningBalance = (customerId: string, balance: number) => {
+    if (!firestore) return;
+    const balanceRef = doc(firestore, 'customerBalances', customerId);
+    setDocumentNonBlocking(balanceRef, {
+        customerId: customerId,
+        balanceAmount: balance,
+        updatedAt: serverTimestamp()
+    }, { merge: true });
+    toast({ title: 'Balance Updated', description: `Opening balance has been set to ₹${balance.toFixed(2)}.` });
+  };
+
   const updateProductPrice = (productId: string, uom: string, price: number) => {
     if (!firestore) return;
     const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
@@ -691,6 +734,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const fromDateStart = startOfDay(dateRange.from);
     const toDateEnd = endOfDay(dateRange.to);
 
+    const initialOpeningBalance = openingBalances[customerId] || 0;
+
     const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date);
     const allPayments = (payments || []).filter(p => p.customerId === customerId);
 
@@ -699,7 +744,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
-    const openingBalance = totalPriorBilled - totalPriorPaid;
+    const openingBalanceForPeriod = initialOpeningBalance + totalPriorBilled - totalPriorPaid;
     
     const interval = { start: fromDateStart, end: toDateEnd };
     
@@ -724,7 +769,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const sortedTransactions = [...mappedBills, ...mappedPayments].sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    let currentBalance = openingBalance;
+    let currentBalance = openingBalanceForPeriod;
     const finalTransactions = sortedTransactions.map(t => {
       if (t.type === 'bill') {
         currentBalance += t.billedAmount || 0;
@@ -734,7 +779,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return { ...t, balance: currentBalance };
     });
 
-    return { transactions: finalTransactions, openingBalance };
+    return { transactions: finalTransactions, openingBalance: openingBalanceForPeriod };
   };
 
   // Vehicle and Driver Management
@@ -823,6 +868,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         vehicleBills,
         liveBillSummaries,
         productPrices,
+        openingBalances,
         customerBalances,
         payments,
         currentUser,
@@ -848,6 +894,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addOrUpdateVehicleBill,
         deleteVehicleBill,
         removeBillItem,
+        setOpeningBalance,
         createOrUpdateLiveBill,
         deleteBills,
         updateProductPrice,
@@ -869,3 +916,5 @@ export const useData = () => {
   }
   return context;
 };
+
+    

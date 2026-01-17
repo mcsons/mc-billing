@@ -28,14 +28,16 @@ export function AddCustomerDialog({
   const [nameEn, setNameEn] = useState('');
   const [nameTa, setNameTa] = useState('');
   const [phone, setPhone] = useState('');
+  const [openingBalance, setOpeningBalance] = useState('0');
 
   const handleSubmit = () => {
     // The logic to auto-generate ID if `id` is empty is now in the DataContext
-    const newCustomer: Omit<Customer, 'id'> & { id?: string } = {
+    const newCustomer: Omit<Customer, 'id'> & { id?: string, openingBalance: number } = {
       id: id || undefined, // Pass undefined if id is empty string
       name_en: nameEn,
       name_ta: nameTa,
       phone: phone,
+      openingBalance: parseFloat(openingBalance) || 0,
     };
     addCustomer(newCustomer);
     onOpenChange(false);
@@ -44,6 +46,7 @@ export function AddCustomerDialog({
     setNameEn('');
     setNameTa('');
     setPhone('');
+    setOpeningBalance('0');
   };
 
   return (
@@ -89,6 +92,16 @@ export function AddCustomerDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
           </div>
+          <div className="grid w-full items-center gap-1.5">
+            <Label htmlFor="opening_balance">Opening Balance (₹)</Label>
+            <Input
+              id="opening_balance"
+              type="number"
+              value={openingBalance}
+              onChange={(e) => setOpeningBalance(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
         </div>
         <DialogFooter>
           <Button type="submit" onClick={handleSubmit}>
@@ -99,3 +112,5 @@ export function AddCustomerDialog({
     </Dialog>
   );
 }
+
+    
