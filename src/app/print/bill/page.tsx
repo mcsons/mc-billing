@@ -51,7 +51,11 @@ function PrintPageContent() {
   }, [searchParams, router]);
 
   if (!billData) {
-    return null;
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading bill data...</p>
+      </div>
+    );
   }
 
   const {
@@ -113,24 +117,27 @@ function PrintPageContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>S/N</TableHead>
-                <TableHead>Product (பெயர்)</TableHead>
-                <TableHead className="text-center">Qty</TableHead>
-                <TableHead className="text-right">Rate</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="product-col">Product (பெயர்)</TableHead>
+                <TableHead className="qty-col">Qty</TableHead>
+                <TableHead className="rate-col">Rate</TableHead>
+                <TableHead className="amount-col">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item, index) => (
                 <TableRow key={item.id}>
                   <TableCell>{index + 1}</TableCell>
-                  <TableCell>{item.product}</TableCell>
-                  <TableCell className="text-center">
-                    {item.qty} {item.uom}
+                  <TableCell className="product-col">{item.product}</TableCell>
+                  <TableCell className="qty-col">
+                    <span className="qty-uom">
+                      <strong>{item.qty}</strong>
+                      <span className="uom-text">{item.uom}</span>
+                    </span>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="rate-col">
                     {item.rate.toFixed(2)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="amount-col">
                     {item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
@@ -150,7 +157,7 @@ function PrintPageContent() {
                   <span>₹{deliveryCharge.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-semibold border-t">
+              <div className="flex justify-between font-semibold border-t bill-total">
                 <span>Bill Total:</span>
                 <span>₹{totalAmount.toFixed(2)}</span>
               </div>
@@ -164,7 +171,7 @@ function PrintPageContent() {
                 <span>Paid Amount:</span>
                 <span>₹{paidAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-bold text-base border-t">
+              <div className="flex justify-between font-bold text-base border-t final-balance">
                 <span>Final Balance:</span>
                 <span>₹{finalBalance.toFixed(2)}</span>
               </div>
@@ -178,67 +185,152 @@ function PrintPageContent() {
         </div>
       </div>
       <style jsx global>{`
+        /* ===============================
+          GLOBAL PRINT
+        ================================ */
         @media print {
           body {
             margin: 0;
             padding: 0;
-            background: white;
+            background: white !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .print-root.thermal {
-            @page {
-              size: 83mm auto;
-              margin: 0;
-            }
+
+          .print\\:hidden {
+            display: none !important;
           }
-          .print-root.a4 {
-            @page {
-              size: A4;
-              margin: 10mm;
-            }
-          }
-        }
-        .print-root {
-            margin: 0 auto;
-        }
-        .print-root.thermal {
-            width: 83mm;
-            font-family: "Courier New", monospace;
-            font-size: 10px;
-        }
-        .print-root.thermal #print-area {
-            padding: 6mm 4mm 15mm 4mm;
-        }
-        .print-root.thermal h1 { font-size: 14px; }
-        .print-root.thermal p, .print-root.thermal div, .print-root.thermal span { font-size: 10px; }
-        .print-root.thermal .text-base { font-size: 11px; }
-        .print-root.thermal .text-xs { font-size: 9px; }
-        .print-root.thermal table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .print-root.thermal th, .print-root.thermal td {
-            padding: 1.5px 0;
         }
 
-        .print-root.a4 {
-            width: 210mm;
-            font-family: Arial, sans-serif;
+        /* ===============================
+          THERMAL 4-INCH (83mm)
+        ================================ */
+        @media print {
+          .print-root.thermal {
+            width: 83mm;
+            max-width: 83mm;
+            margin: 0 auto;
+            font-family: "Courier New", monospace;
             font-size: 12px;
-        }
-        .print-root.a4 #print-area {
-            padding: 15mm;
-        }
-        .print-root.a4 table {
+          }
+
+          .print-root.thermal #print-area {
+            padding: 5mm 4mm 14mm 4mm;
+          }
+          
+          .print-root.thermal .qty-uom strong {
+            font-weight: 700;
+          }
+
+          .print-root.thermal .bill-total {
+            font-weight: 700;
+          }
+
+          .print-root.thermal .final-balance {
+            font-weight: 800;
+            font-size: 14px;
+            margin-top: 4px;
+          }
+
+          .print-root.thermal table {
             width: 100%;
             border-collapse: collapse;
+          }
+
+          .print-root.thermal th, .print-root.thermal td {
+            padding: 2px 0;
+            font-size: 12px;
+          }
+
+          .print-root.thermal .product-col {
+            width: 40%;
+            word-break: break-all;
+          }
+
+          .print-root.thermal .qty-col {
+            width: 16%;
+            text-align: center;
+          }
+
+          .print-root.thermal .rate-col,
+          .print-root.thermal .amount-col {
+            text-align: right;
+            font-family: "Courier New", monospace;
+            width: 22%;
+          }
+
+          @page {
+            size: 83mm auto;
+            margin: 0;
+          }
         }
-        .print-root.a4 th, .print-root.a4 td {
+
+        /* ===============================
+          A4 PRINT
+        ================================ */
+        @media print {
+          .print-root.a4 {
+            width: 210mm;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            font-size: 12px; /* Base font size for A4 */
+          }
+
+          .print-root.a4 #print-area {
+            padding: 15mm;
+          }
+          
+          .print-root.a4 .qty-uom strong {
+            font-weight: 700;
+          }
+
+          .print-root.a4 .bill-total {
+            font-weight: 700;
+          }
+
+          .print-root.a4 .final-balance {
+            font-weight: 800;
+            font-size: 14px; /* A bit larger for A4 */
+            margin-top: 4px;
+          }
+
+          .print-root.a4 table {
+            width: 100%;
+            border-collapse: collapse;
+          }
+
+          .print-root.a4 th,
+          .print-root.a4 td {
             padding: 5px;
             border-bottom: 1px solid #eee;
+          }
+
+          .print-root.a4 th {
+            font-weight: bold;
+            text-align: left;
+          }
+          
+          .print-root.a4 .text-right {
+             text-align: right;
+          }
+          
+          .print-root.a4 .text-center {
+             text-align: center;
+          }
+
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
         }
-        .print-root.a4 h1 { font-size: 20px; }
+
+        /* --- Shared styles --- */
+        .qty-uom {
+          white-space: nowrap;
+        }
+        .uom-text {
+          margin-left: 4px;
+        }
       `}</style>
     </div>
   );
@@ -246,7 +338,7 @@ function PrintPageContent() {
 
 export default function PrintBillPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
       <PrintPageContent />
     </Suspense>
   );
