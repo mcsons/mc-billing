@@ -71,6 +71,7 @@ interface DataContextType {
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => void;
   promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
+  updateUserProfile: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<void>;
   addUom: (uom: Uom) => void;
   addVehicle: (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => void;
   editVehicle: (vehicleId: string, data: Partial<Omit<Vehicle, 'id'>>) => void;
@@ -575,6 +576,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: `users/${userId}`, requestResourceData: { role } }));
     }
   };
+  
+  const updateUserProfile = async (userId: string, data: Partial<Omit<User, 'id'>>) => {
+    if (!firestore) {
+      throw new Error("Firestore not available");
+    }
+    const userRef = doc(firestore, 'users', userId);
+    const updatedData = { ...data, updatedAt: serverTimestamp() };
+    try {
+      await updateDoc(userRef, updatedData);
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: userRef.path, requestResourceData: updatedData }));
+      throw e; // re-throw to be caught in component
+    }
+  };
 
   const addUom = async (uom: Uom) => {
     if (!firestore) return;
@@ -703,9 +718,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           await batch.commit();
           toast({ title: 'Bills Deleted', description: `${billNos.length} bill(s) and their items have been permanently deleted.`});
       } catch (error) {
+          // Path for a batch delete is ambiguous. We'll report the first bill path for context.
           const pathForError = billNos.length > 0 ? `bills/${billNos[0]}` : 'bills';
-          const contextualError = new FirestorePermissionError({ operation: 'delete', path: pathForError });
+          const contextualError = new FirestorePermissionError({
+              operation: 'delete',
+              path: pathForError, 
+          });
           errorEmitter.emit('permission-error', contextualError);
+          // Re-throw so the UI can know the operation failed if needed, though toast is primary feedback.
+          // In this app, we let the global error handler show the dev overlay.
       }
     };
     
@@ -991,6 +1012,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addUser,
         deleteUser,
         promoteUser,
+        updateUserProfile,
         addUom,
         addVehicle,
         editVehicle,
