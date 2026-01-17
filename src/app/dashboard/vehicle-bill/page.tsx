@@ -423,13 +423,13 @@ export default function VehicleBillingPage() {
       </Card>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <Card>
+        <Card className="flex flex-col">
             <CardHeader>
                 <CardTitle className="font-headline">Vehicle Bill History</CardTitle>
                 <CardDescription>Search and manage previous vehicle bills.</CardDescription>
             </CardHeader>
-            <CardContent>
-                <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+            <CardContent className="flex-1 flex flex-col gap-6">
+                <div className="flex flex-col md:flex-row md:items-end gap-4">
                     <div className="grid gap-2 flex-1">
                         <Label>Vehicle</Label>
                         <ReactSelect
@@ -456,7 +456,7 @@ export default function VehicleBillingPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                                <Button variant="outline" className={cn('w-full sm:w-auto justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
@@ -465,56 +465,60 @@ export default function VehicleBillingPage() {
                         </Popover>
                     </div>
                     <div className="flex gap-2">
-                        <Button onClick={handleSearchHistory}><Search className="mr-2 h-4 w-4" /> Search</Button>
-                        <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
+                        <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
+                        <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /></Button>
                     </div>
                 </div>
-                <div className="overflow-x-auto max-h-96">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Vehicle</TableHead>
-                            <TableHead>Party</TableHead>
-                            <TableHead className="text-right">Advance (₹)</TableHead>
-                            <TableHead className="text-right">Expenses (₹)</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {filteredBills.length > 0 ? (
-                            filteredBills.map(bill => (
-                                <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
-                                    <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
-                                    <TableCell>{bill.vehicleId}</TableCell>
-                                    <TableCell>{bill.partyName}</TableCell>
-                                    <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
-                                            <Printer className="h-4 w-4" />
-                                            <span className="sr-only">Print</span>
-                                        </Button>
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
-                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                            <span className="sr-only">Delete</span>
-                                        </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        ) : (
+                <div className="relative flex-1">
+                  <div className="absolute inset-0 overflow-y-auto">
+                    <Table>
+                        <TableHeader className="sticky top-0 bg-card z-10">
                             <TableRow>
-                                <TableCell colSpan={7} className="h-24 text-center">No vehicle bills found.</TableCell>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Vehicle</TableHead>
+                                <TableHead>Party</TableHead>
+                                <TableHead className="text-right">Advance (₹)</TableHead>
+                                <TableHead className="text-right">Expenses (₹)</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
-                        )}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredBills.length > 0 ? (
+                                filteredBills.map(bill => (
+                                    <TableRow key={bill.id} onDoubleClick={() => handleEditFromHistory(bill)} className="cursor-pointer">
+                                        <TableCell>{bill.date instanceof Timestamp ? format(bill.date.toDate(), 'dd-MM-yy') : 'Invalid Date'}</TableCell>
+                                        <TableCell>{bill.vehicleId}</TableCell>
+                                        <TableCell>{bill.partyName}</TableCell>
+                                        <TableCell className="text-right font-mono">{bill.advance.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-mono">{bill.expenses.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex items-center justify-end">
+                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handlePrintBill(bill); }}>
+                                                  <Printer className="h-4 w-4" />
+                                                  <span className="sr-only">Print</span>
+                                              </Button>
+                                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(bill); }}>
+                                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                                  <span className="sr-only">Delete</span>
+                                              </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                    <TableCell colSpan={6} className="h-24 text-center">No vehicle bills found.</TableCell>
+                                </TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                  </div>
                 </div>
             </CardContent>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Vehicle/Driver Statement</CardTitle>
+            <CardTitle className="font-headline">Vehicle/Driver Statement</CardTitle>
             <CardDescription>Generate a statement for a specific vehicle or driver for a period of time.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -529,9 +533,11 @@ export default function VehicleBillingPage() {
                 placeholder={`Select a ${statementType}...`}
                 onChange={(o) => setStatementId(o ? o.value : '')}
                 styles={reactSelectStyles}
+                isClearable
+                value={statementOptions.find(o => o.value === statementId) || null}
               />
             )}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                     <Label>From Date</Label>
                     <Popover>
@@ -559,7 +565,11 @@ export default function VehicleBillingPage() {
             </div>
           </CardContent>
           <CardFooter>
-            <Button onClick={handlePrintStatement} className="w-full">
+            <Button 
+              onClick={handlePrintStatement} 
+              className="w-full" 
+              disabled={!statementType || !statementId || !statementFromDate || !statementToDate}
+            >
                 <Printer className="mr-2 h-4 w-4"/> Generate & Print Statement
             </Button>
           </CardFooter>
