@@ -18,8 +18,7 @@ import {
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc } from 'firebase/firestore';
-import { addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
@@ -73,24 +72,24 @@ interface DataContextType {
   deleteUser: (userId: string) => void;
   promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
   addUom: (uom: Uom) => void;
-  addVehicle: (vehicle: Omit<Vehicle, 'active'>) => void;
-  editVehicle: (vehicleId: string, data: Partial<Vehicle>) => void;
+  addVehicle: (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => void;
+  editVehicle: (vehicleId: string, data: Partial<Omit<Vehicle, 'id'>>) => void;
   deleteVehicle: (vehicleId: string) => void;
-  addDriver: (driver: Omit<Driver, 'id' | 'active'>) => void;
-  editDriver: (driverId: string, data: Partial<Driver>) => void;
+  addDriver: (driver: Omit<Driver, 'id' | 'active'|'createdAt'|'updatedAt'>) => void;
+  editDriver: (driverId: string, data: Partial<Omit<Driver,'id'>>) => void;
   deleteDriver: (driverId: string) => void;
-  addParty: (party: Omit<Party, 'id' | 'active'> & { id?: string }) => void;
-  editParty: (partyId: string, data: Partial<Omit<Party, 'id' | 'active'>>) => void;
+  addParty: (party: Omit<Party, 'id' | 'active'|'createdAt'|'updatedAt'> & { id?: string }) => void;
+  editParty: (partyId: string, data: Partial<Omit<Party, 'id'>>) => void;
   deleteParty: (partyId: string) => void;
-  addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string) => Promise<VehicleBill | null>;
+  addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string) => Promise<VehicleBill | null>;
   deleteVehicleBill: (billId: string) => void;
-  removeBillItem: (itemId: string, billNo: string) => void;
   setOpeningBalance: (customerId: string, balance: number) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date'>,
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
+    date: Date,
     existingBillNo?: string | null
   ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => void;
@@ -187,13 +186,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return users.find(u => u.id === firebaseUser.uid) || null;
   }, [firebaseUser, isUserLoading, users, isUsersLoading]);
   
-  const adminRoleDocRef = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return doc(firestore, 'roles_admin', currentUser.id);
-  }, [firestore, currentUser]);
-
-  const { data: adminRoleDoc } = useDoc(adminRoleDocRef);
-
   const isCurrentUserAdmin = useMemo(() => {
       if (!currentUser) return false;
       return currentUser.role === 'ADMIN' || currentUser.role === 'CREATOR';
@@ -380,7 +372,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const addCustomer = (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => {
+  const addCustomer = async (customer: Omit<Customer, 'id'|'createdAt'|'updatedAt'|'active'> & { id?: string, openingBalance?: number }) => {
     if (!firestore) return;
     let newId = customer.id;
     if (!newId) {
@@ -413,20 +405,27 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
     batch.set(balanceRef, balanceData);
 
-    batch.commit().catch(error => {
+    try {
+        await batch.commit();
+        toast({ title: "Customer Added", description: `Customer ${newCustomerData.name_en} added.` });
+    } catch(error) {
         console.error("Failed to add customer with opening balance:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not save customer."});
-    });
+    };
   };
   
-  const deleteCustomer = (customerId: string) => {
+  const deleteCustomer = async (customerId: string) => {
     if (!firestore) return;
     const customerRef = doc(firestore, 'customers', customerId);
-    deleteDocumentNonBlocking(customerRef);
-    toast({ title: 'Customer Deleted', description: `Customer ${customerId} has been deleted.` });
+    try {
+      await deleteDoc(customerRef);
+      toast({ title: 'Customer Deleted', description: `Customer ${customerId} has been deleted.` });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: customerRef.path }));
+    }
   };
 
-  const addProduct = (product: Omit<Product, 'id'> & { id?: string }) => {
+  const addProduct = async (product: Omit<Product, 'id'|'createdAt'|'updatedAt'|'active'> & { id?: string }) => {
      if (!firestore) return;
       let newId = product.id;
       if (!newId) {
@@ -444,23 +443,35 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updatedAt: serverTimestamp(),
         active: true,
       };
-      setDocumentNonBlocking(productRef, newProductData, {});
+      try {
+        await setDoc(productRef, newProductData);
+        toast({ title: 'Product Added' });
+      } catch (e) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: productRef.path, requestResourceData: newProductData }));
+      }
   };
   
-  const editProduct = (productId: string, data: Partial<Omit<Product, 'id'>>) => {
+  const editProduct = async (productId: string, data: Partial<Omit<Product, 'id'>>) => {
     if (!firestore) return;
     const productRef = doc(firestore, 'products', productId);
-    updateDocumentNonBlocking(productRef, {
-        ...data,
-        updatedAt: serverTimestamp(),
-    });
+    const updatedData = { ...data, updatedAt: serverTimestamp() };
+    try {
+      await updateDoc(productRef, updatedData);
+      toast({ title: 'Product Updated' });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: productRef.path, requestResourceData: updatedData }));
+    }
   };
   
-  const deleteProduct = (productId: string) => {
+  const deleteProduct = async (productId: string) => {
     if (!firestore) return;
     const productRef = doc(firestore, 'products', productId);
-    deleteDocumentNonBlocking(productRef);
-    toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
+    try {
+      await deleteDoc(productRef);
+      toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: productRef.path }));
+    }
   };
 
   const addUser = async (user: Omit<User, 'id' | 'status'> & { password?: string }) => {
@@ -516,102 +527,64 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const deleteUser = (userId: string) => {
-    if (!firestore) return;
+  const deleteUser = async (userId: string) => {
+    if (!firestore || !currentUser) return;
     if (!isCurrentUserAdmin) {
-      toast({
-        variant: 'destructive',
-        title: 'Permission Denied',
-        description: 'You do not have permission to delete users.',
-      });
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to delete users.'});
       return;
     }
-    if (currentUser?.id === userId) {
-      toast({
-        variant: 'destructive',
-        title: 'Action Not Allowed',
-        description: 'You cannot delete your own account.',
-      });
+    if (currentUser.id === userId) {
+      toast({ variant: 'destructive', title: 'Action Not Allowed', description: 'You cannot delete your own account.'});
       return;
     }
 
     const batch = writeBatch(firestore);
-
     const userRef = doc(firestore, 'users', userId);
     batch.delete(userRef);
-
     const adminRoleRef = doc(firestore, 'roles_admin', userId);
     batch.delete(adminRoleRef);
 
-    batch
-      .commit()
-      .then(() => {
-        toast({
-          title: 'User Data Removed',
-          description: 'To fully delete their login, you must also remove the user from the Firebase Authentication console.',
-          duration: 10000,
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to delete user data:', error);
-        const contextualError = new FirestorePermissionError({
-          operation: 'delete',
-          path: `users/${userId}`
-        });
-        errorEmitter.emit('permission-error', contextualError);
-      });
+    try {
+      await batch.commit();
+      toast({ title: 'User Data Removed', description: 'To fully delete their login, you must also remove the user from the Firebase Authentication console.', duration: 10000 });
+    } catch (error) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: `users/${userId}` }));
+    }
   };
   
-  const promoteUser = (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
-    if (!firestore) return;
+  const promoteUser = async (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
+    if (!firestore || !currentUser) return;
     if (!isCurrentUserAdmin) {
-      toast({
-        variant: 'destructive',
-        title: 'Permission Denied',
-        description: 'You do not have permission to promote users.',
-      });
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to promote users.'});
       return;
     }
 
     const batch = writeBatch(firestore);
-
     const userRef = doc(firestore, 'users', userId);
     batch.update(userRef, { role });
 
-    // For ADMIN or CREATOR, ensure they have an entry in roles_admin for rule checks
     if (role === 'ADMIN' || role === 'CREATOR') {
       const adminRoleRef = doc(firestore, 'roles_admin', userId);
       batch.set(adminRoleRef, { uid: userId });
     }
 
-    batch.commit()
-      .then(() => {
-        toast({
-          title: 'User Promoted',
-          description: `${username} has been promoted to ${role}.`,
-        });
-      })
-      .catch((error) => {
-        console.error('Failed to promote user:', error);
-        const contextualError = new FirestorePermissionError({
-          operation: 'write', 
-          path: `users/${userId}`,
-          requestResourceData: { role }
-        });
-        errorEmitter.emit('permission-error', contextualError);
-      });
+    try {
+      await batch.commit();
+      toast({ title: 'User Promoted', description: `${username} has been promoted to ${role}.`});
+    } catch (error) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: `users/${userId}`, requestResourceData: { role } }));
+    }
   };
 
-  const addUom = (uom: Uom) => {
+  const addUom = async (uom: Uom) => {
     if (!firestore) return;
     const uomRef = doc(firestore, 'uoms', uom.toUpperCase());
-    setDocumentNonBlocking(uomRef, { name: uom.toUpperCase() }, {});
-  };
-
-  const removeBillItem = (itemId: string, billNo: string) => {
-    if (!firestore) return;
-    const itemRef = doc(firestore, 'bills', billNo, 'billItems', itemId);
-    deleteDocumentNonBlocking(itemRef);
+    try {
+      await setDoc(uomRef, { name: uom.toUpperCase() });
+      toast({ title: 'UOM Added' });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: uomRef.path, requestResourceData: { name: uom.toUpperCase() } }));
+    }
   };
   
   const findBillForCustomerToday = (customerId: string) => {
@@ -631,24 +604,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date'>,
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
+    date: Date,
     existingBillNo?: string | null
   ): { billNo: string; commitPromise: Promise<void> } => {
     if (!firestore) {
-        toast({
-            variant: "destructive",
-            title: "Database not available",
-            description: "Could not connect to Firestore.",
-        });
+        toast({ variant: "destructive", title: "Database not available", description: "Could not connect to Firestore." });
         return { billNo: "error-no-firestore", commitPromise: Promise.reject(new Error("Firestore not available")) };
     }
 
     const itemsTotal = items.reduce((sum, item) => sum + item.amount, 0);
     const totalAmount = itemsTotal + deliveryCharge;
-    const customerId = summary.customerId;
 
     const billNo = existingBillNo || (() => {
         const maxBillNo = (liveBillSummaries || [])
@@ -661,12 +630,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    const summaryPayload = { 
+    const summaryPayload: Omit<LiveBillSummary, 'date'> & { date: Date | Timestamp, updatedAt?: Timestamp, createdAt?: Timestamp } = { 
         ...summary, 
         billNo, 
         amount: totalAmount, 
         deliveryCharge: deliveryCharge,
-        paidAmount: paidAmount, // Also save paid amount for reference on the bill
+        paidAmount: paidAmount,
+        date: Timestamp.fromDate(date),
     };
 
     if (existingBillNo) {
@@ -677,7 +647,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       batch.set(billRef, summaryPayload, {});
       
       if (paidAmount > 0) {
-        addPayment({ customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
+        addPayment({ customerId: summary.customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
       }
     }
 
@@ -690,14 +660,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const commitPromise = batch.commit().catch(error => {
       console.error("Batch commit failed:", error);
-      errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: `bills/${billNo}/billItems`,
-          operation: 'write',
-          requestResourceData: items.map(i => ({...i, billId: billNo})),
-        })
-      );
+      const contextualError = new FirestorePermissionError({
+          path: `bills/${billNo}`,
+          operation: existingBillNo ? 'update' : 'create',
+          requestResourceData: summaryPayload,
+        });
+      errorEmitter.emit('permission-error', contextualError);
       throw error;
     });
 
@@ -706,77 +674,76 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const deleteBills = async (billNos: string[]) => {
       if (!firestore) return;
+      if (!isCreatorOrAdmin()) {
+          toast({ variant: "destructive", title: "Permission Denied", description: "You don't have rights to delete bills."});
+          return;
+      }
   
-      try {
-          const batch = writeBatch(firestore);
-  
-          for (const billNo of billNos) {
-              const billRef = doc(firestore, 'bills', billNo);
-  
-              // Find and delete billItems
-              const itemsQuery = query(collection(firestore, 'bills', billNo, 'billItems'));
+      const batch = writeBatch(firestore);
+      for (const billNo of billNos) {
+          const billRef = doc(firestore, 'bills', billNo);
+          const itemsQuery = query(collection(firestore, 'bills', billNo, 'billItems'));
+          
+          try {
               const itemsSnapshot = await getDocs(itemsQuery);
               itemsSnapshot.forEach(itemDoc => {
                   batch.delete(itemDoc.ref);
               });
-  
-              // Delete the bill itself
               batch.delete(billRef);
+          } catch(e) {
+              // This might fail if user can list bills but not items.
+              // We emit a granular error here.
+              const contextualError = new FirestorePermissionError({ operation: 'list', path: `bills/${billNo}/billItems` });
+              errorEmitter.emit('permission-error', contextualError);
+              return; 
           }
+      }
   
+      try {
           await batch.commit();
-          toast({
-              title: 'Bills Deleted',
-              description: `${billNos.length} bill(s) and their items have been permanently deleted.`,
-          });
-  
+          toast({ title: 'Bills Deleted', description: `${billNos.length} bill(s) and their items have been permanently deleted.`});
       } catch (error) {
-          console.error("Failed to delete bills:", error);
-          toast({
-              variant: "destructive",
-              title: "Deletion Failed",
-              description: "Could not delete one or more bills. Check permissions and console for details.",
-          });
-          // Path for a batch delete is ambiguous. We'll report the first bill path for context.
           const pathForError = billNos.length > 0 ? `bills/${billNos[0]}` : 'bills';
-          const contextualError = new FirestorePermissionError({
-              operation: 'delete',
-              path: pathForError, 
-          });
+          const contextualError = new FirestorePermissionError({ operation: 'delete', path: pathForError });
           errorEmitter.emit('permission-error', contextualError);
       }
     };
+    
+    const isCreatorOrAdmin = () => currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
 
-  const addPayment = (payment: Omit<Payment, 'id' | 'date'>) => {
+  const addPayment = async (payment: Omit<Payment, 'id' | 'date'>) => {
       if (!firestore) return;
       const paymentsCol = collection(firestore, 'payments');
-      addDocumentNonBlocking(paymentsCol, {
-          ...payment,
-          date: serverTimestamp(),
-      });
+      try {
+        await addDoc(paymentsCol, { ...payment, date: serverTimestamp() });
+        toast({ title: 'Payment Recorded'});
+      } catch(e) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: paymentsCol.path, requestResourceData: payment }));
+      }
   }
 
-  const setOpeningBalance = (customerId: string, balance: number) => {
+  const setOpeningBalance = async (customerId: string, balance: number) => {
     if (!firestore) return;
     const balanceRef = doc(firestore, 'customerBalances', customerId);
-    setDocumentNonBlocking(balanceRef, {
-        customerId: customerId,
-        balanceAmount: balance,
-        updatedAt: serverTimestamp()
-    }, { merge: true });
-    toast({ title: 'Balance Updated', description: `Opening balance has been set to ₹${balance.toFixed(2)}.` });
+    const balanceData = { customerId: customerId, balanceAmount: balance, updatedAt: serverTimestamp() };
+    try {
+      await setDoc(balanceRef, balanceData, { merge: true });
+      toast({ title: 'Balance Updated', description: `Opening balance has been set to ₹${balance.toFixed(2)}.` });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
+    }
   };
 
-  const updateProductPrice = (productId: string, uom: string, price: number) => {
+  const updateProductPrice = async (productId: string, uom: string, price: number) => {
     if (!firestore) return;
     const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
     const priceRef = doc(firestore, 'productPrices', priceId);
-    setDocumentNonBlocking(priceRef, {
-        productId,
-        uom,
-        pricePerUom: price,
-        priceDate: new Date().toISOString().split('T')[0]
-    }, {merge: true});
+    const priceData = { productId, uom, pricePerUom: price, priceDate: new Date().toISOString().split('T')[0] };
+    try {
+      await setDoc(priceRef, priceData, {merge: true});
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: priceRef.path, requestResourceData: priceData }));
+    }
   };
 
   const getCustomerLedger = (
@@ -836,49 +803,77 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Vehicle and Driver Management
-  const addVehicle = (vehicle: Omit<Vehicle, 'active'>) => {
+  const addVehicle = async (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => {
     if (!firestore) return;
     const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
-    setDocumentNonBlocking(vehicleRef, { ...vehicle, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }, {});
-    toast({ title: 'Vehicle Added' });
+    const vehicleData = { ...vehicle, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    try {
+      await setDoc(vehicleRef, vehicleData);
+      toast({ title: 'Vehicle Added' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: vehicleRef.path, requestResourceData: vehicleData }));
+    }
   };
 
-  const editVehicle = (vehicleId: string, data: Partial<Vehicle>) => {
+  const editVehicle = async (vehicleId: string, data: Partial<Vehicle>) => {
     if (!firestore) return;
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    updateDocumentNonBlocking(vehicleRef, { ...data, updatedAt: serverTimestamp() });
-    toast({ title: 'Vehicle Updated' });
+    const updatedData = { ...data, updatedAt: serverTimestamp() };
+    try {
+      await updateDoc(vehicleRef, updatedData);
+      toast({ title: 'Vehicle Updated' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: vehicleRef.path, requestResourceData: updatedData }));
+    }
   };
 
-  const deleteVehicle = (vehicleId: string) => {
+  const deleteVehicle = async (vehicleId: string) => {
     if (!firestore) return;
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
-    deleteDocumentNonBlocking(vehicleRef);
-    toast({ title: 'Vehicle Deleted' });
+    try {
+      await deleteDoc(vehicleRef);
+      toast({ title: 'Vehicle Deleted' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: vehicleRef.path }));
+    }
   };
 
-  const addDriver = (driver: Omit<Driver, 'id' | 'active'>) => {
+  const addDriver = async (driver: Omit<Driver, 'id' | 'active'|'createdAt'|'updatedAt'>) => {
     if (!firestore) return;
     const driversCol = collection(firestore, 'drivers');
-    addDocumentNonBlocking(driversCol, { ...driver, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-    toast({ title: 'Driver Added' });
+    const driverData = { ...driver, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+    try {
+      await addDoc(driversCol, driverData);
+      toast({ title: 'Driver Added' });
+    } catch(e) {
+       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: driversCol.path, requestResourceData: driverData }));
+    }
   };
 
-  const editDriver = (driverId: string, data: Partial<Driver>) => {
+  const editDriver = async (driverId: string, data: Partial<Driver>) => {
     if (!firestore) return;
     const driverRef = doc(firestore, 'drivers', driverId);
-    updateDocumentNonBlocking(driverRef, { ...data, updatedAt: serverTimestamp() });
-    toast({ title: 'Driver Updated' });
+    const updatedData = { ...data, updatedAt: serverTimestamp() };
+    try {
+      await updateDoc(driverRef, updatedData);
+      toast({ title: 'Driver Updated' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: driverRef.path, requestResourceData: updatedData }));
+    }
   };
 
-  const deleteDriver = (driverId: string) => {
+  const deleteDriver = async (driverId: string) => {
     if (!firestore) return;
     const driverRef = doc(firestore, 'drivers', driverId);
-    deleteDocumentNonBlocking(driverRef);
-    toast({ title: 'Driver Deleted' });
+    try {
+      await deleteDoc(driverRef);
+      toast({ title: 'Driver Deleted' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: driverRef.path }));
+    }
   };
 
-    const addParty = (party: Omit<Party, 'id' | 'active'> & { id?: string }) => {
+    const addParty = async (party: Omit<Party, 'id' | 'active'|'createdAt'|'updatedAt'> & { id?: string }) => {
         if (!firestore) return;
         let newId = party.id;
         if (!newId) {
@@ -897,52 +892,73 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         };
-        setDocumentNonBlocking(partyRef, newPartyData, {});
-        toast({ title: 'Party Added', description: `"${party.name}" has been added.` });
+        try {
+          await setDoc(partyRef, newPartyData);
+          toast({ title: 'Party Added', description: `"${party.name}" has been added.` });
+        } catch(e) {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: partyRef.path, requestResourceData: newPartyData }));
+        }
     };
 
-    const editParty = (partyId: string, data: Partial<Omit<Party, 'id'|'active'>>) => {
+    const editParty = async (partyId: string, data: Partial<Omit<Party, 'id'>>) => {
         if (!firestore) return;
         const partyRef = doc(firestore, 'parties', partyId);
-        updateDocumentNonBlocking(partyRef, { ...data, updatedAt: serverTimestamp() });
-        toast({ title: 'Party Updated' });
+        const updatedData = { ...data, updatedAt: serverTimestamp() };
+        try {
+          await updateDoc(partyRef, updatedData);
+          toast({ title: 'Party Updated' });
+        } catch(e) {
+           errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: partyRef.path, requestResourceData: updatedData }));
+        }
     };
 
-    const deleteParty = (partyId: string) => {
+    const deleteParty = async (partyId: string) => {
         if (!firestore) return;
         const partyRef = doc(firestore, 'parties', partyId);
-        deleteDocumentNonBlocking(partyRef);
-        toast({ title: 'Party Deleted' });
+        try {
+          await deleteDoc(partyRef);
+          toast({ title: 'Party Deleted' });
+        } catch(e) {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: partyRef.path }));
+        }
     };
 
-  const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'>, existingBillId?: string): Promise<VehicleBill | null> => {
+  const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string): Promise<VehicleBill | null> => {
     if (!firestore || !currentUser) return null;
     
-    const finalBillData: Omit<VehicleBill, 'id'> = {
+    const finalBillData: any = {
         ...bill,
         createdBy: currentUser.id,
         updatedAt: serverTimestamp(),
     };
 
-    if (existingBillId) {
-        const billRef = doc(firestore, 'vehicleBills', existingBillId);
-        await updateDoc(billRef, finalBillData);
-        return { ...finalBillData, id: existingBillId };
-    } else {
-        const billWithCreationDate = {
-            ...finalBillData,
-            createdAt: serverTimestamp(),
-        };
-        const docRef = await addDoc(collection(firestore, 'vehicleBills'), billWithCreationDate);
-        return { ...billWithCreationDate, id: docRef.id };
+    try {
+      if (existingBillId) {
+          const billRef = doc(firestore, 'vehicleBills', existingBillId);
+          await updateDoc(billRef, finalBillData);
+          return { ...bill, ...finalBillData, id: existingBillId };
+      } else {
+          finalBillData.createdAt = serverTimestamp();
+          const docRef = await addDoc(collection(firestore, 'vehicleBills'), finalBillData);
+          return { ...bill, ...finalBillData, id: docRef.id };
+      }
+    } catch(e) {
+        const path = existingBillId ? `vehicleBills/${existingBillId}` : 'vehicleBills';
+        const operation = existingBillId ? 'update' : 'create';
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: finalBillData }));
+        return null;
     }
   };
 
-  const deleteVehicleBill = (billId: string) => {
+  const deleteVehicleBill = async (billId: string) => {
     if (!firestore) return;
     const billRef = doc(firestore, 'vehicleBills', billId);
-    deleteDocumentNonBlocking(billRef);
-    toast({ title: 'Vehicle Bill Deleted' });
+    try {
+      await deleteDoc(billRef);
+      toast({ title: 'Vehicle Bill Deleted' });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
+    }
   };
 
 
@@ -987,7 +1003,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteParty,
         addOrUpdateVehicleBill,
         deleteVehicleBill,
-        removeBillItem,
         setOpeningBalance,
         createOrUpdateLiveBill,
         deleteBills,

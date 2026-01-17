@@ -59,10 +59,8 @@ export function AddPartyDialog({
 
     if (isEditing && partyToEdit) {
       editParty(partyToEdit.id, { name, location, active });
-      toast({ title: 'Party Updated', description: `"${name}" has been updated.` });
     } else {
       addParty({ id: id || undefined, name, location });
-      toast({ title: 'Party Added', description: `"${name}" has been added.` });
     }
 
     onOpenChange(false);
