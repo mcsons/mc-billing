@@ -52,7 +52,7 @@ export default function DriversPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="font-headline">Manage Drivers</CardTitle>
             <CardDescription>
@@ -65,39 +65,41 @@ export default function DriversPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>License Number</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {drivers.map((driver) => (
-                <TableRow key={driver.id}>
-                  <TableCell className="font-medium">{driver.name}</TableCell>
-                  <TableCell>{driver.licenseNumber}</TableCell>
-                   <TableCell>
-                    <Badge variant={driver.active ? 'outline' : 'secondary'}>
-                      {driver.active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                     <Button variant="ghost" size="icon" onClick={() => handleEdit(driver)}>
-                      <Edit className="h-4 w-4" />
-                       <span className="sr-only">Edit driver</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(driver.id, driver.name)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                      <span className="sr-only">Delete driver</span>
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>License Number</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {drivers.map((driver) => (
+                  <TableRow key={driver.id}>
+                    <TableCell className="font-medium">{driver.name}</TableCell>
+                    <TableCell>{driver.licenseNumber}</TableCell>
+                    <TableCell>
+                      <Badge variant={driver.active ? 'outline' : 'secondary'}>
+                        {driver.active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(driver)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit driver</span>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(driver.id, driver.name)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete driver</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <AddDriverDialog
@@ -108,5 +110,3 @@ export default function DriversPage() {
     </>
   );
 }
-
-    

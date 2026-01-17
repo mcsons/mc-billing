@@ -52,7 +52,7 @@ export default function VehiclesPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="font-headline">Manage Vehicles</CardTitle>
             <CardDescription>
@@ -65,39 +65,41 @@ export default function VehiclesPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Reg. Number</TableHead>
-                <TableHead>Vehicle Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {vehicles.map((vehicle) => (
-                <TableRow key={vehicle.id}>
-                  <TableCell className="font-medium">{vehicle.id}</TableCell>
-                  <TableCell>{vehicle.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={vehicle.active ? 'outline' : 'secondary'}>
-                      {vehicle.active ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                     <Button variant="ghost" size="icon" onClick={() => handleEdit(vehicle)}>
-                      <Edit className="h-4 w-4" />
-                       <span className="sr-only">Edit vehicle</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(vehicle.id, vehicle.name)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                      <span className="sr-only">Delete vehicle</span>
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Reg. Number</TableHead>
+                  <TableHead>Vehicle Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {vehicles.map((vehicle) => (
+                  <TableRow key={vehicle.id}>
+                    <TableCell className="font-medium">{vehicle.id}</TableCell>
+                    <TableCell>{vehicle.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={vehicle.active ? 'outline' : 'secondary'}>
+                        {vehicle.active ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(vehicle)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit vehicle</span>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(vehicle.id, vehicle.name)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete vehicle</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <AddVehicleDialog
@@ -108,5 +110,3 @@ export default function VehiclesPage() {
     </>
   );
 }
-
-    

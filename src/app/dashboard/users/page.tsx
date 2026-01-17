@@ -59,7 +59,7 @@ import { User } from '@/lib/data';
     return (
         <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <CardTitle className="font-headline">Manage Users</CardTitle>
                 <CardDescription>
@@ -74,69 +74,71 @@ import { User } from '@/lib/data';
             )}
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Username</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                {canManageUsers && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.id}</TableCell>
-                  <TableCell>{user.username}</TableCell>
-                  <TableCell>
-                    <Badge variant={user.role === 'CREATOR' ? 'destructive' : user.role === 'ADMIN' ? 'default' : 'secondary'}>
-                      {user.role}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.status === 'Active' ? 'outline' : 'secondary'}>
-                      {user.status}
-                    </Badge>
-                  </TableCell>
-                  {canManageUsers && (
-                    <TableCell className="text-right">
-                       {user.id !== currentUser?.id ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            {user.role === 'MANAGER' && (
-                              <>
-                                <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'ADMIN')}>
-                                  Promote to Admin
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'CREATOR')}>
-                                  Promote to Creator
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive focus:bg-destructive/10"
-                              onClick={() => handleDeleteUser(user.id, user.username)}
-                            >
-                              Delete user
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
-                    </TableCell>
-                  )}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Username</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Status</TableHead>
+                  {canManageUsers && <TableHead className="text-right">Actions</TableHead>}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.id}</TableCell>
+                    <TableCell>{user.username}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'CREATOR' ? 'destructive' : user.role === 'ADMIN' ? 'default' : 'secondary'}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={user.status === 'Active' ? 'outline' : 'secondary'}>
+                        {user.status}
+                      </Badge>
+                    </TableCell>
+                    {canManageUsers && (
+                      <TableCell className="text-right">
+                        {user.id !== currentUser?.id ? (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              {user.role === 'MANAGER' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'ADMIN')}>
+                                    Promote to Admin
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'CREATOR')}>
+                                    Promote to Creator
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                onClick={() => handleDeleteUser(user.id, user.username)}
+                              >
+                                Delete user
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        ) : null}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <AddUserDialog isOpen={isDialogOpen} onOpenChange={setIsDialogOpen} />

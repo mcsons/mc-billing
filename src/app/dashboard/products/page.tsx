@@ -51,7 +51,7 @@ export default function ProductsPage() {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="font-headline">Products</CardTitle>
             <CardDescription>
@@ -64,37 +64,39 @@ export default function ProductsPage() {
           </Button>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Name (English)</TableHead>
-                <TableHead>Name (Tamil)</TableHead>
-                <TableHead>Allowed UOMs</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.map((product) => (
-                <TableRow key={product.id}>
-                  <TableCell className="font-medium">{product.id}</TableCell>
-                  <TableCell>{product.name_en}</TableCell>
-                  <TableCell>{product.name_ta}</TableCell>
-                  <TableCell>{product.uom_allowed.join(', ')}</TableCell>
-                  <TableCell className="text-right">
-                     <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
-                      <Edit className="h-4 w-4" />
-                       <span className="sr-only">Edit product</span>
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id, product.name_en)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                      <span className="sr-only">Delete product</span>
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ID</TableHead>
+                  <TableHead>Name (English)</TableHead>
+                  <TableHead>Name (Tamil)</TableHead>
+                  <TableHead>Allowed UOMs</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {products.map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell className="font-medium">{product.id}</TableCell>
+                    <TableCell>{product.name_en}</TableCell>
+                    <TableCell>{product.name_ta}</TableCell>
+                    <TableCell>{product.uom_allowed.join(', ')}</TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(product)}>
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit product</span>
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id, product.name_en)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sr-only">Delete product</span>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       <AddProductDialog

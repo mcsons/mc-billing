@@ -17,9 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Check, ChevronsUpDown, Search, Trash2, X } from 'lucide-react';
+import { Search, Trash2, X } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -72,7 +70,7 @@ export default function HistoryPage() {
         ? 'hsl(var(--accent))'
         : state.isFocused
         ? 'hsl(var(--muted))'
-        : 'hsl(var(--background))',
+        : 'transparent',
       color: state.isSelected
         ? 'hsl(var(--accent-foreground))'
         : 'hsl(var(--foreground))',
@@ -197,9 +195,10 @@ export default function HistoryPage() {
       <CardContent>
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
           <div className="grid flex-1 gap-2">
-            <Label htmlFor="customer-search">Customer</Label>
+            <label htmlFor="customer-search-select" className="text-sm font-medium">Customer</label>
             <ReactSelect
               instanceId="history-customer-select"
+              inputId="customer-search-select"
               placeholder="Select customer..."
               isClearable
               options={customers.map((c) => ({
@@ -225,10 +224,11 @@ export default function HistoryPage() {
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="date-search">Date</Label>
+            <label htmlFor="date-search-trigger" className="text-sm font-medium">Date</label>
             <Popover>
               <PopoverTrigger asChild>
                 <Button
+                  id="date-search-trigger"
                   variant={'outline'}
                   className={cn(
                     'w-full sm:w-[240px] justify-start text-left font-normal',
@@ -281,7 +281,6 @@ export default function HistoryPage() {
                 <TableHead>Customer</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Created By</TableHead>
-                <TableHead>Stall</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -312,13 +311,12 @@ export default function HistoryPage() {
                         ₹{bill.amount.toFixed(2)}
                       </TableCell>
                       <TableCell>{creator?.username || bill.createdBy}</TableCell>
-                      <TableCell>{bill.stall}</TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
+                  <TableCell colSpan={canDelete ? 5 : 4} className="h-24 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>
