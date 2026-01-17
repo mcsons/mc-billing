@@ -422,15 +422,15 @@ export default function VehicleBillingPage() {
         </CardFooter>
       </Card>
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      <div className="grid auto-rows-max items-start gap-8">
         <Card className="flex flex-col">
             <CardHeader>
                 <CardTitle className="font-headline">Vehicle Bill History</CardTitle>
                 <CardDescription>Search and manage previous vehicle bills.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 flex flex-col gap-6">
-                <div className="flex flex-col md:flex-row md:items-end gap-4">
-                    <div className="grid gap-2 flex-1">
+                <div className="grid md:grid-cols-2 lg:grid-cols-4 items-end gap-4">
+                    <div className="grid gap-2">
                         <Label>Vehicle</Label>
                         <ReactSelect
                             options={vehicles.map(v => ({ value: v.id, label: `${v.id} (${v.name})`}))}
@@ -441,7 +441,7 @@ export default function VehicleBillingPage() {
                             styles={reactSelectStyles}
                         />
                     </div>
-                    <div className="grid gap-2 flex-1">
+                    <div className="grid gap-2">
                         <Label>Driver</Label>
                         <ReactSelect
                             options={drivers.map(d => ({ value: d.id, label: d.name}))}
@@ -456,7 +456,7 @@ export default function VehicleBillingPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full sm:w-auto justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
@@ -466,10 +466,10 @@ export default function VehicleBillingPage() {
                     </div>
                     <div className="flex gap-2">
                         <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
-                        <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /></Button>
+                        <Button variant="ghost" onClick={handleClearHistorySearch} className="w-full sm:w-auto"><X className="mr-2 h-4 w-4" /> Clear</Button>
                     </div>
                 </div>
-                <div className="relative flex-1">
+                <div className="relative flex-1 min-h-[300px]">
                   <div className="absolute inset-0 overflow-y-auto">
                     <Table>
                         <TableHeader className="sticky top-0 bg-card z-10">
