@@ -48,7 +48,7 @@ export default function HistoryPage() {
   const [selectedCustomer, setSelectedCustomer] = React.useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
 
-  const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>(liveBillSummaries);
+  const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>([]);
 
   const reactSelectStyles = {
     control: (baseStyles: any, state: any) => ({
@@ -93,12 +93,17 @@ export default function HistoryPage() {
     }),
   };
 
+  const sortBills = (bills: LiveBillSummary[]): LiveBillSummary[] => {
+    return [...bills].sort((a, b) => {
+      const dateA = a.date ? ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date as any)) : new Date(0);
+      const dateB = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date as any)) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+  };
+
   useEffect(() => {
-    // Keep the filtered list in sync with the source if no filters are active
-    if (!date && !selectedCustomer) {
-      setFilteredBills(liveBillSummaries);
-    }
-  }, [liveBillSummaries, date, selectedCustomer]);
+    setFilteredBills(sortBills(liveBillSummaries));
+  }, [liveBillSummaries]);
 
 
   const handleEditBill = (billNo: string) => {
@@ -173,13 +178,13 @@ export default function HistoryPage() {
       });
     }
 
-    setFilteredBills(results);
+    setFilteredBills(sortBills(results));
   };
 
   const handleClearSearch = () => {
     setDate(undefined);
     setSelectedCustomer('');
-    setFilteredBills(liveBillSummaries);
+    setFilteredBills(sortBills(liveBillSummaries));
   };
 
   return (
