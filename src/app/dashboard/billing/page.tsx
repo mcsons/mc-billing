@@ -108,6 +108,7 @@ export default function BillingPage() {
   const [paidAmount, setPaidAmount] = useState('');
 
   // Refs for keyboard navigation
+  const customerSelectRef = useRef<any>(null);
   const productSelectRef = useRef<any>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
@@ -273,12 +274,13 @@ export default function BillingPage() {
     }
 
     setQty('');
-    if (!isProductLocked) {
+    if (isProductLocked) {
+      customerSelectRef.current?.focus();
+    } else {
       setSelectedProductId('');
       setRate('');
+      productSelectRef.current?.focus();
     }
-
-    productSelectRef.current?.focus();
   }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, isProductLocked, products, createOrUpdateLiveBill, paidAmount, toast]);
 
 
@@ -569,6 +571,7 @@ export default function BillingPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="customer">Customer</Label>
                   <ReactSelect
+                    ref={customerSelectRef}
                     instanceId="customer-select"
                     placeholder="Select customer..."
                     isClearable
@@ -607,7 +610,7 @@ export default function BillingPage() {
                       instanceId="product-select"
                       placeholder="Select product..."
                       isClearable
-                      isDisabled={!selectedCustomerId || isProductLocked}
+                      isDisabled={!selectedCustomerId}
                       options={products.map((p) => ({
                         value: p.id,
                         label: `${p.name_en} (${p.name_ta})`,
@@ -650,7 +653,7 @@ export default function BillingPage() {
                       size="icon"
                       className="absolute right-1 top-1 h-7 w-7"
                       onClick={() => setIsProductLocked(!isProductLocked)}
-                      disabled={!selectedCustomerId}
+                      disabled={!selectedCustomerId || !selectedProductId}
                       tabIndex={-1}
                     >
                       {isProductLocked ? (
