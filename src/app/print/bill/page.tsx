@@ -89,24 +89,24 @@ function PrintPageContent() {
             <h1 className="text-2xl font-bold">
               M.C & SONS FISH COMPANY
             </h1>
-            <p>
+            <p className="company-address">
               No. 1, Fish Market, Palladam Road, Tiruppur-641604
             </p>
-            <p>📞 9894089889</p>
+            <p className="company-phone">📞 9894089889</p>
           </header>
 
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <p className="font-semibold">Bill To:</p>
-              <p>{customer.name_en}</p>
+              <p className="font-semibold">Cust Name:</p>
+              <p className="customer-name">{customer.name_en}</p>
               <p>{customer.name_ta}</p>
               <p>{customer.phone}</p>
             </div>
             <div className="text-right">
-              <p>
+              <p className="bill-no">
                 <span className="font-semibold">Bill No:</span> {billNo}
               </p>
-              <p>
+              <p className="bill-date">
                 <span className="font-semibold">Date:</span>{' '}
                 {format(new Date(date), 'dd-MM-yyyy')}
               </p>
@@ -146,7 +146,7 @@ function PrintPageContent() {
           </Table>
 
           <div className="flex justify-end mt-4">
-            <div className="w-full max-w-[250px] space-y-1">
+            <div className="w-full max-w-[250px] space-y-1 totals-section">
               <div className="flex justify-between">
                 <span>Items Total:</span>
                 <span>₹{itemsTotal.toFixed(2)}</span>
@@ -177,11 +177,6 @@ function PrintPageContent() {
               </div>
             </div>
           </div>
-
-          <footer className="text-center mt-6 text-xs">
-            <p>Thank you for your business!</p>
-            <p>This is a computer-generated bill.</p>
-          </footer>
         </div>
       </div>
       <style jsx global>{`
@@ -211,7 +206,6 @@ function PrintPageContent() {
             max-width: 83mm;
             margin: 0 auto;
             font-family: "Courier New", "Lucida Console", monospace !important;
-            font-size: 12px;
             color: #000 !important;
             -webkit-font-smoothing: none;
             font-smoothing: none;
@@ -222,25 +216,32 @@ function PrintPageContent() {
             padding: 5mm 4mm 14mm 4mm;
           }
           
-          .print-root.thermal .qty-uom strong {
-            font-weight: 700;
+          .print-root.thermal .company-address,
+          .print-root.thermal .company-phone,
+          .print-root.thermal .customer-name,
+          .print-root.thermal .bill-no,
+          .print-root.thermal .bill-date {
+            font-weight: 700 !important;
           }
 
-          .print-root.thermal .bill-total {
-            font-weight: 700 !important;
-            color: #000 !important;
-          }
-
-          .print-root.thermal .final-balance {
-            font-weight: 700 !important;
+          .print-root.thermal .customer-name,
+          .print-root.thermal .bill-date,
+          .print-root.thermal .qty-col strong,
+          .print-root.thermal .rate-col,
+          .print-root.thermal .amount-col,
+          .print-root.thermal .totals-section {
             font-size: 14px;
-            margin-top: 4px;
-            color: #000 !important;
           }
 
           .print-root.thermal table {
             width: 100%;
             border-collapse: collapse;
+            border-top: 1.5px solid black;
+            border-bottom: 1.5px solid black;
+          }
+
+          .print-root.thermal thead tr {
+              border-bottom: 1.5px solid black;
           }
 
           .print-root.thermal th {
@@ -257,19 +258,39 @@ function PrintPageContent() {
             font-weight: 500;
             color: #000 !important;
           }
+          
+          .print-root.thermal .qty-uom strong {
+            font-weight: 700;
+          }
 
-          .print-root.thermal .product-col {
+          .print-root.thermal .bill-total,
+          .print-root.thermal .final-balance {
+            font-weight: 700 !important;
+            color: #000 !important;
+          }
+          
+          .print-root.thermal .bill-total > span:first-child,
+          .print-root.thermal .final-balance > span:first-child {
+            font-weight: 700 !important;
+          }
+
+          .print-root.thermal .final-balance {
+            font-size: 16px;
+            margin-top: 4px;
+          }
+
+          .product-col {
             width: 40%;
             word-break: break-all;
           }
 
-          .print-root.thermal .qty-col {
+          .qty-col {
             width: 16%;
             text-align: center;
           }
 
-          .print-root.thermal .rate-col,
-          .print-root.thermal .amount-col {
+          .rate-col,
+          .amount-col {
             text-align: right;
             font-family: "Courier New", monospace;
             width: 22%;
