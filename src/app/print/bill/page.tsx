@@ -210,8 +210,12 @@ function PrintPageContent() {
             width: 83mm;
             max-width: 83mm;
             margin: 0 auto;
-            font-family: "Courier New", monospace;
+            font-family: "Courier New", "Lucida Console", monospace !important;
             font-size: 12px;
+            color: #000 !important;
+            -webkit-font-smoothing: none;
+            font-smoothing: none;
+            text-rendering: optimizeSpeed;
           }
 
           .print-root.thermal #print-area {
@@ -223,13 +227,15 @@ function PrintPageContent() {
           }
 
           .print-root.thermal .bill-total {
-            font-weight: 700;
+            font-weight: 700 !important;
+            color: #000 !important;
           }
 
           .print-root.thermal .final-balance {
-            font-weight: 800;
+            font-weight: 700 !important;
             font-size: 14px;
             margin-top: 4px;
+            color: #000 !important;
           }
 
           .print-root.thermal table {
@@ -237,9 +243,19 @@ function PrintPageContent() {
             border-collapse: collapse;
           }
 
-          .print-root.thermal th, .print-root.thermal td {
+          .print-root.thermal th {
             padding: 2px 0;
             font-size: 12px;
+            font-weight: 700 !important;
+            color: #000 !important;
+            letter-spacing: 0.5px;
+          }
+          
+          .print-root.thermal td {
+            padding: 2px 0;
+            font-size: 12px;
+            font-weight: 500;
+            color: #000 !important;
           }
 
           .print-root.thermal .product-col {
