@@ -196,41 +196,11 @@ export default function PaymentsPage() {
             dateRange: { from: fromDate?.toISOString(), to: toDate?.toISOString() },
         };
         
-        if (paper === 'thermal') {
-            try {
-                const response = await fetch('/api/print/thermal', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(printData),
-                });
-        
-                if (!response.ok) {
-                  const errorData = await response.json();
-                  throw new Error(errorData.error || 'The print server returned an error.');
-                }
-        
-                toast({
-                  title: 'Printing Initiated',
-                  description: 'Statement sent to the thermal printer.',
-                });
-            } catch (error: any) {
-                console.error('Thermal print error:', error);
-                toast({
-                  variant: 'destructive',
-                  title: 'Print Failed',
-                  description: error.message || `Could not connect to the print service.`,
-                  duration: 9000,
-                });
-            }
-        } else { // A4 Printing
-            const encodedData = encodeURIComponent(JSON.stringify(printData));
-            window.open(
-                `/print/payments?data=${encodedData}&paper=${paper}`,
-                '_blank'
-            );
-        }
+        const encodedData = encodeURIComponent(JSON.stringify(printData));
+        window.open(
+            `/print/payments?data=${encodedData}&paper=${paper}`,
+            '_blank'
+        );
     };
 
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
