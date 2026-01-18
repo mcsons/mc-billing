@@ -85,68 +85,72 @@ function PrintPageContent() {
       </div>
       <div className={`print-root ${paper}`}>
         <div id="print-area">
-          <header className="text-center mb-2">
-            <h1 className="text-xl font-bold">
+          <header className="text-center">
+            <h1 className="header-title">
               M.C & SONS FISH COMPANY
             </h1>
-            <p className="company-address">
+            <p className="header-sub">
               No. 1, Fish Market, Palladam Road, Tiruppur-641604
             </p>
-            <p className="company-phone">📞 9894089889</p>
+            <p className="header-sub header-phone">📞 9894089889</p>
           </header>
+          <div className="hr-line"></div>
 
           <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
             <div>
               <p className="font-semibold">Cust Name:</p>
-              <p className="customer-name">{customer.name_en}</p>
+              <p className="customer-name"><strong>{customer.name_en}</strong></p>
               <p>{customer.name_ta}</p>
               <p>{customer.phone}</p>
             </div>
             <div className="text-right">
               <p className="bill-no">
-                <span className="font-semibold">Bill No:</span> {billNo}
+                <span className="font-semibold">Bill No:</span> <strong>{billNo}</strong>
               </p>
               <p className="bill-date">
                 <span className="font-semibold">Date:</span>{' '}
-                {format(new Date(date), 'dd-MM-yyyy')}
+                <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
               </p>
             </div>
           </div>
 
-          <Table>
+          <div className="hr-line"></div>
+          <Table className="print-table">
             <TableHeader>
               <TableRow>
-                <TableHead>S/N</TableHead>
-                <TableHead className="product-col">Product</TableHead>
-                <TableHead className="qty-col">Qty</TableHead>
-                <TableHead className="rate-col">Rate</TableHead>
-                <TableHead className="amount-col">Amount</TableHead>
+                <TableHead className="col-sn">S/N</TableHead>
+                <TableHead className="col-prod">Product</TableHead>
+                <TableHead className="col-qty text-right">Qty</TableHead>
+                <TableHead className="col-rate text-right">Rate</TableHead>
+                <TableHead className="col-amt text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
+              <TableRow><TableCell colSpan={5} className="p-0"><div className="hr-line my-0"></div></TableCell></TableRow>
               {items.map((item, index) => (
                 <TableRow key={item.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell className="product-col">{item.product}</TableCell>
-                  <TableCell className="qty-col">
+                  <TableCell className="col-sn">{index + 1}</TableCell>
+                  <TableCell className="col-prod">{item.product}</TableCell>
+                  <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                       <strong>{item.qty}</strong>
                       <span className="uom-text">{item.uom}</span>
                     </span>
                   </TableCell>
-                  <TableCell className="rate-col">
+                  <TableCell className="col-rate text-right">
                     {item.rate.toFixed(2)}
                   </TableCell>
-                  <TableCell className="amount-col">
+                  <TableCell className="col-amt text-right">
                     {item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <div className="hr-line"></div>
 
           <div className="flex justify-end mt-2">
-            <div className="w-full max-w-[250px] space-y-1 totals-section">
+            <div className="w-full max-w-[300px] space-y-1 totals-section">
               <div className="flex justify-between">
                 <span>Items Total:</span>
                 <span>₹{itemsTotal.toFixed(2)}</span>
@@ -157,7 +161,8 @@ function PrintPageContent() {
                   <span>₹{deliveryCharge.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between border-t pt-1 bill-total">
+              <div className="hr-line my-1"></div>
+              <div className="flex justify-between bill-total">
                 <span>Bill Total:</span>
                 <span>₹{totalAmount.toFixed(2)}</span>
               </div>
@@ -171,7 +176,8 @@ function PrintPageContent() {
                 <span>Paid Amount:</span>
                 <span>₹{paidAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between border-t pt-1 final-balance">
+              <div className="hr-line my-1"></div>
+              <div className="flex justify-between final-balance">
                 <span>Final Balance:</span>
                 <span>₹{finalBalance.toFixed(2)}</span>
               </div>
@@ -198,12 +204,12 @@ function PrintPageContent() {
         }
 
         /* ===============================
-          THERMAL 4-INCH (83mm)
+          THERMAL (106mm)
         ================================ */
         @media print {
           .print-root.thermal {
-            width: 83mm;
-            max-width: 83mm;
+            width: 106mm;
+            max-width: 106mm;
             margin: 0 auto;
             font-family: "Courier New", "Lucida Console", monospace !important;
             color: #000 !important;
@@ -212,114 +218,71 @@ function PrintPageContent() {
             text-rendering: optimizeSpeed;
           }
 
-          .print-root.thermal #print-area {
-            padding: 2mm 4mm 14mm 4mm;
+          #print-area {
+            padding: 2mm 4mm 18mm 4mm;
           }
 
-          .print-root.thermal header {
-            line-height: 1.1;
-            margin-bottom: 4px !important;
-          }
-          .print-root.thermal header h1 {
-            font-size: 16px !important;
-            font-weight: 700 !important;
-            letter-spacing: -0.5px;
+          .header-title {
+            font-size: 18px !important;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
             white-space: nowrap;
           }
-          .print-root.thermal header p {
-            font-size: 11px !important;
-            font-weight: 700 !important;
-            line-height: 1.1;
-            margin: 0;
+          .header-sub {
+            font-size: 13px !important;
+            font-weight: 600;
+            line-height: 1.3;
+            margin-top: 2px;
+          }
+          .header-phone {
+             margin-top: 4px;
+          }
+          .hr-line {
+            border-top: 2px solid #000;
+            margin: 6px 0;
           }
 
-          .print-root.thermal .customer-name,
-          .print-root.thermal .bill-no,
-          .print-root.thermal .bill-date,
-          .print-root.thermal .company-address,
-          .print-root.thermal .company-phone {
-            font-weight: 700 !important;
-          }
-
-          .print-root.thermal .customer-name,
-          .print-root.thermal .bill-date {
+          .customer-name,
+          .bill-date {
              font-size: 14px;
           }
           
-          .print-root.thermal table {
+          .print-table {
             width: 100%;
-            border-collapse: collapse;
-            border-top: 1.5px solid black;
-            border-bottom: 1.5px solid black;
-          }
-
-          .print-root.thermal thead tr {
-              border-bottom: 1.5px solid black;
-          }
-
-          .print-root.thermal th,
-          .print-root.thermal td {
-            padding: 2px 0;
-            font-weight: 700 !important;
-            color: #000 !important;
-          }
-          .print-root.thermal th {
-            font-size: 12px;
-            letter-spacing: 0.5px;
-          }
-          .print-root.thermal td {
-            font-size: 12px;
+            table-layout: fixed;
           }
           
-          .qty-uom { white-space: nowrap; }
-          .qty-uom strong {
+          .print-table th,
+          .print-table td {
             font-weight: 700;
+            white-space: nowrap;
+            padding: 2px 4px;
           }
+          .print-table td {
+             font-size: 14px;
+          }
+
+          .col-sn { width: 8%; }
+          .col-prod { width: 40%; }
+          .col-qty { width: 16%; }
+          .col-rate { width: 18%; text-align: right; }
+          .col-amt { width: 18%; text-align: right; }
+          .text-right { text-align: right; }
+          
+          .qty-uom { white-space: nowrap; }
           .uom-text { 
             font-weight: 700 !important;
             margin-left: 2px;
           }
           
-          .print-root.thermal .qty-col,
-          .print-root.thermal .rate-col,
-          .print-root.thermal .amount-col {
-             font-size: 14px;
-          }
-
-          .product-col {
-            width: 40%;
-            word-break: break-all;
-          }
-
-          .qty-col {
-            width: 16%;
-            text-align: center;
-          }
-
-          .rate-col,
-          .amount-col {
-            text-align: right;
-            font-family: "Courier New", monospace;
-            width: 22%;
-          }
-          
-          .print-root.thermal .totals-section {
-             font-weight: 700 !important;
-             font-size: 14px;
-             margin-top: 4px !important;
-          }
-          .print-root.thermal .totals-section > div {
+          .totals-section > div {
              padding: 1px 0;
+             font-size: 15px;
+             font-weight: 700;
           }
           
-          .print-root.thermal .bill-total,
-          .print-root.thermal .final-balance {
-            border-top: 1.5px solid black !important;
-            padding-top: 2px !important;
-            margin-top: 2px !important;
-          }
-
-          .print-root.thermal .final-balance {
+          .final-balance {
             font-size: 16px !important;
             font-weight: 800 !important;
           }
@@ -333,7 +296,7 @@ function PrintPageContent() {
             width: 210mm;
             margin: 0 auto;
             font-family: Arial, sans-serif;
-            font-size: 12px; /* Base font size for A4 */
+            font-size: 12px;
           }
 
           .print-root.a4 #print-area {
@@ -350,22 +313,22 @@ function PrintPageContent() {
 
           .print-root.a4 .final-balance {
             font-weight: 800;
-            font-size: 14px; /* A bit larger for A4 */
+            font-size: 14px;
             margin-top: 4px;
           }
 
-          .print-root.a4 table {
+          .print-root.a4 .print-table {
             width: 100%;
             border-collapse: collapse;
           }
 
-          .print-root.a4 th,
-          .print-root.a4 td {
+          .print-root.a4 .print-table th,
+          .print-root.a4 .print-table td {
             padding: 5px;
             border-bottom: 1px solid #eee;
           }
 
-          .print-root.a4 th {
+          .print-root.a4 .print-table th {
             font-weight: bold;
             text-align: left;
           }
