@@ -87,7 +87,7 @@ function PrintPageContent() {
       <Card className="print:shadow-none print:border-none print:bg-white">
         <CardContent className="print-content" id="print-area">
           <header className="text-center mb-6">
-            <h1 className="text-2xl font-bold font-headline text-primary">
+            <h1 className="text-1l font-bold font-headline text-primary">
               M.C & SONS FISH COMPANY
             </h1>
             <p className="text-sm text-muted-foreground">

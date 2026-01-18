@@ -85,8 +85,8 @@ function PrintPageContent() {
       </div>
       <div className={`print-root ${paper}`}>
         <div id="print-area">
-          <header className="text-center mb-6">
-            <h1 className="text-2xl font-bold">
+          <header className="text-center mb-2">
+            <h1 className="text-xl font-bold">
               M.C & SONS FISH COMPANY
             </h1>
             <p className="company-address">
@@ -95,7 +95,7 @@ function PrintPageContent() {
             <p className="company-phone">📞 9894089889</p>
           </header>
 
-          <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
             <div>
               <p className="font-semibold">Cust Name:</p>
               <p className="customer-name">{customer.name_en}</p>
@@ -117,7 +117,7 @@ function PrintPageContent() {
             <TableHeader>
               <TableRow>
                 <TableHead>S/N</TableHead>
-                <TableHead className="product-col">Product (பெயர்)</TableHead>
+                <TableHead className="product-col">Product</TableHead>
                 <TableHead className="qty-col">Qty</TableHead>
                 <TableHead className="rate-col">Rate</TableHead>
                 <TableHead className="amount-col">Amount</TableHead>
@@ -145,7 +145,7 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-end mt-2">
             <div className="w-full max-w-[250px] space-y-1 totals-section">
               <div className="flex justify-between">
                 <span>Items Total:</span>
@@ -157,7 +157,7 @@ function PrintPageContent() {
                   <span>₹{deliveryCharge.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-semibold border-t bill-total">
+              <div className="flex justify-between border-t pt-1 bill-total">
                 <span>Bill Total:</span>
                 <span>₹{totalAmount.toFixed(2)}</span>
               </div>
@@ -171,7 +171,7 @@ function PrintPageContent() {
                 <span>Paid Amount:</span>
                 <span>₹{paidAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between font-bold text-base border-t final-balance">
+              <div className="flex justify-between border-t pt-1 final-balance">
                 <span>Final Balance:</span>
                 <span>₹{finalBalance.toFixed(2)}</span>
               </div>
@@ -213,26 +213,39 @@ function PrintPageContent() {
           }
 
           .print-root.thermal #print-area {
-            padding: 5mm 4mm 14mm 4mm;
+            padding: 2mm 4mm 14mm 4mm;
           }
-          
-          .print-root.thermal .company-address,
-          .print-root.thermal .company-phone,
+
+          .print-root.thermal header {
+            line-height: 1.1;
+            margin-bottom: 4px !important;
+          }
+          .print-root.thermal header h1 {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            letter-spacing: -0.5px;
+            white-space: nowrap;
+          }
+          .print-root.thermal header p {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            line-height: 1.1;
+            margin: 0;
+          }
+
           .print-root.thermal .customer-name,
           .print-root.thermal .bill-no,
-          .print-root.thermal .bill-date {
+          .print-root.thermal .bill-date,
+          .print-root.thermal .company-address,
+          .print-root.thermal .company-phone {
             font-weight: 700 !important;
           }
 
           .print-root.thermal .customer-name,
-          .print-root.thermal .bill-date,
-          .print-root.thermal .qty-col strong,
-          .print-root.thermal .rate-col,
-          .print-root.thermal .amount-col,
-          .print-root.thermal .totals-section {
-            font-size: 14px;
+          .print-root.thermal .bill-date {
+             font-size: 14px;
           }
-
+          
           .print-root.thermal table {
             width: 100%;
             border-collapse: collapse;
@@ -244,39 +257,33 @@ function PrintPageContent() {
               border-bottom: 1.5px solid black;
           }
 
-          .print-root.thermal th {
-            padding: 2px 0;
-            font-size: 12px;
-            font-weight: 700 !important;
-            color: #000 !important;
-            letter-spacing: 0.5px;
-          }
-          
+          .print-root.thermal th,
           .print-root.thermal td {
             padding: 2px 0;
-            font-size: 12px;
-            font-weight: 500;
+            font-weight: 700 !important;
             color: #000 !important;
           }
+          .print-root.thermal th {
+            font-size: 12px;
+            letter-spacing: 0.5px;
+          }
+          .print-root.thermal td {
+            font-size: 12px;
+          }
           
-          .print-root.thermal .qty-uom strong {
+          .qty-uom { white-space: nowrap; }
+          .qty-uom strong {
             font-weight: 700;
           }
-
-          .print-root.thermal .bill-total,
-          .print-root.thermal .final-balance {
+          .uom-text { 
             font-weight: 700 !important;
-            color: #000 !important;
+            margin-left: 2px;
           }
           
-          .print-root.thermal .bill-total > span:first-child,
-          .print-root.thermal .final-balance > span:first-child {
-            font-weight: 700 !important;
-          }
-
-          .print-root.thermal .final-balance {
-            font-size: 16px;
-            margin-top: 4px;
+          .print-root.thermal .qty-col,
+          .print-root.thermal .rate-col,
+          .print-root.thermal .amount-col {
+             font-size: 14px;
           }
 
           .product-col {
@@ -295,10 +302,26 @@ function PrintPageContent() {
             font-family: "Courier New", monospace;
             width: 22%;
           }
+          
+          .print-root.thermal .totals-section {
+             font-weight: 700 !important;
+             font-size: 14px;
+             margin-top: 4px !important;
+          }
+          .print-root.thermal .totals-section > div {
+             padding: 1px 0;
+          }
+          
+          .print-root.thermal .bill-total,
+          .print-root.thermal .final-balance {
+            border-top: 1.5px solid black !important;
+            padding-top: 2px !important;
+            margin-top: 2px !important;
+          }
 
-          @page {
-            size: 83mm auto;
-            margin: 0;
+          .print-root.thermal .final-balance {
+            font-size: 16px !important;
+            font-weight: 800 !important;
           }
         }
 
