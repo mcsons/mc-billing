@@ -1,22 +1,30 @@
 import { NextResponse } from 'next/server';
-import { printThermalBill } from '@/lib/thermal-printer';
 
 export async function POST(request: Request) {
   try {
     const billData = await request.json();
     
-    // The print function is async and we await its result
-    const result = await printThermalBill(billData);
+    // Forward the request to the local print service
+    const printServiceResponse = await fetch('http://localhost:3001/print', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(billData),
+    });
 
-    if (result.success) {
-      return NextResponse.json({ message: 'Printing initiated successfully.' });
+    if (printServiceResponse.ok) {
+      const result = await printServiceResponse.json();
+      return NextResponse.json({ message: 'Printing initiated successfully.', result });
     } else {
-      // If the printer function threw a specific error, return it
-      return NextResponse.json({ message: 'Failed to print.', error: result.error }, { status: 500 });
+      // If the local service returned an error, forward that error
+      const errorText = await printServiceResponse.text();
+      console.error('Local Print Service Error:', errorText);
+      return NextResponse.json({ message: 'Failed to print.', error: errorText || 'Local print service returned an error.' }, { status: printServiceResponse.status });
     }
   } catch (error: any) {
-    // Catches errors from JSON parsing or other unexpected issues in the API route itself
-    console.error('API Print Route Error:', error);
-    return NextResponse.json({ message: 'An error occurred on the server while processing the print request.', error: error.message }, { status: 500 });
+    // Catches errors from the fetch call itself (e.g., service not running)
+    console.error('API Route Error fetching local print service:', error);
+    return NextResponse.json({ message: 'An error occurred on the server.', error: 'Could not connect to the local print service. Is it running?' }, { status: 500 });
   }
 }
