@@ -498,11 +498,42 @@ export default function BillingPage() {
     const billData = await handleSaveAndGetData();
 
     if (billData) {
-      const encodedData = encodeURIComponent(JSON.stringify(billData));
-      window.open(
-        `/print/bill?data=${encodedData}&paper=${paper}`,
-        '_blank'
-      );
+      if (paper === 'thermal') {
+        try {
+          const response = await fetch('/api/print/thermal', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(billData),
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Unknown printing error');
+          }
+
+          toast({
+            title: 'Printing',
+            description: 'Your bill is being sent to the thermal printer.',
+          });
+        } catch (error: any) {
+          console.error('Thermal print error:', error);
+          toast({
+            variant: 'destructive',
+            title: 'Print Failed',
+            description: `Could not connect to the thermal printer service. Make sure the printer is connected. Error: ${error.message}`,
+            duration: 9000,
+          });
+        }
+      } else { // A4 printing
+        const encodedData = encodeURIComponent(JSON.stringify(billData));
+        window.open(
+          `/print/bill?data=${encodedData}&paper=${paper}`,
+          '_blank'
+        );
+      }
     }
   };
 
