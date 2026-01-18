@@ -310,7 +310,6 @@ function PrintPageContent() {
             width: 36%;
             text-align: left;
             white-space: normal;
-            overflow-wrap: break-word; /* Prefer wrapping at spaces, but break long words if necessary */
             vertical-align: top;
           }
           .col-qty {
@@ -327,12 +326,6 @@ function PrintPageContent() {
             width: 20%;
             text-align: right;
             white-space: nowrap;
-          }
-
-          .print-table .col-qty,
-          .print-table .col-rate,
-          .print-table .col-amount {
-            vertical-align: top;
           }
 
           .qty-uom {
