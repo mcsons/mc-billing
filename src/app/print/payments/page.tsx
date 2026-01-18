@@ -165,20 +165,20 @@ function PrintPageContent() {
                     <div className="flex justify-between">
                         <span>Opening Balance:</span>
                         <span>₹{openingBalance.toFixed(2)}</span>
-                    </tr>
+                    </div>
                     <div className="flex justify-between">
                         <span>Total Billed:</span>
                         <span>₹{totalBilled.toFixed(2)}</span>
-                    </tr>
+                    </div>
                      <div className="flex justify-between">
                         <span>Total Received:</span>
                         <span>₹{totalReceived.toFixed(2)}</span>
-                    </tr>
+                    </div>
                     <div className="hr-line my-1"></div>
                     <div className="flex justify-between final-balance">
                         <span>Final Balance:</span>
                         <span>₹{finalBalance.toFixed(2)}</span>
-                    </tr>
+                    </div>
                 </div>
             </div>
 
