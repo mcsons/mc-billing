@@ -137,6 +137,7 @@ function PrintPageContent() {
                       <span className="uom-text">{item.uom}</span>
                     </span>
                   </TableCell>
+
                   <TableCell className="col-rate text-right">
                     {item.rate.toFixed(2)}
                   </TableCell>
@@ -281,20 +282,21 @@ function PrintPageContent() {
              font-weight: 800 !important;
              font-size: 14px !important;
              padding: 2px 4px;
+             color: #000;
           }
           
           .print-table td {
              font-weight: 700 !important;
              font-size: 14px;
-             white-space: nowrap;
              padding: 2px 4px;
+             vertical-align: top;
           }
 
-          .col-sn { width: 8%; text-align: left; }
-          .col-product { width: 36%; text-align: left; }
-          .col-qty { width: 18%; text-align: center; }
-          .col-rate { width: 18%; text-align: right; }
-          .col-amount { width: 20%; text-align: right; }
+          .col-sn { width: 8%; text-align: left; white-space: nowrap;}
+          .col-product { width: 36%; text-align: left; white-space: normal; word-break: break-word; }
+          .col-qty { width: 18%; text-align: center; white-space: nowrap; }
+          .col-rate { width: 18%; text-align: right; white-space: nowrap; }
+          .col-amount { width: 20%; text-align: right; white-space: nowrap; }
           
           .qty-uom { white-space: nowrap; }
           .uom-text { 

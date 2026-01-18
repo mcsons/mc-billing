@@ -116,6 +116,7 @@ export default function BillingPage() {
   const productSelectRef = useRef<any>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
+  const billItemsContainerRef = useRef<HTMLDivElement>(null);
 
 
   // --- Reactive Bill Items from Firestore ---
@@ -219,6 +220,13 @@ export default function BillingPage() {
       setPaidAmount('');
     }
   }, [selectedCustomerId, findBillForCustomerToday, searchParams]);
+  
+  useEffect(() => {
+    if (billItemsContainerRef.current) {
+        const { scrollHeight } = billItemsContainerRef.current;
+        billItemsContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+    }
+  }, [billItems]);
 
   const handleAddItem = useCallback(() => {
     if (!selectedCustomerId) {
@@ -496,13 +504,36 @@ export default function BillingPage() {
 
   const handlePrintBill = async (paper: 'thermal' | 'a4') => {
     const billData = await handleSaveAndGetData();
-
+  
     if (billData) {
-      const encodedData = encodeURIComponent(JSON.stringify(billData));
-      window.open(
-        `/print/bill?data=${encodedData}&paper=${paper}`,
-        '_blank'
-      );
+      if (paper === 'thermal') {
+        try {
+          const response = await fetch('/api/print/thermal', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(billData),
+          });
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Thermal print failed');
+          }
+        } catch (error) {
+          console.error("Thermal printing error:", error);
+          toast({
+              variant: "destructive",
+              title: "Thermal Printer Error",
+              description: "Could not connect to the local printer service. Please ensure it is running.",
+          });
+        }
+      } else {
+        const encodedData = encodeURIComponent(JSON.stringify(billData));
+        window.open(
+          `/print/bill?data=${encodedData}&paper=${paper}`,
+          '_blank'
+        );
+      }
     }
   };
 
@@ -762,7 +793,7 @@ export default function BillingPage() {
                   : 'Select a customer to view or create a bill.'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="max-h-[calc(100vh-32rem)] min-h-[10rem] overflow-auto">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-32rem)] min-h-[10rem] overflow-auto">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -795,7 +826,7 @@ export default function BillingPage() {
                                 persistItemUpdate(item.id, 'qty', e.target.value)
                               }
                               onFocus={(e) => e.target.select()}
-                              className="ml-auto h-8 w-24 text-right"
+                              className="ml-auto h-8 w-24 text-right font-mono text-base"
                             />
                           </TableCell>
                           <TableCell className="text-right">
@@ -806,10 +837,10 @@ export default function BillingPage() {
                                 persistItemUpdate(item.id, 'rate', e.target.value)
                               }
                               onFocus={(e) => e.target.select()}
-                              className="ml-auto h-8 w-24 text-right"
+                              className="ml-auto h-8 w-24 text-right font-mono text-base"
                             />
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-right font-mono text-base">
                             {item.amount.toFixed(2)}
                           </TableCell>
                           <TableCell className="text-right">
