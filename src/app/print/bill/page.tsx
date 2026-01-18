@@ -86,9 +86,7 @@ function PrintPageContent() {
       <div className={`print-root ${paper}`}>
         <div id="print-area">
           <header className="text-center">
-            <h1 className="header-title">
-              M.C & SONS FISH COMPANY
-            </h1>
+            <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
             <p className="header-sub">
               No. 1, Fish Market, Palladam Road,
               <span className="city">Tiruppur - 641604</span>
@@ -104,7 +102,8 @@ function PrintPageContent() {
             </div>
             <div className="text-right">
               <p className="bill-no">
-                <span className="font-semibold">Bill No:</span> <strong>{billNo}</strong>
+                <span className="font-semibold">Bill No:</span>{' '}
+                <strong>{billNo}</strong>
               </p>
               <p className="bill-date">
                 <span className="font-semibold">Date:</span>{' '}
@@ -113,10 +112,13 @@ function PrintPageContent() {
             </div>
           </div>
 
-          
           <Table className="print-table">
             <TableHeader>
-              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
               <TableRow>
                 <TableHead className="col-sn">S/N</TableHead>
                 <TableHead className="col-product">Product</TableHead>
@@ -124,7 +126,11 @@ function PrintPageContent() {
                 <TableHead className="col-rate">Rate</TableHead>
                 <TableHead className="col-amount">Amount</TableHead>
               </TableRow>
-              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item, index) => (
@@ -146,10 +152,14 @@ function PrintPageContent() {
                   </TableCell>
                 </TableRow>
               ))}
-              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
+              <TableRow>
+                <TableCell colSpan={5} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
-          
+
           <div className="flex justify-end mt-2">
             <div className="w-full max-w-[300px] space-y-1 totals-section">
               <div className="flex justify-between">
@@ -169,9 +179,7 @@ function PrintPageContent() {
               </div>
               <div className="flex justify-between">
                 <span>Previous Balance:</span>
-                <span>
-                  ₹{previousBalance.toFixed(2)}
-                </span>
+                <span>₹{previousBalance.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Paid Amount:</span>
@@ -184,9 +192,7 @@ function PrintPageContent() {
               </div>
             </div>
           </div>
-          <footer className="print-footer">
-            Developed by MC & SONS
-          </footer>
+          <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
       <style jsx global>{`
@@ -218,12 +224,12 @@ function PrintPageContent() {
             width: 106mm;
             max-width: 106mm;
             margin: 0 auto;
-            font-family: "Courier New", "Lucida Console", monospace !important;
+            font-family: 'Courier New', 'Lucida Console', monospace !important;
             -webkit-font-smoothing: none;
             font-smoothing: none;
             text-rendering: optimizeSpeed;
           }
-          
+
           #print-area {
             padding: 2mm 4mm 18mm 4mm;
             margin-top: 0;
@@ -248,7 +254,7 @@ function PrintPageContent() {
             display: block;
           }
           .header-phone {
-             margin-top: 4px;
+            margin-top: 4px;
           }
           .hr-line {
             border-top: 2px solid #000;
@@ -260,56 +266,91 @@ function PrintPageContent() {
           }
 
           .cust-name {
-             font-weight: 700;
-             font-size: 15px;
+            font-weight: 700;
+            font-size: 15px;
           }
-          
-          .bill-no > strong, .bill-date > strong {
-             font-weight: 700;
+
+          .bill-no > strong,
+          .bill-date > strong {
+            font-weight: 700;
           }
-          
+
           .print-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
           }
-          
-          .print-table tr, .print-table td, .print-table th {
+
+          .print-table tr,
+          .print-table td,
+          .print-table th {
             border: none;
           }
 
           .print-table thead th {
-             font-weight: 800 !important;
-             font-size: 14px !important;
-             padding: 2px 4px;
-             color: #000;
-          }
-          
-          .print-table td {
-             font-weight: 700 !important;
-             font-size: 14px;
-             padding: 2px 4px;
-             vertical-align: top;
+            font-weight: 800 !important;
+            font-size: 14px !important;
+            padding: 2px 4px;
+            color: #000;
           }
 
-          .col-sn { width: 8%; text-align: left; white-space: nowrap;}
-          .col-product { width: 36%; text-align: left; white-space: normal; word-break: break-word; }
-          .col-qty { width: 18%; text-align: center; white-space: nowrap; }
-          .col-rate { width: 18%; text-align: right; white-space: nowrap; }
-          .col-amount { width: 20%; text-align: right; white-space: nowrap; }
-          
-          .qty-uom { white-space: nowrap; }
-          .uom-text { 
+          .print-table td {
+            font-weight: 700 !important;
+            font-size: 14px;
+            padding: 2px 4px;
+            vertical-align: top;
+          }
+
+          .col-sn {
+            width: 8%;
+            text-align: left;
+            white-space: nowrap;
+          }
+          .col-product {
+            width: 36%;
+            text-align: left;
+            white-space: normal;
+            overflow-wrap: break-word; /* Prefer wrapping at spaces, but break long words if necessary */
+            vertical-align: top;
+          }
+          .col-qty {
+            width: 18%;
+            text-align: center;
+            white-space: nowrap;
+          }
+          .col-rate {
+            width: 18%;
+            text-align: right;
+            white-space: nowrap;
+          }
+          .col-amount {
+            width: 20%;
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          .print-table .col-qty,
+          .print-table .col-rate,
+          .print-table .col-amount {
+            vertical-align: top;
+          }
+
+          .qty-uom {
+            white-space: nowrap;
+          }
+          .uom-text {
             font-weight: 700 !important;
             margin-left: 2px;
           }
-          
-          .totals-section > div, .totals-section span {
-             font-size: 15px !important;
-             font-weight: 700 !important;
+
+          .totals-section > div,
+          .totals-section span {
+            font-size: 15px !important;
+            font-weight: 700 !important;
           }
-          
-          .final-balance, .final-balance span {
+
+          .final-balance,
+          .final-balance span {
             font-size: 16px !important;
             font-weight: 800 !important;
           }
@@ -337,7 +378,7 @@ function PrintPageContent() {
           .print-root.a4 #print-area {
             padding: 15mm;
           }
-          
+
           .print-root.a4 .qty-uom strong {
             font-weight: 700;
           }
@@ -367,13 +408,13 @@ function PrintPageContent() {
             font-weight: bold;
             text-align: left;
           }
-          
+
           .print-root.a4 .text-right {
-             text-align: right;
+            text-align: right;
           }
-          
+
           .print-root.a4 .text-center {
-             text-align: center;
+            text-align: center;
           }
 
           @page {
@@ -396,7 +437,13 @@ function PrintPageContent() {
 
 export default function PrintBillPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Print Preview...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center h-screen">
+          Loading Print Preview...
+        </div>
+      }
+    >
       <PrintPageContent />
     </Suspense>
   );
