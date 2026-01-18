@@ -21,7 +21,7 @@ interface PrintData {
     id: string;
     transactions: VehicleStatementTransaction[];
     openingBalance: number;
-    dateRange: { from?: string, to?: string };
+    dateRange: { from?: Date, to?: Date };
 }
 
 function PrintPageContent() {
@@ -105,10 +105,10 @@ function PrintPageContent() {
                     <p className="cust-name">{name} ({id})</p>
                 </div>
                 <div className="text-right">
-                     {dateRange.from && (
+                     {dateRange?.from && (
                          <p><span className="font-semibold">From:</span> <strong>{format(dateRange.from, 'dd-MM-yyyy')}</strong></p>
                     )}
-                    {dateRange.to && (
+                    {dateRange?.to && (
                          <p><span className="font-semibold">To:</span> <strong>{format(dateRange.to, 'dd-MM-yyyy')}</strong></p>
                     )}
                 </div>
@@ -136,7 +136,7 @@ function PrintPageContent() {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                    <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
+                    <TableCell colSpan={4} className="font-semibold !text-left">Opening Balance for Period</TableCell>
                     <TableCell className="col-bal font-semibold">{openingBalance.toFixed(2)}</TableCell>
                 </TableRow>
                 {transactions.map((t, index) => (
@@ -249,6 +249,7 @@ function PrintPageContent() {
           .cust-name {
             font-weight: 700;
             font-size: 15px;
+            word-wrap: break-word;
           }
 
           .print-table {
@@ -261,6 +262,7 @@ function PrintPageContent() {
             border: none;
             word-wrap: break-word; 
             white-space: pre-wrap;
+            text-align: right;
           }
           
           .print-table thead th {
@@ -269,7 +271,7 @@ function PrintPageContent() {
             padding: 2px 4px;
             color: #000;
             vertical-align: middle;
-            text-align: left;
+            text-align: right;
           }
 
           .print-table tbody td {
@@ -279,11 +281,12 @@ function PrintPageContent() {
             vertical-align: top;
           }
           
-          .col-date { width: 15%; text-align: left;}
-          .col-desc { width: 35%; text-align: left;}
-          .col-adv { width: 15%; text-align: right;}
-          .col-exp { width: 15%; text-align: right;}
-          .col-bal { width: 20%; text-align: right;}
+          .col-date, .col-desc { text-align: left; }
+          .col-date { width: 15%; }
+          .col-desc { width: 35%; }
+          .col-adv { width: 15%; }
+          .col-exp { width: 15%; }
+          .col-bal { width: 20%; }
 
           .totals-section > div,
           .totals-section span {

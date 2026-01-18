@@ -833,7 +833,7 @@ export default function BillingPage() {
                   : 'No customer selected. Add items for a walk-in bill.'}
               </CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-28rem)] min-h-[18rem] overflow-auto">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[22rem] overflow-auto">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -907,8 +907,8 @@ export default function BillingPage() {
               </div>
             </CardContent>
             {(billItems && billItems.length > 0) && (
-              <CardFooter className="flex flex-col items-stretch gap-4 border-t pt-4 sm:items-end">
-                <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 self-end text-right text-lg">
+              <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
+                <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span>
                   <span className="font-mono">
                     ₹{itemsTotal.toFixed(2)}
