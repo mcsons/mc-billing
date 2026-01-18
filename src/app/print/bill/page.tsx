@@ -202,12 +202,14 @@ function PrintPageContent() {
         @media print {
           * {
             color: #000 !important;
+            -webkit-font-smoothing: none;
+            font-smoothing: none;
+            text-rendering: optimizeSpeed;
           }
           body {
             margin: 0;
             padding: 0;
             background: white !important;
-            -webkit-font-smoothing: exact;
             print-color-adjust: exact;
           }
 
@@ -225,9 +227,6 @@ function PrintPageContent() {
             max-width: 106mm;
             margin: 0 auto;
             font-family: 'Courier New', 'Lucida Console', monospace !important;
-            -webkit-font-smoothing: none;
-            font-smoothing: none;
-            text-rendering: optimizeSpeed;
           }
 
           #print-area {
@@ -282,9 +281,12 @@ function PrintPageContent() {
           }
 
           .print-table tr,
-          .print-table td,
           .print-table th {
             border: none;
+          }
+          
+          .print-table td {
+             border: none;
           }
 
           .print-table thead th {
@@ -292,11 +294,12 @@ function PrintPageContent() {
             font-size: 14px !important;
             padding: 2px 4px;
             color: #000;
+            vertical-align: middle;
           }
 
-          .print-table td {
+          .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 13px;
+            font-size: 11px;
             padding: 2px 4px;
             vertical-align: top;
           }
@@ -309,8 +312,8 @@ function PrintPageContent() {
           .col-product {
             width: 36%;
             text-align: left;
+            word-break: break-word;
             white-space: normal;
-            vertical-align: top;
           }
           .col-qty {
             width: 18%;
@@ -340,6 +343,10 @@ function PrintPageContent() {
           .totals-section span {
             font-size: 15px !important;
             font-weight: 700 !important;
+          }
+          
+          .totals-section .hr-line {
+            margin: 2px 0;
           }
 
           .final-balance,
@@ -400,6 +407,11 @@ function PrintPageContent() {
             font-weight: bold;
             text-align: left;
           }
+          
+          .print-root.a4 .col-product {
+            word-break: normal;
+            white-space: normal;
+          }
 
           .print-root.a4 .text-right {
             text-align: right;
@@ -407,6 +419,10 @@ function PrintPageContent() {
 
           .print-root.a4 .text-center {
             text-align: center;
+          }
+          
+          .print-root.a4 .print-footer {
+            font-weight: normal;
           }
 
           @page {
