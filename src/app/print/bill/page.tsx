@@ -123,8 +123,8 @@ function PrintPageContent() {
                 <TableHead className="col-sn">S/N</TableHead>
                 <TableHead className="col-product">Product</TableHead>
                 <TableHead className="col-qty">Qty</TableHead>
-                <TableHead className="col-rate">Rate</TableHead>
-                <TableHead className="col-amount">Amount</TableHead>
+                <TableHead className="col-rate text-right">Rate</TableHead>
+                <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
               <TableRow>
                 <TableCell colSpan={5} className="p-0">
@@ -358,7 +358,7 @@ function PrintPageContent() {
           .print-footer {
             margin-top: 18px;
             text-align: left;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 800;
             font-style: italic;
           }

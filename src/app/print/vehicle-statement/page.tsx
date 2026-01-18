@@ -124,9 +124,9 @@ function PrintPageContent() {
                 <TableRow>
                   <TableHead className="col-date">Date</TableHead>
                   <TableHead className="col-desc">Description</TableHead>
-                  <TableHead className="col-adv">Advance</TableHead>
-                  <TableHead className="col-exp">Expenses</TableHead>
-                  <TableHead className="col-bal">Balance</TableHead>
+                  <TableHead className="col-adv text-right">Advance</TableHead>
+                  <TableHead className="col-exp text-right">Expenses</TableHead>
+                  <TableHead className="col-bal text-right">Balance</TableHead>
                 </TableRow>
                  <TableRow>
                   <TableCell colSpan={5} className="p-0">
@@ -137,15 +137,15 @@ function PrintPageContent() {
               <TableBody>
                 <TableRow>
                     <TableCell colSpan={4} className="font-semibold !text-left">Opening Balance for Period</TableCell>
-                    <TableCell className="col-bal font-semibold">{openingBalance.toFixed(2)}</TableCell>
+                    <TableCell className="col-bal font-semibold text-right">{openingBalance.toFixed(2)}</TableCell>
                 </TableRow>
                 {transactions.map((t, index) => (
                   <TableRow key={index}>
                     <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
                     <TableCell className="col-desc">{t.description}</TableCell>
-                    <TableCell className="col-adv">{t.advance > 0 ? t.advance.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="col-exp">{t.expenses > 0 ? t.expenses.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="col-bal">{t.balance.toFixed(2)}</TableCell>
+                    <TableCell className="col-adv text-right">{t.advance > 0 ? t.advance.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="col-exp text-right">{t.expenses > 0 ? t.expenses.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="col-bal text-right">{t.balance.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow>
@@ -262,7 +262,7 @@ function PrintPageContent() {
             border: none;
             word-wrap: break-word; 
             white-space: pre-wrap;
-            text-align: right;
+            text-align: left;
           }
           
           .print-table thead th {
@@ -271,7 +271,6 @@ function PrintPageContent() {
             padding: 2px 4px;
             color: #000;
             vertical-align: middle;
-            text-align: right;
           }
 
           .print-table tbody td {
@@ -281,12 +280,11 @@ function PrintPageContent() {
             vertical-align: top;
           }
           
-          .col-date, .col-desc { text-align: left; }
           .col-date { width: 15%; }
           .col-desc { width: 35%; }
-          .col-adv { width: 15%; }
-          .col-exp { width: 15%; }
-          .col-bal { width: 20%; }
+          .col-adv { width: 15%; text-align: right; }
+          .col-exp { width: 15%; text-align: right; }
+          .col-bal { width: 20%; text-align: right; }
 
           .totals-section > div,
           .totals-section span {
@@ -307,7 +305,7 @@ function PrintPageContent() {
           .print-footer {
             margin-top: 18px;
             text-align: left;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 800;
             font-style: italic;
           }

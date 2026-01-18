@@ -130,8 +130,8 @@ function PrintPageContent() {
                 </TableRow>
                 <TableRow>
                   <TableHead className="col-date">Date</TableHead>
-                  <TableHead className="col-billed">Billed (₹)</TableHead>
-                  <TableHead className="col-received">Received (₹)</TableHead>
+                  <TableHead className="col-billed text-right">Billed (₹)</TableHead>
+                  <TableHead className="col-received text-right">Received (₹)</TableHead>
                 </TableRow>
                  <TableRow>
                   <TableCell colSpan={3} className="p-0">
@@ -143,10 +143,10 @@ function PrintPageContent() {
                 {dailyTransactions.map((t, index) => (
                   <TableRow key={index}>
                     <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
-                    <TableCell className="col-billed">
+                    <TableCell className="col-billed text-right">
                       {t.billed > 0 ? t.billed.toFixed(2) : '-'}
                     </TableCell>
-                    <TableCell className="col-received">
+                    <TableCell className="col-received text-right">
                       {t.received > 0 ? t.received.toFixed(2) : '-'}
                     </TableCell>
                   </TableRow>
@@ -285,8 +285,8 @@ function PrintPageContent() {
           }
 
           .col-date { width: 34%; text-align: left; }
-          .col-billed { width: 33%; text-align: right; }
-          .col-received { width: 33%; text-align: right; }
+          .col-billed { width: 33%; }
+          .col-received { width: 33%; }
 
           .totals-section > div,
           .totals-section span {
@@ -307,7 +307,7 @@ function PrintPageContent() {
           .print-footer {
             margin-top: 18px;
             text-align: left;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 800;
             font-style: italic;
           }
