@@ -90,7 +90,7 @@ function PrintPageContent() {
               M.C & SONS FISH COMPANY
             </h1>
             <p className="header-sub">
-              No. 1, Fish Market, Palladam Road, Tiruppur-641604
+              No. 1, Fish Market, Palladam Road,<br />Tiruppur - 641604
             </p>
             <p className="header-sub header-phone">📞 9894089889</p>
           </header>
@@ -99,8 +99,7 @@ function PrintPageContent() {
           <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
             <div>
               <p className="font-semibold">Cust Name:</p>
-              <p className="customer-name"><strong>{customer.name_en}</strong></p>
-              <p>{customer.name_ta}</p>
+              <p className="cust-name">{customer.name_ta}</p>
               <p>{customer.phone}</p>
             </div>
             <div className="text-right">
@@ -126,7 +125,7 @@ function PrintPageContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow><TableCell colSpan={5} className="p-0"><div className="hr-line my-0"></div></TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
               {items.map((item, index) => (
                 <TableRow key={item.id}>
                   <TableCell className="col-sn">{index + 1}</TableCell>
@@ -217,9 +216,14 @@ function PrintPageContent() {
             font-smoothing: none;
             text-rendering: optimizeSpeed;
           }
+          
+          .print-root.thermal * {
+            color: #000 !important;
+          }
 
           #print-area {
             padding: 2mm 4mm 18mm 4mm;
+            margin-top: 0;
           }
 
           .header-title {
@@ -230,8 +234,10 @@ function PrintPageContent() {
             white-space: nowrap;
           }
           .header-sub {
+            display: block;
+            text-align: center;
             font-size: 13px !important;
-            font-weight: 600;
+            font-weight: 700;
             line-height: 1.3;
             margin-top: 2px;
           }
@@ -242,32 +248,51 @@ function PrintPageContent() {
             border-top: 2px solid #000;
             margin: 6px 0;
           }
+          .table-header-line {
+            border-top: 2px solid #000;
+            margin: 0;
+          }
 
-          .customer-name,
-          .bill-date {
-             font-size: 14px;
+          .cust-name {
+             font-weight: 700;
+             font-size: 15px;
+          }
+          
+          .bill-no > strong, .bill-date > strong {
+             font-weight: 700;
           }
           
           .print-table {
             width: 100%;
             table-layout: fixed;
+            border-collapse: collapse;
           }
           
-          .print-table th,
-          .print-table td {
-            font-weight: 700;
-            white-space: nowrap;
+          .print-table tr, .print-table td, .print-table th {
+            border: none;
+          }
+          
+          .print-table th {
             padding: 2px 4px;
           }
+          
+          .print-table thead th {
+             font-weight: 800 !important;
+             font-size: 14px !important;
+          }
+          
           .print-table td {
+             font-weight: 700 !important;
              font-size: 14px;
+             white-space: nowrap;
+             padding: 2px 4px;
           }
 
           .col-sn { width: 8%; }
           .col-prod { width: 40%; }
           .col-qty { width: 16%; }
-          .col-rate { width: 18%; text-align: right; }
-          .col-amt { width: 18%; text-align: right; }
+          .col-rate { width: 18%; }
+          .col-amt { width: 18%; }
           .text-right { text-align: right; }
           
           .qty-uom { white-space: nowrap; }
@@ -276,13 +301,12 @@ function PrintPageContent() {
             margin-left: 2px;
           }
           
-          .totals-section > div {
-             padding: 1px 0;
-             font-size: 15px;
-             font-weight: 700;
+          .totals-section > div, .totals-section span {
+             font-size: 15px !important;
+             font-weight: 700 !important;
           }
           
-          .final-balance {
+          .final-balance, .final-balance span {
             font-size: 16px !important;
             font-weight: 800 !important;
           }
