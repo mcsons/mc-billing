@@ -292,7 +292,7 @@ export default function BillingPage() {
 
     setQty('');
     if (isProductLocked) {
-      customerSelectRef.current?.focus();
+      qtyInputRef.current?.focus();
     } else {
       setSelectedProductId('');
       setRate('');
@@ -506,34 +506,11 @@ export default function BillingPage() {
     const billData = await handleSaveAndGetData();
   
     if (billData) {
-      if (paper === 'thermal') {
-        try {
-          const response = await fetch('/api/print/thermal', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(billData),
-          });
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Thermal print failed');
-          }
-        } catch (error) {
-          console.error("Thermal printing error:", error);
-          toast({
-              variant: "destructive",
-              title: "Thermal Printer Error",
-              description: "Could not connect to the local printer service. Please ensure it is running.",
-          });
-        }
-      } else {
-        const encodedData = encodeURIComponent(JSON.stringify(billData));
-        window.open(
-          `/print/bill?data=${encodedData}&paper=${paper}`,
-          '_blank'
-        );
-      }
+      const encodedData = encodeURIComponent(JSON.stringify(billData));
+      window.open(
+        `/print/bill?data=${encodedData}&paper=${paper}`,
+        '_blank'
+      );
     }
   };
 
