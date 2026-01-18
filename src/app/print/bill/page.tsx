@@ -296,9 +296,10 @@ function PrintPageContent() {
 
           .print-table td {
             font-weight: 700 !important;
-            font-size: 14px;
+            font-size: 13px;
             padding: 2px 4px;
             vertical-align: top;
+            word-wrap: break-word; 
           }
 
           .col-sn {
@@ -352,8 +353,7 @@ function PrintPageContent() {
             margin-top: 18px;
             text-align: center;
             font-size: 12px;
-            font-weight: 600;
-            opacity: 0.75;
+            font-weight: 700;
           }
         }
 

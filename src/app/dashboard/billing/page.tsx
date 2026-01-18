@@ -49,6 +49,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
@@ -95,6 +102,7 @@ export default function BillingPage() {
     findBillForCustomerToday,
     createOrUpdateLiveBill,
     getBill,
+    liveBillSummaries
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -110,6 +118,11 @@ export default function BillingPage() {
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
   const [deliveryCharge, setDeliveryCharge] = useState('');
+  
+  // Print confirmation dialog state
+  const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+  const [printPaperType, setPrintPaperType] = useState<'a4' | 'thermal'>('thermal');
+
 
   // Refs for keyboard navigation
   const customerSelectRef = useRef<any>(null);
@@ -229,15 +242,6 @@ export default function BillingPage() {
   }, [billItems]);
 
   const handleAddItem = useCallback(() => {
-    if (!selectedCustomerId) {
-      toast({
-        variant: 'destructive',
-        title: 'No Customer Selected',
-        description: 'Please select a customer before adding items.',
-      });
-      return;
-    }
-
     const productInfo = products.find((p) => p.id === selectedProductId);
     if (!productInfo || !qty || !rate) {
       toast({
@@ -263,31 +267,33 @@ export default function BillingPage() {
     };
 
     const customer = customers.find((c) => c.id === selectedCustomerId);
-    if (customer) {
-      const currentItems = billItems || [];
-      const newBillItems = [
+    
+    const summaryCustomerId = customer ? customer.id : 'WALK-IN';
+    const summaryCustomerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
+
+    const currentItems = billItems || [];
+    const newBillItems = [
         ...currentItems,
         { ...newItem, id: Date.now().toString() },
-      ];
-      const newBillSummary = {
-        customerName: `${customer.name_en} (${customer.name_ta})`,
+    ];
+    const newBillSummary = {
+        customerName: summaryCustomerName,
         createdBy: currentUser?.id || 'unknown-user',
-        customerId: selectedCustomerId,
+        customerId: summaryCustomerId,
         stall: '1',
-      };
+    };
 
-      const { billNo } = createOrUpdateLiveBill(
+    const { billNo } = createOrUpdateLiveBill(
         newBillSummary,
         newBillItems,
         parseFloat(paidAmount) || 0,
         parseFloat(deliveryCharge) || 0,
         date || new Date(),
         activeBillNo
-      );
+    );
 
-      if (!activeBillNo) {
+    if (!activeBillNo) {
         setActiveBillNo(billNo);
-      }
     }
 
     setQty('');
@@ -458,32 +464,7 @@ export default function BillingPage() {
         setActiveBillNo(billNo);
       }
 
-      const finalItemsTotal = currentItems.reduce(
-        (sum, item) => sum + item.amount,
-        0
-      );
-      const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
-      
-      const finalPreviousBalance =
-        (customerBalances[selectedCustomerId] || 0) -
-        (activeBillNo ? initialBillTotal : 0);
-
-      const finalFinalBalance =
-        finalPreviousBalance + finalTotalAmount - paidAmountNum;
-
-      return {
-        billNo,
-        date: date?.toISOString() || new Date().toISOString(),
-        customer: customer,
-        items: currentItems,
-        itemsTotal: finalItemsTotal,
-        deliveryCharge: deliveryChargeNum,
-        totalAmount: finalTotalAmount,
-        previousBalance: finalPreviousBalance,
-        paidAmount: paidAmountNum,
-        finalBalance: finalFinalBalance,
-        stall: '1'
-      };
+      return getBillPrintData();
     } catch (error) {
       console.error('Save failed:', error);
       toast({
@@ -495,6 +476,59 @@ export default function BillingPage() {
     }
   };
 
+  const getBillPrintData = useCallback((): BillPrintData | null => {
+    const customer = customers.find((c) => c.id === selectedCustomerId);
+    const currentItems = billItems || [];
+
+    if (currentItems.length === 0 && !activeBillNo) {
+      toast({
+        variant: 'destructive',
+        title: 'Cannot Get Bill Data',
+        description: 'Please add at least one item.',
+      });
+      return null;
+    }
+
+    const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
+    const paidAmountNum = parseFloat(paidAmount) || 0;
+    
+    const finalItemsTotal = currentItems.reduce(
+        (sum, item) => sum + item.amount, 0
+    );
+    const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
+      
+    const finalPreviousBalance =
+        (customerBalances[selectedCustomerId] || 0) - (activeBillNo ? initialBillTotal : 0);
+
+    const finalFinalBalance =
+        finalPreviousBalance + finalTotalAmount - paidAmountNum;
+
+    const printCustomer = customer || { id: 'WALK-IN', name_en: '-', name_ta: '-', phone: '-' };
+
+    const billNo = activeBillNo || (() => {
+        const maxBillNo = (liveBillSummaries || [])
+            .map(b => parseInt(b.billNo.replace('B', ''), 10))
+            .filter(num => !isNaN(num))
+            .reduce((max, num) => Math.max(max, num), 1237);
+        return `B${maxBillNo + 1}`;
+    })();
+
+    return {
+        billNo,
+        date: date?.toISOString() || new Date().toISOString(),
+        customer: printCustomer,
+        items: currentItems,
+        itemsTotal: finalItemsTotal,
+        deliveryCharge: deliveryChargeNum,
+        totalAmount: finalTotalAmount,
+        previousBalance: finalPreviousBalance,
+        paidAmount: paidAmountNum,
+        finalBalance: finalFinalBalance,
+        stall: '1'
+    };
+  }, [customers, selectedCustomerId, billItems, activeBillNo, deliveryCharge, paidAmount, customerBalances, initialBillTotal, date, liveBillSummaries, toast]);
+
+
   const handleSaveBill = async () => {
     const savedData = await handleSaveAndGetData();
     if (savedData) {
@@ -502,16 +536,37 @@ export default function BillingPage() {
     }
   };
 
-  const handlePrintBill = async (paper: 'thermal' | 'a4') => {
-    const billData = await handleSaveAndGetData();
-  
+  const proceedToPrint = (billData: BillPrintData | null) => {
     if (billData) {
-      const encodedData = encodeURIComponent(JSON.stringify(billData));
-      window.open(
-        `/print/bill?data=${encodedData}&paper=${paper}`,
-        '_blank'
-      );
+        const encodedData = encodeURIComponent(JSON.stringify(billData));
+        window.open(`/print/bill?data=${encodedData}&paper=${printPaperType}`, '_blank');
     }
+  };
+
+  const handleSaveAndPrintConfirm = async () => {
+      const savedData = await handleSaveAndGetData();
+      proceedToPrint(savedData);
+      setShowPrintConfirm(false);
+  };
+  
+  const handlePrintWithoutSavingConfirm = () => {
+      const billData = getBillPrintData();
+      proceedToPrint(billData);
+      setShowPrintConfirm(false);
+  };
+  
+  const handlePrintBill = async (paper: 'thermal' | 'a4') => {
+    const currentItems = billItems || [];
+    if (currentItems.length === 0 && !activeBillNo) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Print',
+            description: 'Please add at least one item to the bill.',
+        });
+        return;
+    }
+    setPrintPaperType(paper);
+    setShowPrintConfirm(true);
   };
 
   const itemsTotal = useMemo(
@@ -605,7 +660,7 @@ export default function BillingPage() {
                   <ReactSelect
                     ref={customerSelectRef}
                     instanceId="customer-select"
-                    placeholder="Select customer..."
+                    placeholder="Select customer or leave blank for walk-in..."
                     isClearable
                     options={customers.map((c) => ({
                       value: c.id,
@@ -642,7 +697,6 @@ export default function BillingPage() {
                       instanceId="product-select"
                       placeholder="Select product..."
                       isClearable
-                      isDisabled={!selectedCustomerId}
                       options={products.map((p) => ({
                         value: p.id,
                         label: `${p.name_en} (${p.name_ta})`,
@@ -685,7 +739,7 @@ export default function BillingPage() {
                       size="icon"
                       className="absolute right-1 top-1 h-7 w-7"
                       onClick={() => setIsProductLocked(!isProductLocked)}
-                      disabled={!selectedCustomerId || !selectedProductId}
+                      disabled={!selectedProductId}
                       tabIndex={-1}
                     >
                       {isProductLocked ? (
@@ -726,7 +780,6 @@ export default function BillingPage() {
                     placeholder="0.00"
                     value={qty}
                     onChange={(e) => setQty(e.target.value)}
-                    disabled={!selectedCustomerId}
                     ref={qtyInputRef}
                     onKeyDown={handleQtyKeyDown}
                   />
@@ -739,7 +792,6 @@ export default function BillingPage() {
                     placeholder="0.00"
                     value={rate}
                     onChange={(e) => setRate(e.target.value)}
-                    disabled={!selectedCustomerId}
                     ref={rateInputRef}
                     onKeyDown={handleRateKeyDown}
                   />
@@ -749,7 +801,6 @@ export default function BillingPage() {
                     onClick={handleAddItem}
                     className="w-full"
                     size="sm"
-                    disabled={!selectedCustomerId}
                   >
                     <PlusCircle className="h-4 w-4 md:mr-2" />
                     <span className="sr-only md:not-sr-only">Add</span>
@@ -767,7 +818,7 @@ export default function BillingPage() {
               <CardDescription>
                 {selectedCustomerId
                   ? `Items added for ${selectedCustomerData?.name_en}.`
-                  : 'Select a customer to view or create a bill.'}
+                  : 'No customer selected. Add items for a walk-in bill.'}
               </CardDescription>
             </CardHeader>
             <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-32rem)] min-h-[10rem] overflow-auto">
@@ -835,9 +886,7 @@ export default function BillingPage() {
                     ) : (
                       <TableRow>
                         <TableCell colSpan={7} className="h-24 text-center">
-                          {selectedCustomerId
-                            ? 'No items added yet.'
-                            : 'Select a customer to begin.'}
+                            No items added yet.
                         </TableCell>
                       </TableRow>
                     )}
@@ -845,7 +894,7 @@ export default function BillingPage() {
                 </Table>
               </div>
             </CardContent>
-            {selectedCustomerId && (
+            {(billItems && billItems.length > 0) && (
               <CardFooter className="flex flex-col items-stretch gap-4 border-t pt-4 sm:items-end">
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span>
@@ -887,7 +936,7 @@ export default function BillingPage() {
                   </span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
-                  <Button size="lg" variant="outline" onClick={handleSaveBill}>
+                  <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId}>
                     <Save className="mr-2 h-4 w-4" />
                     Save Bill
                   </Button>
@@ -908,8 +957,7 @@ export default function BillingPage() {
         </div>
       </div>
       {/* Sticky Footer for Mobile */}
-      {selectedCustomerId && (
-        <div className="fixed bottom-0 left-0 right-0 z-10 h-20 border-t bg-background/95 px-4 py-2 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-10 h-20 border-t bg-background/95 px-4 py-2 md:hidden">
           <div className="flex h-full w-full items-center justify-between gap-4">
             <div className="text-left">
               <div className="text-xs text-muted-foreground">Balance</div>
@@ -922,20 +970,20 @@ export default function BillingPage() {
                 size="lg"
                 className="flex-1"
                 onClick={handleAddItem}
-                disabled={!selectedCustomerId || !qty || !rate}
+                disabled={!qty || !rate}
               >
                 <PlusCircle className="h-5 w-5 md:mr-2" />
                 <span className="hidden sm:inline">Add Item</span>
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="lg" variant="outline" className="px-3">
+                  <Button size="lg" variant="outline" className="px-3" disabled={!billItems || billItems.length === 0}>
                     <MoreVertical className="h-5 w-5" />
                     <span className="sr-only">Actions</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="mb-2">
-                  <DropdownMenuItem onClick={handleSaveBill}>
+                  <DropdownMenuItem onClick={handleSaveBill} disabled={!selectedCustomerId}>
                     <Save className="mr-2 h-4 w-4" />
                     <span>Save & New</span>
                   </DropdownMenuItem>
@@ -952,7 +1000,26 @@ export default function BillingPage() {
             </div>
           </div>
         </div>
-      )}
+      <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Before Printing</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Do you want to save this bill before printing?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-2 pt-2">
+                <Button onClick={handleSaveAndPrintConfirm} disabled={!selectedCustomerId}>Save & Print</Button>
+                <Button variant="outline" onClick={handlePrintWithoutSavingConfirm}>Print Without Saving</Button>
+                <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
+                {!selectedCustomerId && 
+                    <p className="text-xs text-muted-foreground pt-2 text-center">
+                        "Save & Print" requires a customer to be selected.
+                    </p>
+                }
+            </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
