@@ -101,7 +101,6 @@ function PrintPageContent() {
             <div>
               <p className="font-semibold">Cust Name:</p>
               <p className="cust-name">{customer.name_ta}</p>
-              <p>{customer.phone}</p>
             </div>
             <div className="text-right">
               <p className="bill-no">
@@ -120,28 +119,28 @@ function PrintPageContent() {
               <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
               <TableRow>
                 <TableHead className="col-sn">S/N</TableHead>
-                <TableHead className="col-prod">Product</TableHead>
-                <TableHead className="col-qty text-right">Qty</TableHead>
-                <TableHead className="col-rate text-right">Rate</TableHead>
-                <TableHead className="col-amt text-right">Amount</TableHead>
+                <TableHead className="col-product">Product</TableHead>
+                <TableHead className="col-qty">Qty</TableHead>
+                <TableHead className="col-rate">Rate</TableHead>
+                <TableHead className="col-amount">Amount</TableHead>
               </TableRow>
+              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
               {items.map((item, index) => (
                 <TableRow key={item.id}>
                   <TableCell className="col-sn">{index + 1}</TableCell>
-                  <TableCell className="col-prod">{item.product}</TableCell>
-                  <TableCell className="col-qty text-right">
+                  <TableCell className="col-product">{item.product}</TableCell>
+                  <TableCell className="col-qty">
                     <span className="qty-uom">
                       <strong>{item.qty}</strong>
                       <span className="uom-text">{item.uom}</span>
                     </span>
                   </TableCell>
-                  <TableCell className="col-rate text-right">
+                  <TableCell className="col-rate">
                     {item.rate.toFixed(2)}
                   </TableCell>
-                  <TableCell className="col-amt text-right">
+                  <TableCell className="col-amount">
                     {item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
@@ -194,6 +193,9 @@ function PrintPageContent() {
           GLOBAL PRINT
         ================================ */
         @media print {
+          * {
+            color: #000 !important;
+          }
           body {
             margin: 0;
             padding: 0;
@@ -216,16 +218,11 @@ function PrintPageContent() {
             max-width: 106mm;
             margin: 0 auto;
             font-family: "Courier New", "Lucida Console", monospace !important;
-            color: #000 !important;
             -webkit-font-smoothing: none;
             font-smoothing: none;
             text-rendering: optimizeSpeed;
           }
           
-          .print-root.thermal * {
-            color: #000 !important;
-          }
-
           #print-area {
             padding: 2mm 4mm 18mm 4mm;
             margin-top: 0;
@@ -272,14 +269,14 @@ function PrintPageContent() {
           
           .print-table {
             width: 100%;
-            table-layout: fixed;
             border-collapse: collapse;
+            table-layout: fixed;
           }
           
           .print-table tr, .print-table td, .print-table th {
             border: none;
           }
-          
+
           .print-table thead th {
              font-weight: 800 !important;
              font-size: 14px !important;
@@ -293,12 +290,11 @@ function PrintPageContent() {
              padding: 2px 4px;
           }
 
-          .col-sn { width: 8%; }
-          .col-prod { width: 40%; }
-          .col-qty { width: 16%; }
-          .col-rate { width: 18%; }
-          .col-amt { width: 18%; }
-          .text-right { text-align: right; }
+          .col-sn { width: 8%; text-align: left; }
+          .col-product { width: 36%; text-align: left; }
+          .col-qty { width: 18%; text-align: center; }
+          .col-rate { width: 18%; text-align: right; }
+          .col-amount { width: 20%; text-align: right; }
           
           .qty-uom { white-space: nowrap; }
           .uom-text { 
