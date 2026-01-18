@@ -3,12 +3,6 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-} from '@/components/ui/table';
 import { VehicleBill } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
 import { format } from 'date-fns';
@@ -17,7 +11,7 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<VehicleBill | null>(null);
-  const paper = searchParams.get('paper') || 'a4';
+  const paper = searchParams.get('paper') || 'thermal';
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -42,7 +36,11 @@ function PrintPageContent() {
   }, [searchParams, router]);
   
   if (!billData) {
-    return null;
+    return (
+        <div className="flex justify-center items-center h-screen">
+            <p>Loading bill data...</p>
+        </div>
+    );
   }
 
   const {
@@ -70,130 +68,155 @@ function PrintPageContent() {
           Print
         </Button>
       </div>
-      <div className={`print-root ${paper}`}>
+       <div className={`print-root ${paper}`}>
         <div id="print-area">
-          <header className="text-center mb-6">
-            <h1 className="text-2xl font-bold">
-              M.C & SONS FISH COMPANY
-            </h1>
-            <p>
-              No. 1, Fish Market, Palladam Road, Tiruppur-641604
+          <header className="text-center">
+            <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
+            <p className="header-sub">
+              No. 1, Fish Market, Palladam Road,
+              <span className="city">Tiruppur - 641604</span>
             </p>
-            <p>📞 9894089889</p>
-             <h2 className="text-lg font-semibold mt-4">Vehicle Bill</h2>
+            <p className="header-sub header-phone">📞 9894089889</p>
           </header>
+          <div className="hr-line"></div>
+          <h2 className="text-lg font-semibold mt-2 text-center">Vehicle Bill</h2>
+          
+          <div className="grid grid-cols-2 gap-4 my-4 text-sm">
+            <div className="text-left">
+                <p><span className="font-semibold">Bill No:</span> {id.slice(0, 8).toUpperCase()}</p>
+            </div>
+            <div className="text-right">
+                <p>
+                    <span className="font-semibold">Date:</span>{' '}
+                    <strong>{billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'dd-MM-yyyy') : 'Invalid Date'}</strong>
+                </p>
+            </div>
+          </div>
+        
+          <div className="space-y-1 totals-section text-base">
+            <div className="flex justify-between"><span className="font-semibold">Vehicle No:</span><span>{vehicleId}</span></div>
+            <div className="flex justify-between"><span className="font-semibold">Party Name:</span><span>{partyName}</span></div>
+            <div className="flex justify-between"><span className="font-semibold">Driver Name:</span><span>{driverName}</span></div>
+            <div className="flex justify-between"><span className="font-semibold">Destination:</span><span>{destination}</span></div>
+            <div className="hr-line my-1"></div>
+            <div className="flex justify-between"><span className="font-semibold">Advance:</span><span>₹{advance.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="font-semibold">Expenses:</span><span>₹{expenses.toFixed(2)}</span></div>
+            <div className="hr-line my-1"></div>
+            <div className="flex justify-between final-balance"><span className="font-semibold">Balance:</span><span>₹{(advance - expenses).toFixed(2)}</span></div>
+          </div>
 
-          <Table>
-            <TableBody>
-              <TableRow>
-                <TableCell className="font-semibold">Bill No</TableCell>
-                <TableCell className="text-right">{id.slice(0, 8).toUpperCase()}</TableCell>
-              </TableRow>
-               <TableRow>
-                <TableCell className="font-semibold">Date</TableCell>
-                <TableCell className="text-right font-bold">
-                  {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'dd-MM-yyyy') : 'Invalid Date'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Vehicle Number</TableCell>
-                <TableCell className="text-right font-bold">{vehicleId}</TableCell>
-              </TableRow>
-               <TableRow>
-                <TableCell className="font-semibold">Party Name</TableCell>
-                <TableCell className="text-right">{partyName}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Driver Name</TableCell>
-                <TableCell className="text-right font-bold">{driverName}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Destination</TableCell>
-                <TableCell className="text-right font-bold">{destination}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Advance Amount</TableCell>
-                <TableCell className="text-right">₹{advance.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Expenses</TableCell>
-                <TableCell className="text-right">₹{expenses.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow className="font-bold text-base border-t-2">
-                <TableCell>Balance</TableCell>
-                <TableCell className="text-right">₹{(advance - expenses).toFixed(2)}</TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
 
-          <footer className="text-center mt-8 text-xs">
-            <p>This is a computer-generated bill.</p>
-          </footer>
+          <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
       <style jsx global>{`
+        /* ===============================
+          GLOBAL PRINT
+        ================================ */
         @media print {
+          * {
+            color: #000 !important;
+            -webkit-font-smoothing: none;
+            font-smoothing: none;
+            text-rendering: optimizeSpeed;
+          }
           body {
             margin: 0;
             padding: 0;
-            background: white;
-            -webkit-print-color-adjust: exact;
+            background: white !important;
             print-color-adjust: exact;
           }
+
           .print\\:hidden {
             display: none !important;
           }
-          .print-root.thermal {
-            @page {
-              size: 83mm auto;
-              margin: 0;
-            }
-          }
-          .print-root.a4 {
-            @page {
-              size: A4;
-              margin: 10mm;
-            }
-          }
-        }
-        .print-root {
-            margin: 0 auto;
-            color: black;
-        }
-        .print-root.thermal {
-            width: 83mm;
-            font-family: "Courier New", monospace;
-            font-size: 10px;
-        }
-        .print-root.thermal #print-area {
-            padding: 6mm 4mm 15mm 4mm;
-        }
-        .print-root.thermal h1, .print-root.thermal h2 { font-size: 12px; font-weight: bold; }
-        .print-root.thermal table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .print-root.thermal td {
-            padding: 1.5px 0;
         }
 
-        .print-root.a4 {
+        /* ===============================
+          THERMAL (106mm)
+        ================================ */
+        @media print {
+          .print-root.thermal {
+            width: 106mm;
+            max-width: 106mm;
+            margin: 0 auto;
+            font-family: 'Courier New', 'Lucida Console', monospace !important;
+          }
+
+          #print-area {
+            padding: 2mm 4mm 18mm 4mm;
+            margin-top: 0;
+          }
+
+          .header-title {
+            font-size: 22px !important;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+            white-space: nowrap;
+          }
+          .header-sub {
+            display: block;
+            text-align: center;
+            font-size: 13px !important;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-top: 2px;
+          }
+          .header-sub .city {
+            display: block;
+          }
+          .header-phone {
+            margin-top: 4px;
+          }
+          .hr-line {
+            border-top: 2px solid #000;
+            margin: 6px 0;
+          }
+          
+          .totals-section > div,
+          .totals-section span {
+            font-size: 15px !important;
+            font-weight: 700 !important;
+          }
+          
+          .totals-section .hr-line {
+            margin: 2px 0;
+          }
+
+          .final-balance,
+          .final-balance span {
+            font-size: 16px !important;
+            font-weight: 800 !important;
+          }
+
+          .print-footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 800;
+          }
+        }
+
+        /* ===============================
+          A4 PRINT
+        ================================ */
+        @media print {
+          .print-root.a4 {
             width: 210mm;
+            margin: 0 auto;
             font-family: Arial, sans-serif;
             font-size: 12px;
-        }
-        .print-root.a4 #print-area {
+          }
+
+          #print-area {
             padding: 15mm;
-        }
-        .print-root.a4 h1 { font-size: 20px; }
-        .print-root.a4 h2 { font-size: 16px; }
-        .print-root.a4 table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .print-root.a4 td {
-            padding: 5px;
-            border-bottom: 1px solid #eee;
+          }
+
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
         }
       `}</style>
     </div>
@@ -203,7 +226,7 @@ function PrintPageContent() {
 
 export default function PrintVehicleBillPage() {
   return (
-    <Suspense>
+    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
       <PrintPageContent />
     </Suspense>
   );

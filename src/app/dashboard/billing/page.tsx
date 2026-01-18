@@ -238,6 +238,7 @@ export default function BillingPage() {
     if (billItemsContainerRef.current) {
         const { scrollHeight } = billItemsContainerRef.current;
         billItemsContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
+        productSelectRef.current?.blur();
     }
   }, [billItems]);
 
@@ -415,15 +416,6 @@ export default function BillingPage() {
     const customer = customers.find((c) => c.id === selectedCustomerId);
     const currentItems = billItems || [];
 
-    if (!customer) {
-      toast({
-        variant: 'destructive',
-        title: 'Cannot Save Bill',
-        description: 'A customer must be selected.',
-      });
-      return null;
-    }
-
     if (currentItems.length === 0 && !activeBillNo) {
       toast({
         variant: 'destructive',
@@ -432,11 +424,21 @@ export default function BillingPage() {
       });
       return null;
     }
+    
+    // Allow saving without a customer
+    if (!customer && selectedCustomerId) {
+        toast({
+            variant: 'destructive',
+            title: 'Customer Not Found',
+            description: 'The selected customer ID is invalid.',
+        });
+        return null;
+    }
 
     const billSummary = {
-      customerName: `${customer.name_en} (${customer.name_ta})`,
+      customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
       createdBy: currentUser?.id || 'unknown-user',
-      customerId: selectedCustomerId,
+      customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
     };
 
@@ -530,6 +532,11 @@ export default function BillingPage() {
 
 
   const handleSaveBill = async () => {
+    // Only allow saving if a customer is selected
+    if (!selectedCustomerId) {
+        toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer to save the bill.' });
+        return;
+    }
     const savedData = await handleSaveAndGetData();
     if (savedData) {
       handleNewBill();
@@ -544,6 +551,11 @@ export default function BillingPage() {
   };
 
   const handleSaveAndPrintConfirm = async () => {
+      // "Save & Print" should only work if a customer is selected.
+      if (!selectedCustomerId) {
+          toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer to save and print.' });
+          return;
+      }
       const savedData = await handleSaveAndGetData();
       proceedToPrint(savedData);
       setShowPrintConfirm(false);
@@ -821,7 +833,7 @@ export default function BillingPage() {
                   : 'No customer selected. Add items for a walk-in bill.'}
               </CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-32rem)] min-h-[10rem] overflow-auto">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-30rem)] min-h-[14rem] overflow-auto">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -896,7 +908,7 @@ export default function BillingPage() {
             </CardContent>
             {(billItems && billItems.length > 0) && (
               <CardFooter className="flex flex-col items-stretch gap-4 border-t pt-4 sm:items-end">
-                <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 gap-y-2 self-end text-right text-lg">
+                <div className="grid w-full max-w-sm grid-cols-2 gap-x-8 gap-y-1 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span>
                   <span className="font-mono">
                     ₹{itemsTotal.toFixed(2)}
@@ -941,7 +953,7 @@ export default function BillingPage() {
                     Save Bill
                   </Button>
                   <Button onClick={() => handlePrintBill('thermal')}>
-                    Print Receipt (83mm)
+                    Print Receipt (106mm)
                   </Button>
 
                   <Button
