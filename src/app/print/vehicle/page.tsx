@@ -79,21 +79,18 @@ function PrintPageContent() {
             <p className="header-sub header-phone">📞 9894089889</p>
           </header>
           <div className="hr-line"></div>
-          <h2 className="text-lg font-semibold mt-2 text-center">Vehicle Bill</h2>
+          <h2 className="text-lg font-semibold mt-2 mb-2 text-center">Vehicle Bill</h2>
           
-          <div className="grid grid-cols-2 gap-4 my-4 text-sm">
-            <div className="text-left">
-                <p><span className="font-semibold">Bill No:</span> {id.slice(0, 8).toUpperCase()}</p>
-            </div>
-            <div className="text-right">
-                <p>
-                    <span className="font-semibold">Date:</span>{' '}
-                    <strong>{billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'dd-MM-yyyy') : 'Invalid Date'}</strong>
-                </p>
-            </div>
+          <div className="flex justify-between mb-2 text-sm">
+            <p className="bill-no"><span className="font-semibold">Bill No:</span> <strong>{id.slice(0, 8).toUpperCase()}</strong></p>
+            <p className="bill-date">
+                <span className="font-semibold">Date:</span>{' '}
+                <strong>{billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'dd-MM-yyyy') : 'Invalid Date'}</strong>
+            </p>
           </div>
         
-          <div className="space-y-1 totals-section text-base">
+          <div className="space-y-1 totals-section text-base my-2">
+            <div className="hr-line"></div>
             <div className="flex justify-between"><span className="font-semibold">Vehicle No:</span><span>{vehicleId}</span></div>
             <div className="flex justify-between"><span className="font-semibold">Party Name:</span><span>{partyName}</span></div>
             <div className="flex justify-between"><span className="font-semibold">Driver Name:</span><span>{driverName}</span></div>
@@ -173,7 +170,86 @@ function PrintPageContent() {
             border-top: 2px solid #000;
             margin: 6px 0;
           }
+          .table-header-line {
+            border-top: 2px solid #000;
+            margin: 0;
+          }
+
+          .cust-name {
+            font-weight: 700;
+            font-size: 15px;
+          }
+
+          .bill-no > strong,
+          .bill-date > strong {
+            font-weight: 700;
+          }
+
+          .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+
+          .print-table tr,
+          .print-table th {
+            border: none;
+          }
           
+          .print-table td {
+             border: none;
+          }
+
+          .print-table thead th {
+            font-weight: 800 !important;
+            font-size: 14px !important;
+            padding: 2px 4px;
+            color: #000;
+            vertical-align: middle;
+          }
+
+          .print-table tbody td {
+            font-weight: 700 !important;
+            font-size: 13px;
+            padding: 2px 4px;
+            vertical-align: top;
+          }
+
+          .col-sn {
+            width: 8%;
+            text-align: left;
+            white-space: nowrap;
+          }
+          .col-product {
+            width: 36%;
+            text-align: left;
+            word-break: break-word;
+            white-space: normal;
+          }
+          .col-qty {
+            width: 18%;
+            text-align: center;
+            white-space: nowrap;
+          }
+          .col-rate {
+            width: 18%;
+            text-align: right;
+            white-space: nowrap;
+          }
+          .col-amount {
+            width: 20%;
+            text-align: right;
+            white-space: nowrap;
+          }
+
+          .qty-uom {
+            white-space: nowrap;
+          }
+          .uom-text {
+            font-weight: 700 !important;
+            margin-left: 2px;
+          }
+
           .totals-section > div,
           .totals-section span {
             font-size: 15px !important;
