@@ -500,7 +500,7 @@ export default function BillingPage() {
     if (billData) {
       if (paper === 'thermal') {
         try {
-          const response = await fetch('/api/print/thermal', {
+          const response = await fetch('http://localhost:3001/print', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -508,22 +508,21 @@ export default function BillingPage() {
             body: JSON.stringify(billData),
           });
 
-          const result = await response.json();
-
           if (!response.ok) {
-            throw new Error(result.error || 'Unknown printing error');
+             const errorText = await response.text();
+            throw new Error(errorText || 'Local print service returned an error.');
           }
 
           toast({
-            title: 'Printing',
-            description: 'Your bill is being sent to the thermal printer.',
+            title: 'Printing Initiated',
+            description: 'Bill sent to the local thermal printer service.',
           });
         } catch (error: any) {
           console.error('Thermal print error:', error);
           toast({
             variant: 'destructive',
             title: 'Print Failed',
-            description: `Could not connect to the thermal printer service. Make sure the printer is connected. Error: ${error.message}`,
+            description: `Could not connect to local print service. Is it running on port 3001?`,
             duration: 9000,
           });
         }

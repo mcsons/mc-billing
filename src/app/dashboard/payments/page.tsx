@@ -177,7 +177,7 @@ export default function PaymentsPage() {
         setOpeningBalanceForLedger(0);
     };
 
-    const openPaymentsPrint = (paper: 'thermal' | 'a4') => {
+    const openPaymentsPrint = async (paper: 'thermal' | 'a4') => {
         if (!historySelectedCustomerId || (!filteredTransactions.length && openingBalanceForLedger === 0)) {
             toast({
                 variant: 'destructive',
@@ -195,13 +195,42 @@ export default function PaymentsPage() {
             openingBalance: openingBalanceForLedger,
             dateRange: { from: fromDate?.toISOString(), to: toDate?.toISOString() },
         };
-
-        const encodedData = encodeURIComponent(JSON.stringify(printData));
-
-        window.open(
-            `/print/payments?data=${encodedData}&paper=${paper}`,
-            '_blank'
-        );
+        
+        if (paper === 'thermal') {
+            try {
+                const response = await fetch('http://localhost:3001/print', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(printData),
+                });
+        
+                if (!response.ok) {
+                  const errorText = await response.text();
+                  throw new Error(errorText || 'Local print service returned an error.');
+                }
+        
+                toast({
+                  title: 'Printing Initiated',
+                  description: 'Statement sent to the local thermal printer service.',
+                });
+            } catch (error: any) {
+                console.error('Thermal print error:', error);
+                toast({
+                  variant: 'destructive',
+                  title: 'Print Failed',
+                  description: `Could not connect to local print service. Is it running on port 3001?`,
+                  duration: 9000,
+                });
+            }
+        } else { // A4 Printing
+            const encodedData = encodeURIComponent(JSON.stringify(printData));
+            window.open(
+                `/print/payments?data=${encodedData}&paper=${paper}`,
+                '_blank'
+            );
+        }
     };
 
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
