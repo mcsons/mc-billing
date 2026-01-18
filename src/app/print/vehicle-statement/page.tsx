@@ -243,17 +243,12 @@ function PrintPageContent() {
           }
           .table-header-line {
             border-top: 2px solid #000;
-            margin: 0;
+            margin: 4px 0;
           }
 
           .cust-name {
             font-weight: 700;
             font-size: 15px;
-          }
-
-          .bill-no > strong,
-          .bill-date > strong {
-            font-weight: 700;
           }
 
           .print-table {
@@ -262,9 +257,7 @@ function PrintPageContent() {
             table-layout: fixed;
           }
 
-          .print-table tr,
-          .print-table th,
-          .print-table td {
+          .print-table tr, .print-table th, .print-table td {
             border: none;
             word-wrap: break-word; 
             white-space: pre-wrap;

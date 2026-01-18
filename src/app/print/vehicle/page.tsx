@@ -209,7 +209,7 @@ function PrintPageContent() {
             font-size: 12px;
           }
 
-          #print-area {
+          .print-root.a4 #print-area {
             padding: 15mm;
           }
 
