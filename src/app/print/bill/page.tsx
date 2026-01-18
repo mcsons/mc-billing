@@ -90,7 +90,8 @@ function PrintPageContent() {
               M.C & SONS FISH COMPANY
             </h1>
             <p className="header-sub">
-              No. 1, Fish Market, Palladam Road,<br />Tiruppur - 641604
+              No. 1, Fish Market, Palladam Road,
+              <span className="city">Tiruppur - 641604</span>
             </p>
             <p className="header-sub header-phone">📞 9894089889</p>
           </header>
@@ -113,9 +114,10 @@ function PrintPageContent() {
             </div>
           </div>
 
-          <div className="hr-line"></div>
+          
           <Table className="print-table">
             <TableHeader>
+              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
               <TableRow>
                 <TableHead className="col-sn">S/N</TableHead>
                 <TableHead className="col-prod">Product</TableHead>
@@ -144,10 +146,10 @@ function PrintPageContent() {
                   </TableCell>
                 </TableRow>
               ))}
+              <TableRow><TableCell colSpan={5} className="p-0"><div className="table-header-line"></div></TableCell></TableRow>
             </TableBody>
           </Table>
-          <div className="hr-line"></div>
-
+          
           <div className="flex justify-end mt-2">
             <div className="w-full max-w-[300px] space-y-1 totals-section">
               <div className="flex justify-between">
@@ -182,6 +184,9 @@ function PrintPageContent() {
               </div>
             </div>
           </div>
+          <footer className="print-footer">
+            Developed by MC & SONS
+          </footer>
         </div>
       </div>
       <style jsx global>{`
@@ -241,6 +246,9 @@ function PrintPageContent() {
             line-height: 1.3;
             margin-top: 2px;
           }
+          .header-sub .city {
+            display: block;
+          }
           .header-phone {
              margin-top: 4px;
           }
@@ -272,13 +280,10 @@ function PrintPageContent() {
             border: none;
           }
           
-          .print-table th {
-            padding: 2px 4px;
-          }
-          
           .print-table thead th {
              font-weight: 800 !important;
              font-size: 14px !important;
+             padding: 2px 4px;
           }
           
           .print-table td {
@@ -309,6 +314,14 @@ function PrintPageContent() {
           .final-balance, .final-balance span {
             font-size: 16px !important;
             font-weight: 800 !important;
+          }
+
+          .print-footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0.75;
           }
         }
 
