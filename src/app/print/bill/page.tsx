@@ -137,10 +137,10 @@ function PrintPageContent() {
                       <span className="uom-text">{item.uom}</span>
                     </span>
                   </TableCell>
-                  <TableCell className="col-rate">
+                  <TableCell className="col-rate text-right">
                     {item.rate.toFixed(2)}
                   </TableCell>
-                  <TableCell className="col-amount">
+                  <TableCell className="col-amount text-right">
                     {item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
@@ -229,7 +229,7 @@ function PrintPageContent() {
           }
 
           .header-title {
-            font-size: 18px !important;
+            font-size: 22px !important;
             font-weight: 700;
             letter-spacing: 0.5px;
             line-height: 1.2;
@@ -394,7 +394,7 @@ function PrintPageContent() {
 
 export default function PrintBillPage() {
   return (
-    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
+    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Print Preview...</div>}>
       <PrintPageContent />
     </Suspense>
   );
