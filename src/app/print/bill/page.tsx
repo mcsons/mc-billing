@@ -312,7 +312,7 @@ function PrintPageContent() {
           .col-product {
             width: 36%;
             text-align: left;
-            word-break: break-word;
+            word-wrap: break-word;
             white-space: normal;
           }
           .col-qty {
@@ -357,9 +357,10 @@ function PrintPageContent() {
 
           .print-footer {
             margin-top: 18px;
-            text-align: center;
+            text-align: left;
             font-size: 12px;
             font-weight: 800;
+            font-style: italic;
           }
         }
 

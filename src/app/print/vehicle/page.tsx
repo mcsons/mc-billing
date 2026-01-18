@@ -268,9 +268,10 @@ function PrintPageContent() {
 
           .print-footer {
             margin-top: 18px;
-            text-align: center;
+            text-align: left;
             font-size: 12px;
             font-weight: 800;
+            font-style: italic;
           }
         }
 
