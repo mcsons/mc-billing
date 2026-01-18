@@ -98,7 +98,7 @@ function PrintPageContent() {
           <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
             <div>
               <p className="font-semibold">Cust Name:</p>
-              <p className="cust-name">{customer.name_ta}</p>
+              <p className="cust-name">{customer?.name_ta || '-'}</p>
             </div>
             <div className="text-right">
               <p className="bill-no">
@@ -207,7 +207,7 @@ function PrintPageContent() {
             margin: 0;
             padding: 0;
             background: white !important;
-            -webkit-print-color-adjust: exact;
+            -webkit-font-smoothing: exact;
             print-color-adjust: exact;
           }
 
@@ -299,7 +299,6 @@ function PrintPageContent() {
             font-size: 13px;
             padding: 2px 4px;
             vertical-align: top;
-            word-wrap: break-word; 
           }
 
           .col-sn {
@@ -353,7 +352,7 @@ function PrintPageContent() {
             margin-top: 18px;
             text-align: center;
             font-size: 12px;
-            font-weight: 700;
+            font-weight: 800;
           }
         }
 
