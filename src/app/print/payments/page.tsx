@@ -274,7 +274,6 @@ function PrintPageContent() {
             padding: 2px 4px;
             color: #000;
             vertical-align: middle;
-            text-align: left;
           }
 
           .print-table tbody td {
@@ -307,9 +306,9 @@ function PrintPageContent() {
           .print-footer {
             margin-top: 18px;
             text-align: left;
-            font-size: 10px;
-            font-weight: 800;
             font-style: italic;
+            font-size: 8px;
+            font-weight: 800;
           }
         }
 
@@ -324,7 +323,7 @@ function PrintPageContent() {
             font-size: 12px;
           }
 
-          .print-root.a4 #print-area {
+          #print-area {
             padding: 15mm;
           }
 
@@ -341,7 +340,6 @@ function PrintPageContent() {
           }
            .print-root.a4 .print-table th {
              font-weight: bold;
-             text-align: left;
            }
 
           @page {
