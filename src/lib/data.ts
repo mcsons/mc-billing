@@ -91,6 +91,14 @@ export type Party = {
   name: string;
   location: string;
   active: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+export type PartyBalance = {
+  partyId: string;
+  balanceAmount: number;
+  updatedAt?: any;
 };
 
 export type VehicleBill = {
@@ -113,4 +121,34 @@ export type VehicleStatementTransaction = {
   advance: number;
   expenses: number;
   balance: number;
+};
+
+export type PartyBillItem = {
+  id: string; // A unique ID for the item row, e.g., timestamp
+  productId: string;
+  productName: string;
+  rate: number;
+  box: number;
+  amount: number;
+};
+
+export type PartyBill = {
+  id: string;
+  date: any;
+  partyId: string;
+  partyName: string;
+  totalBox: number;
+  items: PartyBillItem[];
+  totalAmount: number;
+  commission: number;
+  expenses: number;
+  rent: number;
+  totalDeductions: number;
+  netAmount: number;
+  cashReceived: number;
+  bankReceived: number;
+  totalReceived: number;
+  createdBy: string;
+  createdAt?: any;
+  updatedAt?: any;
 };

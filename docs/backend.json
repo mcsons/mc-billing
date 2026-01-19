@@ -542,6 +542,10 @@
           "type": "string",
           "description": "Location of the party."
         },
+         "active": {
+          "type": "boolean",
+          "description": "Indicates whether the party is active."
+        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp of when the party was added.",
@@ -556,7 +560,10 @@
       "required": [
         "id",
         "name",
-        "location"
+        "location",
+        "active",
+        "createdAt",
+        "updatedAt"
       ]
     },
     "VehicleBill": {
@@ -631,6 +638,70 @@
         "destination",
         "expenses",
         "createdBy"
+      ]
+    },
+    "PartyBill": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Party Bill",
+      "type": "object",
+      "description": "Represents a bill for a party, matching the manual bill format.",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "partyId": { "type": "string" },
+        "totalBox": { "type": "number" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "productName": { "type": "string" },
+              "rate": { "type": "number" },
+              "box": { "type": "number" },
+              "amount": { "type": "number" }
+            },
+            "required": ["productId", "productName", "rate", "box", "amount"]
+          }
+        },
+        "totalAmount": { "type": "number" },
+        "commission": { "type": "number" },
+        "expenses": { "type": "number" },
+        "rent": { "type": "number" },
+        "totalDeductions": { "type": "number" },
+        "netAmount": { "type": "number" },
+        "cashReceived": { "type": "number" },
+        "bankReceived": { "type": "number" },
+        "totalReceived": { "type": "number" },
+        "createdBy": { "type": "string", "format": "uuid" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "partyId", "totalAmount", "netAmount", "totalReceived", "createdBy"]
+    },
+    "PartyBalance": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PartyBalance",
+      "type": "object",
+      "description": "Represents the opening balance of a party.",
+      "properties": {
+        "partyId": {
+          "type": "string",
+          "description": "Reference to Party."
+        },
+        "balanceAmount": {
+          "type": "number",
+          "description": "The opening balance amount for the party."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of when the balance was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "partyId",
+        "balanceAmount"
       ]
     }
   },
@@ -856,6 +927,24 @@
           "schema": { "$ref": "#/backend/entities/VehicleBill" },
           "description": "Stores vehicle bill data. Secured by ownership.",
           "params": [{ "name": "vehicleBillId", "description": "Unique identifier for the vehicle bill." }]
+        }
+      },
+      {
+        "path": "/partyBills/{partyBillId}",
+        "definition": {
+          "entityName": "PartyBill",
+          "schema": { "$ref": "#/backend/entities/PartyBill" },
+          "description": "Stores party bill data. Secured by ownership.",
+          "params": [{ "name": "partyBillId", "description": "Unique identifier for the party bill." }]
+        }
+      },
+      {
+        "path": "/partyBalances/{partyId}",
+        "definition": {
+          "entityName": "PartyBalance",
+          "schema": { "$ref": "#/backend/entities/PartyBalance" },
+          "description": "Stores the opening balance for parties. Secured to allow any authenticated user to manage.",
+          "params": [{ "name": "partyId", "description": "Reference to Party." }]
         }
       }
     ],

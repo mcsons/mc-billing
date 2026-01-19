@@ -19,6 +19,7 @@ import {
   CircleUser,
   LayoutDashboard,
   Briefcase,
+  BookUser,
 } from 'lucide-react';
 import React from 'react';
 
@@ -44,6 +45,7 @@ const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
+  { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },

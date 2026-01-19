@@ -285,5 +285,26 @@ service cloud.firestore {
       allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
       allow delete: if isExistingOwner(resource.data.createdBy);
     }
+
+    /**
+     * @description Manages party bills. Any authenticated user can read bills.
+     *   Only the creator can modify or delete a bill.
+     * @path /partyBills/{partyBillId}
+     */
+    match /partyBills/{partyBillId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy);
+    }
+    
+    /**
+     * @description Manages party balance information. Any authenticated user
+     *   can read or write balance data.
+     * @path /partyBalances/{partyId}
+     */
+    match /partyBalances/{partyId} {
+      allow read, write: if isSignedIn();
+    }
   }
 }
