@@ -15,6 +15,8 @@ import {
   VehicleBill,
   CustomerBalance,
   Party,
+  PartyBill,
+  PartyBalance,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
@@ -52,6 +54,8 @@ interface DataContextType {
   vehicles: Vehicle[];
   drivers: Driver[];
   parties: Party[];
+  partyBills: PartyBill[];
+  partyBalances: Record<string, number>;
   vehicleBills: VehicleBill[];
   liveBillSummaries: LiveBillSummary[];
   productPrices: ProductPrices;
@@ -84,6 +88,8 @@ interface DataContextType {
   deleteParty: (partyId: string) => void;
   addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string) => Promise<VehicleBill | null>;
   deleteVehicleBill: (billId: string) => void;
+  addOrUpdatePartyBill: (bill: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null) => Promise<PartyBill | null>;
+  deletePartyBill: (bill: PartyBill) => void;
   setOpeningBalance: (customerId: string, balance: number) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date'>,
@@ -146,6 +152,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const vehicleBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'vehicleBills') : null, [firestore, firebaseUser]);
   const { data: vehicleBillsData } = useCollection<VehicleBill>(vehicleBillsCollection);
   const vehicleBills = useMemo(() => vehicleBillsData || [], [vehicleBillsData]);
+
+  const partyBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBills') : null, [firestore, firebaseUser]);
+  const { data: partyBillsData } = useCollection<PartyBill>(partyBillsCollection);
+  const partyBills = useMemo(() => partyBillsData || [], [partyBillsData]);
 
 
   const billsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'bills') : null, [firestore, firebaseUser]);
@@ -271,6 +281,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     return balances;
   }, [customers, liveBillSummaries, payments, openingBalances]);
+
+  const { data: partyBalancesData } = useCollection<PartyBalance>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBalances') : null, [firestore, firebaseUser]));
+  
+  const openingPartyBalances = useMemo(() => {
+    if (!partyBalancesData) return {};
+    return partyBalancesData.reduce((acc, cb) => {
+        acc[cb.partyId] = cb.balanceAmount;
+        return acc;
+    }, {} as Record<string, number>);
+  }, [partyBalancesData]);
+
+  const partyBalances = useMemo(() => {
+    return openingPartyBalances;
+  }, [openingPartyBalances]);
   
   useEffect(() => {
     if (isUserLoading || !firestore || !products.length) return;
@@ -981,6 +1005,103 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
     }
   };
+  
+    const addOrUpdatePartyBill = async (billData: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null): Promise<PartyBill | null> => {
+    if (!firestore || !currentUser) {
+        toast({ variant: "destructive", title: "Not logged in" });
+        return null;
+    }
+
+    const batch = writeBatch(firestore);
+    
+    const billPayload: any = {
+      ...billData,
+      createdBy: currentUser.id,
+      updatedAt: serverTimestamp(),
+    };
+    
+    let billId = existingBillId;
+    let billRef;
+    let originalBillState: PartyBill | undefined;
+
+    if (billId) {
+      billRef = doc(firestore, 'partyBills', billId);
+      originalBillState = (partyBills || []).find(b => b.id === billId);
+    } else {
+      billPayload.createdAt = serverTimestamp();
+      billRef = doc(collection(firestore, 'partyBills'));
+      billId = billRef.id;
+    }
+    
+    batch.set(billRef, billPayload, { merge: true });
+
+    const balanceRef = doc(firestore, 'partyBalances', billData.partyId);
+    
+    let currentBalance = 0;
+    try {
+        const balanceDoc = await getDoc(balanceRef);
+        if (balanceDoc.exists()) {
+            currentBalance = balanceDoc.data().balanceAmount || 0;
+        }
+    } catch (e) {
+        console.warn("Could not fetch existing party balance, assuming 0.", e);
+    }
+    
+    let newBalance = currentBalance;
+    const balanceChange = billData.netAmount - billData.totalReceived;
+
+    if (originalBillState) {
+        const originalBalanceChange = originalBillState.netAmount - originalBillState.totalReceived;
+        newBalance = newBalance - originalBalanceChange + balanceChange;
+    } else {
+        newBalance += balanceChange;
+    }
+
+    batch.set(balanceRef, { partyId: billData.partyId, balanceAmount: newBalance, updatedAt: serverTimestamp() }, { merge: true });
+    
+    try {
+        await batch.commit();
+        toast({ title: existingBillId ? 'Party Bill Updated' : 'Party Bill Saved'});
+        const savedBillData: PartyBill = { ...billData, ...billPayload, id: billId! };
+        return savedBillData;
+    } catch(e: any) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: existingBillId ? 'update' : 'create', path: billRef.path, requestResourceData: billPayload }));
+        return null;
+    }
+  };
+
+  const deletePartyBill = async (billToDelete: PartyBill) => {
+    if (!firestore || !currentUser) return;
+    
+    const batch = writeBatch(firestore);
+
+    const billRef = doc(firestore, 'partyBills', billToDelete.id);
+    batch.delete(billRef);
+
+    const balanceRef = doc(firestore, 'partyBalances', billToDelete.partyId);
+
+    let currentBalance = 0;
+    try {
+        const balanceDoc = await getDoc(balanceRef);
+        if (balanceDoc.exists()) {
+            currentBalance = balanceDoc.data().balanceAmount || 0;
+        }
+    } catch (e) {
+         console.warn("Could not fetch existing party balance, assuming 0.", e);
+    }
+    
+    const balanceChange = billToDelete.netAmount - billToDelete.totalReceived;
+    const newBalance = currentBalance - balanceChange;
+    batch.set(balanceRef, { partyId: billToDelete.partyId, balanceAmount: newBalance, updatedAt: serverTimestamp() }, { merge: true });
+
+    try {
+        await batch.commit();
+        toast({ title: 'Party Bill Deleted' });
+    } catch(e) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
+    }
+  };
+
 
 
   return (
@@ -993,6 +1114,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         vehicles,
         drivers,
         parties,
+        partyBills,
+        partyBalances,
         vehicleBills,
         liveBillSummaries,
         productPrices,
@@ -1025,6 +1148,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteParty,
         addOrUpdateVehicleBill,
         deleteVehicleBill,
+        addOrUpdatePartyBill,
+        deletePartyBill,
         setOpeningBalance,
         createOrUpdateLiveBill,
         deleteBills,
