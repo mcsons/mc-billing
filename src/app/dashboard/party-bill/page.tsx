@@ -34,6 +34,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+} from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -134,6 +141,7 @@ export default function PartyBillPage() {
 
     const [isMounted, setIsMounted] = useState(false);
     const rateInputRef = useRef<HTMLInputElement>(null);
+    const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
@@ -239,7 +247,7 @@ export default function PartyBillPage() {
         const party = parties.find(p => p.id === partyId);
         if (!party || !currentUser) {
             toast({ variant: 'destructive', title: 'Missing required fields' });
-            return;
+            return null;
         }
         
         const billData: Omit<PartyBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
@@ -260,13 +268,18 @@ export default function PartyBillPage() {
         };
         
         const savedBill = await addOrUpdatePartyBill(billData, editingBillId);
-        if (savedBill) {
-            if (!editingBillId) { // If it was a new bill
-                resetForm();
-            } else { // If editing, update original state
-                setBillOriginalState(savedBill);
-            }
+        return savedBill;
+    };
+    
+    const onSaveClick = async () => {
+      const savedBill = await handleSave();
+      if (savedBill) {
+        if (!editingBillId) {
+            resetForm();
+        } else {
+            setBillOriginalState(savedBill);
         }
+      }
     };
     
     const handleDelete = (billId: string) => {
@@ -285,14 +298,11 @@ export default function PartyBillPage() {
         });
     };
 
-    const handlePrint = () => {
-         const party = parties.find(p => p.id === partyId);
-        if (!party) {
-            toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please select a party.' });
-            return;
-        }
+    const getPrintData = useCallback(() => {
+        const party = parties.find(p => p.id === partyId);
+        if (!party) return null;
 
-        const billToPrint: Omit<PartyBill, 'createdBy'> = {
+        const data: Omit<PartyBill, 'createdBy'| 'createdAt'| 'updatedAt'> & { previousBalance: number; finalBalance: number; } = {
             id: editingBillId || 'N/A',
             date: Timestamp.fromDate(date),
             partyId,
@@ -308,12 +318,55 @@ export default function PartyBillPage() {
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
             totalReceived,
+            previousBalance,
+            finalBalance,
         };
-
-        const printData = { ...billToPrint, previousBalance, finalBalance };
-        const encodedData = encodeURIComponent(JSON.stringify(printData));
+        return data;
+    }, [
+        partyId, parties, editingBillId, date, totalBox, items, totalAmount, 
+        commission, expenses, rent, totalDeductions, netAmount, cashReceived, 
+        bankReceived, totalReceived, previousBalance, finalBalance
+    ]);
+    
+    const proceedToPrint = useCallback((data: any) => {
+        if (!data) {
+            toast({ variant: 'destructive', title: 'Cannot Print', description: 'Missing bill data.' });
+            return;
+        }
+        const encodedData = encodeURIComponent(JSON.stringify(data));
         window.open(`/print/party-bill?data=${encodedData}`, '_blank');
+    }, [toast]);
+
+    const handlePrint = () => {
+         const party = parties.find(p => p.id === partyId);
+        if (!party) {
+            toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please select a party.' });
+            return;
+        }
+        setShowPrintConfirm(true);
     };
+
+    const handleSaveAndPrint = async () => {
+        setShowPrintConfirm(false);
+        const savedBill = await handleSave();
+        if (savedBill) {
+            const printData = getPrintData();
+            // Use the savedBill id for printing, which might be new
+            proceedToPrint({ ...printData, id: savedBill.id });
+             if (!editingBillId) {
+                resetForm();
+            } else {
+                setBillOriginalState(savedBill);
+            }
+        }
+    };
+
+    const handlePrintWithoutSaving = () => {
+        setShowPrintConfirm(false);
+        const data = getPrintData();
+        proceedToPrint(data);
+    };
+
 
     const handleSearchHistory = () => {
         let results = partyBills || [];
@@ -333,6 +386,7 @@ export default function PartyBillPage() {
     };
 
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 auto-rows-max">
         <div className="lg:col-span-2">
             <Card>
@@ -453,7 +507,7 @@ export default function PartyBillPage() {
                     </div>
                     <div className="flex justify-end gap-2 mt-6">
                         <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
-                        <Button onClick={handleSave}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
+                        <Button onClick={onSaveClick}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
                         <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
                     </div>
                 </CardContent>
@@ -525,5 +579,21 @@ export default function PartyBillPage() {
             </Card>
         </div>
     </div>
+    <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Confirm Before Printing</AlertDialogTitle>
+                <AlertDialogDescription>
+                    How would you like to proceed with printing this party bill?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-2 pt-2">
+                <Button onClick={handleSaveAndPrint}>Save & Print</Button>
+                <Button variant="outline" onClick={handlePrintWithoutSaving}>Print Without Saving</Button>
+                <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
+            </div>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
