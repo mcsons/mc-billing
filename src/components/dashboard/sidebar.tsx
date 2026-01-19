@@ -21,6 +21,8 @@ import {
   Briefcase,
   BookUser,
   BarChart3,
+  FolderKanban,
+  ChevronDown,
 } from 'lucide-react';
 import React from 'react';
 
@@ -37,28 +39,39 @@ import {
   SidebarTrigger,
   SidebarMenuSubItem,
   useSidebar,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { ThemeToggle } from '../ui/theme-toggle';
+import { cn } from '@/lib/utils';
 
-const menuItems = [
+const coreOperations = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
+  { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
-  { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
+];
+
+const mastersSetup = [
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
-  { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
-  { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
-  { href: '/dashboard/parties', label: 'Manage Parties', icon: Briefcase, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
-  { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
+];
+
+const manageSubItems = [
+    { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
+    { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
+    { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
+    { href: '/dashboard/parties', label: 'Manage Parties', icon: Briefcase, roles: ['CREATOR', 'ADMIN'] },
+];
+
+const systemItems = [
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
-  { href: '/dashboard/profile', label: 'Profile', icon: User, roles: ['CREATOR', 'ADMIN', 'MANAGER'], exact: true },
+  { href: '/dashboard/profile', label: 'Profile', icon: User, exact: true },
 ];
 
 const settingsSubItems = [
@@ -66,12 +79,46 @@ const settingsSubItems = [
     { href: '/dashboard/settings/uom', label: 'UOM', icon: Cuboid },
 ];
 
+const MenuItemGroup = ({ items }) => {
+    const pathname = usePathname();
+    const { currentUser } = useData();
+    const currentUserRole = currentUser?.role;
+    const { isMobile, setOpenMobile } = useSidebar();
+
+    const handleLinkClick = () => {
+        if (isMobile) {
+            setOpenMobile(false);
+        }
+    };
+
+    const isMenuItemActive = (href: string, exact = false) => {
+        if (exact) {
+            return pathname === href;
+        }
+        return pathname.startsWith(href);
+    };
+
+    return items.map((item) => 
+        (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
+            <SidebarMenuItem key={item.label}>
+                <Link href={item.href} onClick={handleLinkClick}>
+                    <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, !!item.exact)}>
+                        <item.icon />
+                        <span>{item.label}</span>
+                    </SidebarMenuButton>
+                </Link>
+            </SidebarMenuItem>
+        )
+    );
+};
+
 export function DashboardSidebar() {
   const pathname = usePathname();
   const { currentUser } = useData();
   const currentUserRole = currentUser?.role;
   const { isMobile, setOpenMobile } = useSidebar();
 
+  const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   const handleLinkClick = () => {
@@ -84,12 +131,24 @@ export function DashboardSidebar() {
     if (exact) {
       return pathname === href;
     }
+    // For group items, we check if the path starts with any of the sub-items' paths
+    if (href === '/dashboard/manage') {
+        return manageSubItems.some(item => pathname.startsWith(item.href));
+    }
+     if (href === '/dashboard/settings') {
+        return settingsSubItems.some(item => pathname.startsWith(item.href));
+    }
     return pathname.startsWith(href);
   };
   
   React.useEffect(() => {
-    setIsSettingsOpen(pathname.startsWith('/dashboard/settings'));
+    setIsManageOpen(isMenuItemActive('/dashboard/manage'));
+    setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
   }, [pathname]);
+
+  const canShowManage = manageSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
+  const canShowSettings = settingsSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
+
 
   return (
       <Sidebar>
@@ -104,27 +163,21 @@ export function DashboardSidebar() {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            {menuItems.map((item) => 
-                (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
-                    <SidebarMenuItem key={item.label}>
-                        <Link href={item.href} onClick={handleLinkClick}>
-                            <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, !!item.exact)}>
-                                <item.icon />
-                                <span>{item.label}</span>
-                            </SidebarMenuButton>
-                        </Link>
-                    </SidebarMenuItem>
-                )
-            )}
-            {currentUserRole && (currentUserRole === 'CREATOR' || currentUserRole === 'ADMIN') && (
-            <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} isActive={isMenuItemActive('/dashboard/settings')} data-state={isSettingsOpen ? 'open' : 'closed'}>
-                    <Settings />
-                    <span>Settings</span>
-                </SidebarMenuButton>
-                
-                    <SidebarMenuSub open={isSettingsOpen}>
-                        {settingsSubItems.map(subItem => (
+            <MenuItemGroup items={coreOperations} />
+            <SidebarSeparator className="my-2" />
+            <MenuItemGroup items={mastersSetup} />
+            <SidebarSeparator className="my-2" />
+            
+            {canShowManage && (
+              <SidebarMenuItem>
+                  <SidebarMenuButton onClick={() => setIsManageOpen(!isManageOpen)} isActive={isManageOpen} data-state={isManageOpen ? 'open' : 'closed'}>
+                      <FolderKanban />
+                      <span>Manage</span>
+                      <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isManageOpen && "rotate-180")} />
+                  </SidebarMenuButton>
+                  <SidebarMenuSub open={isManageOpen}>
+                      {manageSubItems.map(subItem => (
+                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
                                 <Link href={subItem.href} onClick={handleLinkClick}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
@@ -133,9 +186,36 @@ export function DashboardSidebar() {
                                     </SidebarMenuSubButton>
                                 </Link>
                             </SidebarMenuSubItem>
-                        ))}
-                    </SidebarMenuSub>
-                
+                          )
+                      ))}
+                  </SidebarMenuSub>
+              </SidebarMenuItem>
+            )}
+
+            <SidebarSeparator className="my-2" />
+            <MenuItemGroup items={systemItems} />
+
+            {canShowSettings && (
+            <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setIsSettingsOpen(!isSettingsOpen)} isActive={isSettingsOpen} data-state={isSettingsOpen ? 'open' : 'closed'}>
+                    <Settings />
+                    <span>Settings</span>
+                     <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isSettingsOpen && "rotate-180")} />
+                </SidebarMenuButton>
+                <SidebarMenuSub open={isSettingsOpen}>
+                    {settingsSubItems.map(subItem => (
+                         (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
+                            <SidebarMenuSubItem key={subItem.label}>
+                                <Link href={subItem.href} onClick={handleLinkClick}>
+                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                        <subItem.icon />
+                                        <span>{subItem.label}</span>
+                                    </SidebarMenuSubButton>
+                                </Link>
+                            </SidebarMenuSubItem>
+                         )
+                    ))}
+                </SidebarMenuSub>
             </SidebarMenuItem>
             )}
           </SidebarMenu>
