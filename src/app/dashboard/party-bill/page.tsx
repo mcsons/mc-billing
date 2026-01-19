@@ -132,7 +132,7 @@ export default function PartyBillPage() {
     const [filteredHistory, setFilteredHistory] = useState<PartyBill[]>([]);
 
     useEffect(() => {
-        setFilteredHistory(partyBills.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+        setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
     }, [partyBills]);
     
     const resetForm = useCallback(() => {
@@ -154,7 +154,7 @@ export default function PartyBillPage() {
     useEffect(() => {
         const billIdParam = searchParams.get('partyBillId');
         if (billIdParam) {
-            const billToEdit = partyBills.find(b => b.id === billIdParam);
+            const billToEdit = (partyBills || []).find(b => b.id === billIdParam);
             if (billToEdit) {
                 setEditingBillId(billToEdit.id);
                 setBillOriginalState(billToEdit);
@@ -259,7 +259,7 @@ export default function PartyBillPage() {
             title: 'Delete Party Bill?',
             description: 'This will permanently delete this bill and update the party balance. This cannot be undone.',
             onConfirm: () => {
-                const billToDelete = partyBills.find(b => b.id === billId);
+                const billToDelete = (partyBills || []).find(b => b.id === billId);
                 if (billToDelete) {
                     deletePartyBill(billToDelete);
                     if (editingBillId === billId) {
@@ -301,7 +301,7 @@ export default function PartyBillPage() {
     };
 
     const handleSearchHistory = () => {
-        let results = partyBills;
+        let results = partyBills || [];
         if (historyPartyId) {
             results = results.filter(b => b.partyId === historyPartyId);
         }
@@ -314,7 +314,7 @@ export default function PartyBillPage() {
     const clearSearchHistory = () => {
         setHistoryPartyId('');
         setHistoryDate(undefined);
-        setFilteredHistory(partyBills.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+        setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
     };
 
   return (
@@ -322,16 +322,29 @@ export default function PartyBillPage() {
         <div className="lg:col-span-2">
             <Card>
                 <CardHeader>
-                    <div className="text-center">
-                        <p className="font-bold">M.C & SONS FISH COMPANY</p>
-                        <p className="text-sm">Dealer : SEA & TANK FOODS</p>
-                        <p className="text-sm">Shop No. 1, Fish Market, Santhaipettai,</p>
-                        <p className="text-sm">Palladam Road, Tiruppur – 641604</p>
-                        <p className="text-sm">Cell : 98432 23078, 99444 44497</p>
+                    <div className="relative">
+                        <div className="text-center">
+                            <p className="font-bold">M.C & SONS FISH COMPANY</p>
+                            <p className="text-sm">Dealer : SEA & TANK FOODS</p>
+                            <p className="text-sm">Shop No. 1, Fish Market, Santhaipettai,</p>
+                            <p className="text-sm">Palladam Road, Tiruppur – 641604</p>
+                            <p className="text-sm">Cell : 98432 23078, 99444 44497</p>
+                        </div>
+                        <div className="absolute top-0 right-0">
+                             <Popover>
+                                <PopoverTrigger asChild>
+                                <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={(d) => setDate(d || new Date())} initialFocus /></PopoverContent>
+                            </Popover>
+                        </div>
                     </div>
                     <Separator className="my-2"/>
                     <div className="flex justify-between items-center">
-                        <div className="w-1/2">
+                        <div className="w-2/3">
                             <Label>To M/S :</Label>
                              <ReactSelect
                                 instanceId="party-select"
@@ -343,20 +356,9 @@ export default function PartyBillPage() {
                                 styles={reactSelectStyles}
                             />
                         </div>
-                        <div className="flex items-center gap-2">
-                           <Popover>
-                                <PopoverTrigger asChild>
-                                <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')}>
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={(d) => setDate(d || new Date())} initialFocus /></PopoverContent>
-                            </Popover>
-                        </div>
-                         <div className="flex items-center gap-2 w-1/4">
+                         <div className="flex items-center gap-2">
                             <Label>Box :</Label>
-                            <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} />
+                            <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} className="w-24"/>
                         </div>
                     </div>
                     <Separator className="my-2"/>
