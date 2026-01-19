@@ -17,8 +17,9 @@ import {
   Party,
   PartyBill,
   PartyBalance,
+  SalesReportData,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser, useDoc } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -108,6 +109,10 @@ interface DataContextType {
     customerId: string, 
     dateRange: { from: Date, to: Date }
   ) => { transactions: Transaction[], openingBalance: number };
+  getSalesReport: (
+    customerId: string,
+    dateRange: { from: Date; to: Date }
+  ) => Promise<SalesReportData | null>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -847,6 +852,110 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return { transactions: finalTransactions, openingBalance: openingBalanceForPeriod };
   };
 
+  const getSalesReport = async (
+    customerId: string,
+    dateRange: { from: Date; to: Date }
+  ): Promise<SalesReportData | null> => {
+    if (!firestore) return null;
+
+    const customer = customers.find((c) => c.id === customerId);
+    if (!customer) return null;
+
+    const fromDateStart = startOfDay(dateRange.from);
+    const toDateEnd = endOfDay(dateRange.to);
+
+    const initialOpeningBalance = openingBalances[customerId] || 0;
+    const allBills = (liveBillSummaries || []).filter(
+      (b) => b.customerId === customerId && b.date
+    );
+    const allPayments = (payments || []).filter(
+      (p) => p.customerId === customerId
+    );
+
+    const priorBills = allBills.filter(
+      (b) => (b.date as Timestamp).toDate() < fromDateStart
+    );
+    const priorPayments = allPayments.filter(
+      (p) => (p.date as Timestamp).toDate() < fromDateStart
+    );
+    const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
+    const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
+    const previousBalance =
+      initialOpeningBalance + totalPriorBilled - totalPriorPaid;
+
+    const billsInRange = allBills.filter((b) =>
+      isWithinInterval((b.date as Timestamp).toDate(), {
+        start: fromDateStart,
+        end: toDateEnd,
+      })
+    );
+
+    if (billsInRange.length === 0) {
+      return {
+        customer,
+        itemsByDate: [],
+        totalQty: {},
+        totalAmount: 0,
+        previousBalance,
+        netAmount: previousBalance,
+        dateRange,
+      };
+    }
+
+    const billItemsPromises = billsInRange.map((bill) =>
+      getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
+    );
+    const billItemsSnapshots = await Promise.all(billItemsPromises);
+
+    const allItemsInRange: (BillItem & { billDate: Date })[] = [];
+    billItemsSnapshots.forEach((snapshot, index) => {
+      const billDate = (billsInRange[index].date as Timestamp).toDate();
+      snapshot.forEach((doc) => {
+        allItemsInRange.push({ ...(doc.data() as BillItem), billDate });
+      });
+    });
+
+    const itemsGroupedByDate = allItemsInRange.reduce((acc, item) => {
+      const dateStr = format(item.billDate, 'dd/MM/yy');
+      if (!acc[dateStr]) {
+        acc[dateStr] = [];
+      }
+      acc[dateStr].push(item);
+      return acc;
+    }, {} as Record<string, BillItem[]>);
+
+    const itemsByDate = Object.entries(itemsGroupedByDate)
+      .map(([date, items]) => ({ date, items }))
+      .sort((a, b) => {
+        const dateA = new Date(a.date.split('/').reverse().join('-'));
+        const dateB = new Date(b.date.split('/').reverse().join('-'));
+        return dateA.getTime() - dateB.getTime();
+      });
+
+    const totalQty: Record<string, number> = {};
+    let totalAmount = 0;
+
+    allItemsInRange.forEach((item) => {
+      totalAmount += item.amount;
+      if (!totalQty[item.uom]) {
+        totalQty[item.uom] = 0;
+      }
+      totalQty[item.uom] += item.qty;
+    });
+
+    const netAmount = previousBalance + totalAmount;
+
+    return {
+      customer,
+      itemsByDate,
+      totalQty,
+      totalAmount,
+      previousBalance,
+      netAmount,
+      dateRange,
+    };
+  };
+
   // Vehicle and Driver Management
   const addVehicle = async (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => {
     if (!firestore) return;
@@ -1158,6 +1267,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         findBillForCustomerToday,
         getBill,
         getCustomerLedger,
+        getSalesReport,
       }}
     >
       {children}

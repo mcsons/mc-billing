@@ -73,6 +73,16 @@ export type Transaction = {
   type: 'bill' | 'payment';
 };
 
+export type SalesReportData = {
+  customer: Customer;
+  itemsByDate: { date: string; items: BillItem[] }[];
+  totalQty: Record<string, number>;
+  totalAmount: number;
+  previousBalance: number;
+  netAmount: number;
+  dateRange: { from: Date; to: Date };
+};
+
 export type Vehicle = {
   id: string; // Registration Number
   name: string;

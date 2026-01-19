@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
   Briefcase,
   BookUser,
+  BarChart3,
 } from 'lucide-react';
 import React from 'react';
 
@@ -48,6 +49,7 @@ const menuItems = [
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
+  { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
