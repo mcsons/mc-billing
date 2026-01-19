@@ -141,10 +141,12 @@ export default function PartyBillPage() {
 
     const [isMounted, setIsMounted] = useState(false);
     const rateInputRef = useRef<HTMLInputElement>(null);
+    const partySelectRef = useRef<any>(null);
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
 
     useEffect(() => {
         setIsMounted(true);
+        partySelectRef.current?.focus();
     }, []);
 
     useEffect(() => {
@@ -164,6 +166,7 @@ export default function PartyBillPage() {
         setEditingBillId(null);
         setBillOriginalState(null);
         router.replace('/dashboard/party-bill');
+        partySelectRef.current?.focus();
     }, [router]);
 
     // Load bill for editing from URL param
@@ -416,6 +419,7 @@ export default function PartyBillPage() {
                         <div className="w-2/3">
                             <Label>To M/S :</Label>
                              <ReactSelect
+                                ref={partySelectRef}
                                 instanceId="party-select"
                                 options={parties.map(p => ({ value: p.id, label: p.name }))}
                                 value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}

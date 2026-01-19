@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -82,6 +82,12 @@ export default function VehicleBillingPage() {
   const [statementFromDate, setStatementFromDate] = useState<Date | undefined>();
   const [statementToDate, setStatementToDate] = useState<Date | undefined>();
 
+  const vehicleSelectRef = useRef<any>(null);
+
+  useEffect(() => {
+    vehicleSelectRef.current?.focus();
+  }, []);
+
 
   const reactSelectStyles = {
     control: (baseStyles, state) => ({
@@ -158,6 +164,7 @@ export default function VehicleBillingPage() {
     setAdvance('');
     setExpenses('');
     router.replace('/dashboard/vehicle-bill');
+    vehicleSelectRef.current?.focus();
   };
 
   const handleSaveBill = async () => {
@@ -358,6 +365,7 @@ export default function VehicleBillingPage() {
                  <div className="grid gap-2">
                     <Label htmlFor="vehicle">Vehicle Number</Label>
                     <ReactSelect
+                        ref={vehicleSelectRef}
                         instanceId="vehicle-select"
                         options={activeVehicles.map(v => ({ value: v.id, label: `${v.id}` }))}
                         value={activeVehicles.map(v => ({ value: v.id, label: v.id })).find(v => v.value === vehicleId) || null}

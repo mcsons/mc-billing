@@ -181,6 +181,10 @@ export default function BillingPage() {
       color: 'hsl(var(--muted-foreground))',
     }),
   };
+  
+  useEffect(() => {
+    customerSelectRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
@@ -410,6 +414,7 @@ export default function BillingPage() {
     setDeliveryCharge('');
     setInitialBillTotal(0);
     router.replace('/dashboard/billing');
+    customerSelectRef.current?.focus();
   };
 
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
@@ -734,7 +739,11 @@ export default function BillingPage() {
                           (p) => p.id === option.value
                         );
                         if (product && product.uom_allowed.length > 0) {
-                          setUom(product.uom_allowed[0]);
+                           if (product.uom_allowed.includes('KGS')) {
+                            setUom('KGS');
+                          } else {
+                            setUom(product.uom_allowed[0]);
+                          }
                         }
                       }}
                       styles={reactSelectStyles}
