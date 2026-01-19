@@ -215,8 +215,12 @@ export default function BillingPage() {
 
   useEffect(() => {
     if (selectedProductId && uom) {
-      const price = productPrices[selectedProductId]?.[uom] || '';
-      setRate(price.toString());
+      const price = productPrices[selectedProductId]?.[uom];
+      if (price !== undefined && price !== null) {
+        setRate(price.toString());
+      } else {
+        setRate('1');
+      }
     } else {
       setRate('');
     }
