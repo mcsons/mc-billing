@@ -60,6 +60,7 @@ const reactSelectStyles = {
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
+    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
     option: (baseStyles, state) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
@@ -130,6 +131,12 @@ export default function PartyBillPage() {
     const [historyPartyId, setHistoryPartyId] = useState('');
     const [historyDate, setHistoryDate] = useState<Date|undefined>();
     const [filteredHistory, setFilteredHistory] = useState<PartyBill[]>([]);
+
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     useEffect(() => {
         setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
@@ -396,6 +403,8 @@ export default function PartyBillPage() {
                                         onChange={(option) => setSelectedProductId(option ? option.value : '')}
                                         placeholder="Select Product..."
                                         styles={reactSelectStyles}
+                                        menuPortalTarget={isMounted ? document.body : null}
+                                        menuPosition='fixed'
                                     />
                                 </TableCell>
                                 <TableCell><Input placeholder="Box" type="number" value={box} onChange={e => setBox(e.target.value)} /></TableCell>
