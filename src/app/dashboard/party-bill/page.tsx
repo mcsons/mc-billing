@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -133,6 +133,7 @@ export default function PartyBillPage() {
     const [filteredHistory, setFilteredHistory] = useState<PartyBill[]>([]);
 
     const [isMounted, setIsMounted] = useState(false);
+    const rateInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         setIsMounted(true);
@@ -221,10 +222,17 @@ export default function PartyBillPage() {
         setSelectedProductId('');
         setRate('');
         setBox('');
+        rateInputRef.current?.focus();
     };
 
     const handleRemoveItem = (itemId: string) => {
-        setItems(prev => prev.filter(item => item.id !== itemId));
+        showAlertDialog({
+          title: 'Delete Item?',
+          description: 'Are you sure you want to remove this item from the bill?',
+          onConfirm: () => {
+            setItems(prev => prev.filter(item => item.id !== itemId));
+          },
+        });
     };
 
     const handleSave = async () => {
@@ -394,7 +402,7 @@ export default function PartyBillPage() {
                             ))}
                             {/* Item Entry Row */}
                              <TableRow>
-                                <TableCell><Input placeholder="Rate" type="number" value={rate} onChange={e => setRate(e.target.value)} /></TableCell>
+                                <TableCell><Input ref={rateInputRef} placeholder="Rate" type="number" value={rate} onChange={e => setRate(e.target.value)} /></TableCell>
                                 <TableCell>
                                     <ReactSelect
                                         instanceId="product-select"
