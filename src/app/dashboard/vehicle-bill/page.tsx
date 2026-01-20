@@ -37,7 +37,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -289,9 +289,12 @@ export default function VehicleBillingPage() {
         name = drivers.find(d => d.id === statementId)?.name || statementId;
     }
 
+    const fromDateStart = startOfDay(statementFromDate);
+    const toDateEnd = endOfDay(statementToDate);
+
     const filteredTransactions = transactions.filter(t => {
         const tDate = t.date.toDate();
-        return tDate >= statementFromDate && tDate <= statementToDate;
+        return tDate >= fromDateStart && tDate <= toDateEnd;
     }).sort((a, b) => a.date.toDate().getTime() - b.date.toDate().getTime());
     
     // For this simple statement, we assume opening balance is 0
