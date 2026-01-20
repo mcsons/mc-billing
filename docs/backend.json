@@ -570,7 +570,7 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "VehicleBill",
       "type": "object",
-      "description": "Represents a bill for a vehicle trip.",
+      "description": "Represents a bill for a vehicle trip, potentially with multiple drivers.",
       "properties": {
         "id": {
           "type": "string",
@@ -586,10 +586,20 @@
           "type": "string",
           "description": "Reference to the Vehicle (Registration Number)."
         },
-        "driverId": {
-          "type": "string",
-          "description": "Reference to the Driver.",
-          "format": "uuid"
+        "driverIds": {
+          "type": "array",
+          "description": "An array of references to the Drivers on the trip.",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "driverNames": {
+          "type": "array",
+          "description": "An array of denormalized names of the drivers for display.",
+          "items": {
+            "type": "string"
+          }
         },
         "partyId": {
           "type": "string",
@@ -631,7 +641,8 @@
         "id",
         "date",
         "vehicleId",
-        "driverId",
+        "driverIds",
+        "driverNames",
         "partyId",
         "partyName",
         "advance",

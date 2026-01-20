@@ -115,8 +115,8 @@ export type VehicleBill = {
   id: string;
   date: any; // Can be Date or Firestore Timestamp
   vehicleId: string; // Registration Number
-  driverId: string;
-  driverName: string;
+  driverIds: string[];
+  driverNames: string[];
   partyId: string;
   partyName: string;
   destination: string;

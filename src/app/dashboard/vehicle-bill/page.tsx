@@ -28,6 +28,8 @@ import {
   Trash2,
   Search,
   X,
+  PlusCircle,
+  MinusCircle,
 } from 'lucide-react';
 import {
   Popover,
@@ -63,7 +65,7 @@ export default function VehicleBillingPage() {
   // Form state
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [vehicleId, setVehicleId] = useState('');
-  const [driverId, setDriverId] = useState('');
+  const [driverIds, setDriverIds] = useState<string[]>(['']);
   const [partyId, setPartyId] = useState('');
   const [destination, setDestination] = useState('');
   const [advance, setAdvance] = useState('');
@@ -141,7 +143,7 @@ export default function VehicleBillingPage() {
         setEditingBillId(billToEdit.id);
         setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
         setVehicleId(billToEdit.vehicleId);
-        setDriverId(billToEdit.driverId);
+        setDriverIds(billToEdit.driverIds || ['']);
         setPartyId(billToEdit.partyId);
         setDestination(billToEdit.destination);
         setAdvance(billToEdit.advance.toString());
@@ -158,7 +160,7 @@ export default function VehicleBillingPage() {
     setEditingBillId(null);
     setDate(new Date());
     setVehicleId('');
-    setDriverId('');
+    setDriverIds(['']);
     setPartyId('');
     setDestination('');
     setAdvance('');
@@ -168,24 +170,25 @@ export default function VehicleBillingPage() {
   };
 
   const handleSaveBill = async () => {
-    if (!date || !vehicleId || !driverId || !partyId || !currentUser) {
+    const validDriverIds = driverIds.filter(id => id);
+    if (!date || !vehicleId || validDriverIds.length === 0 || !partyId || !currentUser) {
       toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out Date, Vehicle, Driver, and Party.'});
       return null;
     }
 
-    const driver = drivers.find(d => d.id === driverId);
+    const selectedDrivers = drivers.filter(d => validDriverIds.includes(d.id));
     const party = parties.find(p => p.id === partyId);
 
-    if (!driver || !party) {
+    if (selectedDrivers.length !== validDriverIds.length || !party) {
         toast({ variant: 'destructive', title: 'Invalid Selection', description: 'Selected driver or party not found.' });
         return null;
     }
 
-    const billData: Omit<VehicleBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
+    const billData: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'> = {
       date,
       vehicleId,
-      driverId,
-      driverName: driver.name,
+      driverIds: validDriverIds,
+      driverNames: selectedDrivers.map(d => d.name),
       partyId,
       partyName: party.name,
       destination,
@@ -212,7 +215,7 @@ export default function VehicleBillingPage() {
   const handlePrintBill = (billToPrint: VehicleBill) => {
     if (!billToPrint) return;
     const encodedData = encodeURIComponent(JSON.stringify(billToPrint));
-    window.open(`/print/vehicle?data=${encodedData}&paper=a4`, '_blank');
+    window.open(`/print/vehicle-bill?data=${encodedData}&paper=a4`, '_blank');
   };
 
   const handleSaveAndPrint = async () => {
@@ -257,7 +260,7 @@ export default function VehicleBillingPage() {
         results = results.filter(b => b.vehicleId === historyVehicleId);
     }
     if (historyDriverId) {
-        results = results.filter(b => b.driverId === historyDriverId);
+        results = results.filter(b => b.driverIds && b.driverIds.includes(historyDriverId));
     }
     setFilteredBills(results.sort((a, b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
   };
@@ -282,7 +285,7 @@ export default function VehicleBillingPage() {
         transactions = vehicleBills.filter(b => b.vehicleId === statementId);
         name = vehicles.find(v => v.id === statementId)?.name || statementId;
     } else if (statementType === 'Driver') {
-        transactions = vehicleBills.filter(b => b.driverId === statementId);
+        transactions = vehicleBills.filter(b => b.driverIds && b.driverIds.includes(statementId));
         name = drivers.find(d => d.id === statementId)?.name || statementId;
     }
 
@@ -330,6 +333,27 @@ export default function VehicleBillingPage() {
     return [];
   }, [statementType, vehicles, drivers]);
 
+  const handleDriverChange = (index: number, selectedId: string) => {
+    const newDriverIds = [...driverIds];
+    newDriverIds[index] = selectedId;
+    setDriverIds(newDriverIds);
+  };
+
+  const addDriverSlot = () => {
+    if (driverIds.length < 3) {
+      setDriverIds([...driverIds, '']);
+    }
+  };
+
+  const removeDriverSlot = (index: number) => {
+    if (driverIds.length > 1) {
+      const newDriverIds = [...driverIds];
+      newDriverIds.splice(index, 1);
+      setDriverIds(newDriverIds);
+    }
+  };
+
+
   return (
     <div className="grid auto-rows-max items-start gap-4 lg:gap-8">
       <Card>
@@ -376,16 +400,38 @@ export default function VehicleBillingPage() {
                     />
                 </div>
                  <div className="grid gap-2">
-                    <Label htmlFor="driver">Driver Name</Label>
-                    <ReactSelect
-                        instanceId="driver-select"
-                        options={activeDrivers.map(d => ({ value: d.id, label: d.name }))}
-                        value={activeDrivers.map(d => ({ value: d.id, label: d.name })).find(d => d.value === driverId) || null}
-                        onChange={(option) => setDriverId(option ? option.value : '')}
-                        placeholder="Select driver..."
-                        isClearable
-                        styles={reactSelectStyles}
-                    />
+                    <Label>Driver Name(s)</Label>
+                    <div className="space-y-2">
+                      {driverIds.map((id, index) => {
+                         const availableDrivers = activeDrivers.filter(
+                          (d) => !driverIds.filter((_, i) => i !== index).includes(d.id)
+                        );
+                        return (
+                          <div key={index} className="flex items-center gap-2">
+                            <ReactSelect
+                                className="flex-1"
+                                instanceId={`driver-select-${index}`}
+                                options={availableDrivers.map(d => ({ value: d.id, label: d.name }))}
+                                value={availableDrivers.map(d => ({ value: d.id, label: d.name })).find(d => d.value === id) || null}
+                                onChange={(option) => handleDriverChange(index, option ? option.value : '')}
+                                placeholder={`Select driver ${index + 1}...`}
+                                isClearable
+                                styles={reactSelectStyles}
+                            />
+                             {driverIds.length > 1 && (
+                                <Button variant="ghost" size="icon" onClick={() => removeDriverSlot(index)}>
+                                    <MinusCircle className="text-destructive"/>
+                                </Button>
+                            )}
+                            {index === driverIds.length - 1 && driverIds.length < 3 && (
+                                <Button variant="ghost" size="icon" onClick={addDriverSlot}>
+                                    <PlusCircle className="text-primary"/>
+                                </Button>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="party">Party Name</Label>
