@@ -215,7 +215,7 @@ export default function VehicleBillingPage() {
   const handlePrintBill = (billToPrint: VehicleBill) => {
     if (!billToPrint) return;
     const encodedData = encodeURIComponent(JSON.stringify(billToPrint));
-    window.open(`/print/vehicle-bill?data=${encodedData}&paper=a4`, '_blank');
+    window.open(`/dashboard/vehicle-bill/print?data=${encodedData}&paper=a4`, '_blank');
   };
 
   const handleSaveAndPrint = async () => {
@@ -471,7 +471,7 @@ export default function VehicleBillingPage() {
                 <Printer className="mr-2 h-4 w-4" /> Print Bill
             </Button>
             <Button size="lg" onClick={handleSaveAndPrint}>
-                <Printer className="mr-2 h-4 w-4" /> Save & Print
+                <Printer className="mr-2 h-4 w-4" /> Save &amp; Print
             </Button>
         </CardFooter>
       </Card>
@@ -624,7 +624,7 @@ export default function VehicleBillingPage() {
               className="w-full" 
               disabled={!statementType || !statementId || !statementFromDate || !statementToDate}
             >
-                <Printer className="mr-2 h-4 w-4"/> Generate & Print Statement
+                <Printer className="mr-2 h-4 w-4"/> Generate &amp; Print Statement
             </Button>
           </CardFooter>
         </Card>
