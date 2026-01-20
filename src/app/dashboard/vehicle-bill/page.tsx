@@ -215,7 +215,7 @@ export default function VehicleBillingPage() {
   const handlePrintBill = (billToPrint: VehicleBill) => {
     if (!billToPrint) return;
     const encodedData = encodeURIComponent(JSON.stringify(billToPrint));
-    window.open(`/dashboard/vehicle-bill/print?data=${encodedData}&paper=a4`, '_blank');
+    window.open(`/print/vehicle-bill?data=${encodedData}&paper=a4`, '_blank');
   };
 
   const handleSaveAndPrint = async () => {

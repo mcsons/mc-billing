@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { VehicleStatementTransaction } from '@/lib/data';
 import { ArrowLeft, Printer } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 interface PrintData {
