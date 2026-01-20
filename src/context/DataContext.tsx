@@ -92,6 +92,7 @@ interface DataContextType {
   addOrUpdatePartyBill: (bill: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null) => Promise<PartyBill | null>;
   deletePartyBill: (bill: PartyBill) => void;
   setOpeningBalance: (customerId: string, balance: number) => void;
+  setPartyBalance: (partyId: string, balance: number) => void;
   createOrUpdateLiveBill: (
     summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date'>,
     items: BillItem[],
@@ -289,17 +290,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
   const { data: partyBalancesData } = useCollection<PartyBalance>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBalances') : null, [firestore, firebaseUser]));
   
-  const openingPartyBalances = useMemo(() => {
+  const partyBalances = useMemo(() => {
     if (!partyBalancesData) return {};
     return partyBalancesData.reduce((acc, cb) => {
         acc[cb.partyId] = cb.balanceAmount;
         return acc;
     }, {} as Record<string, number>);
   }, [partyBalancesData]);
-
-  const partyBalances = useMemo(() => {
-    return openingPartyBalances;
-  }, [openingPartyBalances]);
   
   useEffect(() => {
     if (isUserLoading || !firestore || !products.length) return;
@@ -784,6 +781,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setPartyBalance = async (partyId: string, balance: number) => {
+    if (!firestore) return;
+    const balanceRef = doc(firestore, 'partyBalances', partyId);
+    const balanceData = { partyId, balanceAmount: balance, updatedAt: serverTimestamp() };
+    try {
+      await setDoc(balanceRef, balanceData, { merge: true });
+      toast({ title: 'Party Balance Updated', description: `Balance has been set to ₹${balance.toFixed(2)}.` });
+    } catch(e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
+    }
+  };
+
   const updateProductPrice = async (productId: string, uom: string, price: number) => {
     if (!firestore) return;
     const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
@@ -1260,6 +1269,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addOrUpdatePartyBill,
         deletePartyBill,
         setOpeningBalance,
+        setPartyBalance,
         createOrUpdateLiveBill,
         deleteBills,
         updateProductPrice,

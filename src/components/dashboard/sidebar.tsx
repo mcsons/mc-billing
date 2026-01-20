@@ -23,6 +23,7 @@ import {
   BarChart3,
   FolderKanban,
   ChevronDown,
+  Users2,
 } from 'lucide-react';
 import React from 'react';
 
@@ -54,6 +55,11 @@ const coreOperations = [
   { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
   { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
+];
+
+const balancesSubItems = [
+    { href: '/dashboard/balances/customer', label: 'Customer Balance', icon: Users },
+    { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
 ];
 
 const mastersSetup = [
@@ -118,6 +124,7 @@ export function DashboardSidebar() {
   const currentUserRole = currentUser?.role;
   const { isMobile, setOpenMobile } = useSidebar();
 
+  const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
@@ -132,6 +139,9 @@ export function DashboardSidebar() {
       return pathname === href;
     }
     // For group items, we check if the path starts with any of the sub-items' paths
+    if (href === '/dashboard/balances') {
+        return balancesSubItems.some(item => pathname.startsWith(item.href));
+    }
     if (href === '/dashboard/manage') {
         return manageSubItems.some(item => pathname.startsWith(item.href));
     }
@@ -142,10 +152,12 @@ export function DashboardSidebar() {
   };
   
   React.useEffect(() => {
+    setIsBalancesOpen(isMenuItemActive('/dashboard/balances'));
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
   }, [pathname]);
 
+  const canShowBalances = balancesSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
   const canShowManage = manageSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
   const canShowSettings = settingsSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
 
@@ -164,6 +176,29 @@ export function DashboardSidebar() {
         <SidebarContent>
           <SidebarMenu>
             <MenuItemGroup items={coreOperations} />
+            {canShowBalances && (
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setIsBalancesOpen(!isBalancesOpen)} isActive={isBalancesOpen} data-state={isBalancesOpen ? 'open' : 'closed'}>
+                    <Wallet />
+                    <span>Balances</span>
+                    <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isBalancesOpen && "rotate-180")} />
+                </SidebarMenuButton>
+                <SidebarMenuSub open={isBalancesOpen}>
+                    {balancesSubItems.map(subItem => (
+                         (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
+                            <SidebarMenuSubItem key={subItem.label}>
+                                <Link href={subItem.href} onClick={handleLinkClick}>
+                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                        <subItem.icon />
+                                        <span>{subItem.label}</span>
+                                    </SidebarMenuSubButton>
+                                </Link>
+                            </SidebarMenuSubItem>
+                         )
+                    ))}
+                </SidebarMenuSub>
+              </SidebarMenuItem>
+            )}
             <SidebarSeparator className="my-2" />
             <MenuItemGroup items={mastersSetup} />
             <SidebarSeparator className="my-2" />
