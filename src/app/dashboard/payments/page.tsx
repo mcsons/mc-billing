@@ -38,17 +38,13 @@ import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
 
 export default function PaymentsPage() {
-    const { customers, customerBalances, openingBalances, addPayment, setOpeningBalance, getCustomerLedger } = useData();
+    const { customers, customerBalances, addPayment, getCustomerLedger } = useData();
     const { toast } = useToast();
 
     // State for Record Payment form
     const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState<string>('');
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
-
-    // State for Opening Balance form
-    const [balanceSelectedCustomerId, setBalanceSelectedCustomerId] = useState<string>('');
-    const [newOpeningBalance, setNewOpeningBalance] = useState('');
 
     // State for Payment History search
     const [historySelectedCustomerId, setHistorySelectedCustomerId] = useState<string>('');
@@ -100,31 +96,9 @@ export default function PaymentsPage() {
       }),
     };
 
-    useEffect(() => {
-        if (balanceSelectedCustomerId && openingBalances) {
-            setNewOpeningBalance((openingBalances[balanceSelectedCustomerId] || 0).toString());
-        } else {
-            setNewOpeningBalance('');
-        }
-    }, [balanceSelectedCustomerId, openingBalances]);
-
-
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
     const newBalance = currentBalance - (parseFloat(amount) || 0);
-
-    const handleSetOpeningBalance = () => {
-        const balanceValue = parseFloat(newOpeningBalance);
-        if (!balanceSelectedCustomerId || isNaN(balanceValue)) {
-            toast({
-                variant: 'destructive',
-                title: 'Invalid Input',
-                description: 'Please select a customer and enter a valid balance.',
-            });
-            return;
-        }
-        setOpeningBalance(balanceSelectedCustomerId, balanceValue);
-    };
 
     const handleSubmitPayment = () => {
         const paymentAmount = parseFloat(amount);
@@ -204,49 +178,10 @@ export default function PaymentsPage() {
     };
 
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
-    const balanceSelectedCustomer = customers.find(c => c.id === balanceSelectedCustomerId);
 
     return (
         <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:grid-cols-2">
             <div className="grid auto-rows-max items-start gap-4 md:gap-8">
-                 <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline">Set Opening Balance</CardTitle>
-                        <CardDescription>
-                           For migrating old data. This sets the starting balance before any new transactions are counted.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="customer-balance-set">Customer</Label>
-                            <ReactSelect
-                                instanceId="balance-customer-select"
-                                placeholder="Select customer to set balance..."
-                                options={customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }))}
-                                value={ balanceSelectedCustomer ? { value: balanceSelectedCustomer.id, label: `${balanceSelectedCustomer.name_en} (${balanceSelectedCustomer.name_ta})` } : null }
-                                onChange={(option) => setBalanceSelectedCustomerId(option ? option.value : '')}
-                                styles={reactSelectStyles}
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                             <Label htmlFor="opening-balance">Opening Balance Amount (₹)</Label>
-                            <Input
-                                id="opening-balance"
-                                type="number"
-                                placeholder="0.00"
-                                value={newOpeningBalance}
-                                onChange={e => setNewOpeningBalance(e.target.value)}
-                                disabled={!balanceSelectedCustomerId}
-                            />
-                        </div>
-                    </CardContent>
-                    <CardFooter>
-                         <Button size="lg" onClick={handleSetOpeningBalance} disabled={!balanceSelectedCustomerId}>
-                            <Save className="mr-2 h-4 w-4" />
-                            Save Opening Balance
-                        </Button>
-                    </CardFooter>
-                </Card>
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline">Record Payment</CardTitle>
@@ -437,5 +372,3 @@ export default function PaymentsPage() {
         </div>
     );
 }
-
-    

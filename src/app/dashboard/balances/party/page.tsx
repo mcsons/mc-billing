@@ -11,7 +11,7 @@ import { Edit, Save } from 'lucide-react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 
 export default function PartyBalancePage() {
-  const { parties, partyBalances, setPartyBalance } = useData();
+  const { parties, partyBalances, setPartyBalance, currentUser } = useData();
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
 
@@ -137,20 +137,22 @@ export default function PartyBalancePage() {
                 <p className="text-2xl font-bold font-mono">₹{currentBalance.toFixed(2)}</p>
               )}
             </div>
-            <div className="flex gap-2">
-              {!isEditing ? (
-                <Button onClick={() => setIsEditing(true)}>
-                  <Edit className="mr-2" /> Edit Balance
-                </Button>
-              ) : (
-                <>
-                  <Button onClick={handleSave}>
-                    <Save className="mr-2" /> Save
+            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR') && (
+              <div className="flex gap-2">
+                {!isEditing ? (
+                  <Button onClick={() => setIsEditing(true)}>
+                    <Edit className="mr-2" /> Edit Balance
                   </Button>
-                  <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <Button onClick={handleSave}>
+                      <Save className="mr-2" /> Save
+                    </Button>
+                    <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
       </CardContent>
