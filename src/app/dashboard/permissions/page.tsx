@@ -21,47 +21,79 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { Save } from 'lucide-react';
-import { Label } from '@/components/ui/label';
+import { useData } from '@/context/DataContext';
 
-const roles = ['ADMIN', 'MANAGER'] as const;
+const roles = ['CREATOR', 'ADMIN', 'MANAGER'] as const;
 type Role = typeof roles[number];
 
 const pages = [
-  'Billing',
-  'Vehicle Bill',
-  'Bill History',
-  'Payments',
-  'Customers',
-  'Products',
-  'Set Prices',
-  'Manage Vehicles',
-  'Manage Drivers',
-  'Manage Users',
-  'Settings',
+    'Dashboard',
+    'Billing',
+    'Vehicle Bill',
+    'Party Bill',
+    'Sales Report',
+    'Bill History',
+    'Payments',
+    'Customer Balance',
+    'Party Balance',
+    'Customers',
+    'Products',
+    'Set Prices',
+    'Manage Users',
+    'Manage Vehicles',
+    'Manage Drivers',
+    'Manage Parties',
+    'Permissions',
+    'Profile',
+    'Printer Settings',
+    'UOM Settings',
 ] as const;
 type Page = typeof pages[number];
 
 const initialPermissions: Record<Role, Page[]> = {
+  CREATOR: [...pages],
   ADMIN: [
+    'Dashboard',
     'Billing',
     'Vehicle Bill',
+    'Party Bill',
+    'Sales Report',
     'Bill History',
     'Payments',
+    'Customer Balance',
+    'Party Balance',
     'Customers',
     'Products',
     'Set Prices',
     'Manage Vehicles',
     'Manage Drivers',
-    'Settings',
+    'Manage Parties',
+    'Profile',
+    'Printer Settings',
+    'UOM Settings',
   ],
-  MANAGER: ['Billing', 'Vehicle Bill', 'Bill History', 'Payments'],
+  MANAGER: [
+    'Dashboard',
+    'Billing',
+    'Vehicle Bill',
+    'Party Bill',
+    'Bill History',
+    'Payments',
+    'Profile',
+    'Customer Balance',
+    'Party Balance',
+  ],
 };
 
 export default function PermissionsPage() {
   const { toast } = useToast();
+  const { currentUser } = useData();
+  const canEdit = currentUser?.role === 'CREATOR';
+
   const [permissions, setPermissions] =
     useState<Record<Role, Set<Page>>>(() => {
       const state: Record<Role, Set<Page>> = {
+        CREATOR: new Set(initialPermissions.CREATOR),
         ADMIN: new Set(initialPermissions.ADMIN),
         MANAGER: new Set(initialPermissions.MANAGER),
       };
@@ -73,6 +105,10 @@ export default function PermissionsPage() {
     page: Page,
     checked: boolean
   ) => {
+    if (!canEdit) return;
+    // Creator permissions cannot be changed.
+    if (role === 'CREATOR') return;
+
     setPermissions((prev) => {
       const newPermissions = new Set(prev[role]);
       if (checked) {
@@ -127,6 +163,7 @@ export default function PermissionsPage() {
                         onCheckedChange={(checked) =>
                           handlePermissionChange(role, page, !!checked)
                         }
+                        disabled={!canEdit || role === 'CREATOR'}
                         aria-label={`Allow ${role} to access ${page}`}
                       />
                     </TableCell>
@@ -138,7 +175,7 @@ export default function PermissionsPage() {
         </div>
       </CardContent>
       <CardFooter>
-        <Button onClick={handleSave}>
+        <Button onClick={handleSave} disabled={!canEdit}>
           <Save className="mr-2 h-4 w-4" />
           Save Permissions
         </Button>
