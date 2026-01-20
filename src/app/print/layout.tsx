@@ -8,7 +8,8 @@ export default function PrintLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // Force light theme for all print previews to ensure a consistent "what you see is what you get" experience.
+    <html lang="en" className="light" style={{ colorScheme: 'light' }} suppressHydrationWarning>
       <body suppressHydrationWarning>
         <Suspense fallback={<div className="flex h-screen w-full items-center justify-center">Loading Print Preview...</div>}>
           {children}
