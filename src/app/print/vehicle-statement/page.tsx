@@ -103,7 +103,7 @@ function PrintPageContent() {
             <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
                 <div>
                     <p className="font-semibold">{type} Details:</p>
-                    <p className="cust-name">{name} ({id})</p>
+                    <p className="cust-name">{type === 'Driver' ? name : `${name} (${id})`}</p>
                 </div>
                 <div className="text-right">
                      {dateRange?.from && (

@@ -93,50 +93,57 @@ function PrintPageContent() {
 
           <Table className="print-table">
             <TableBody>
-              <TableRow>
-                <TableCell className="font-semibold">Bill No</TableCell>
-                <TableCell className="text-right">{id.slice(0, 8).toUpperCase()}</TableCell>
-              </TableRow>
-               <TableRow>
-                <TableCell className="font-semibold">Date</TableCell>
-                <TableCell className="text-right font-bold">
-                  {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
-                </TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Vehicle Number</TableCell>
-                <TableCell className="text-right font-bold">{vehicleId}</TableCell>
-              </TableRow>
-               <TableRow>
-                <TableCell className="font-semibold">Party Name</TableCell>
-                <TableCell className="text-right">{partyName}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Driver Name(s)</TableCell>
-                <TableCell className="text-right font-bold">{driverNames.join(', ')}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Destination</TableCell>
-                <TableCell className="text-right font-bold">{destination}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Advance Amount</TableCell>
-                <TableCell className="text-right font-mono">₹{advance.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell className="font-semibold">Expenses</TableCell>
-                <TableCell className="text-right font-mono">₹{expenses.toFixed(2)}</TableCell>
-              </TableRow>
-              <TableRow className="font-bold text-base border-t-2">
-                <TableCell>Balance</TableCell>
-                <TableCell className="text-right font-mono">₹{(advance - expenses).toFixed(2)}</TableCell>
-              </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Bill No</TableCell>
+                    <TableCell className="text-right">{id.slice(0, 8).toUpperCase()}</TableCell>
+                </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Date</TableCell>
+                    <TableCell className="text-right font-bold">
+                    {billDate instanceof Date && !isNaN(billDate.getTime()) ? format(billDate, 'P') : 'Invalid Date'}
+                    </TableCell>
+                </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Vehicle Number</TableCell>
+                    <TableCell className="text-right font-bold">{vehicleId}</TableCell>
+                </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Party Name</TableCell>
+                    <TableCell className="text-right">{partyName}</TableCell>
+                </TableRow>
+                {driverNames.length === 1 ? (
+                    <TableRow>
+                        <TableCell className="font-semibold">Driver Name</TableCell>
+                        <TableCell className="text-right font-bold">{driverNames[0]}</TableCell>
+                    </TableRow>
+                ) : (
+                    driverNames.map((name, index) => (
+                        <TableRow key={index}>
+                            <TableCell className="font-semibold">Driver {index + 1}</TableCell>
+                            <TableCell className="text-right font-bold">{name}</TableCell>
+                        </TableRow>
+                    ))
+                )}
+                <TableRow>
+                    <TableCell className="font-semibold">Destination</TableCell>
+                    <TableCell className="text-right font-bold">{destination}</TableCell>
+                </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Advance Amount</TableCell>
+                    <TableCell className="text-right font-mono">₹{advance.toFixed(2)}</TableCell>
+                </TableRow>
+                <TableRow>
+                    <TableCell className="font-semibold">Expenses</TableCell>
+                    <TableCell className="text-right font-mono">₹{expenses.toFixed(2)}</TableCell>
+                </TableRow>
+                <TableRow className="font-bold text-base border-t-2">
+                    <TableCell>Balance</TableCell>
+                    <TableCell className="text-right font-mono">₹{(advance - expenses).toFixed(2)}</TableCell>
+                </TableRow>
             </TableBody>
           </Table>
 
-          <footer className="text-center mt-8 text-xs text-muted-foreground">
-            <p>This is a computer-generated bill.</p>
-          </footer>
+          <footer className="print-footer">Developed by MC & SONS</footer>
         </CardContent>
       </Card>
       <style jsx global>{`
@@ -178,6 +185,14 @@ function PrintPageContent() {
   /* Hide UI-only elements */
   .print\\:hidden {
     display: none !important;
+  }
+
+  .print-footer {
+    margin-top: 18px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 800;
+    font-style: italic;
   }
 }
 
