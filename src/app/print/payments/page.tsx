@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Customer, Transaction } from '@/lib/data';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface PrintData {
@@ -84,9 +84,9 @@ function PrintPageContent() {
   return (
     <div>
         <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Payments
+          <Button variant="outline" onClick={() => window.close()}>
+            <X className="mr-2 h-4 w-4" />
+            Close Preview
           </Button>
           <Button onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
@@ -284,8 +284,8 @@ function PrintPageContent() {
           }
 
           .col-date { width: 34%; text-align: left; }
-          .col-billed { width: 33%; }
-          .col-received { width: 33%; }
+          .col-billed { width: 33%; text-align: right; }
+          .col-received { width: 33%; text-align: right; }
 
           .totals-section > div,
           .totals-section span {
@@ -340,6 +340,7 @@ function PrintPageContent() {
           }
            .print-root.a4 .print-table th {
              font-weight: bold;
+             text-align: left;
            }
 
           @page {

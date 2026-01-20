@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { PartyBill } from '@/lib/data';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -52,9 +52,9 @@ function PartyBillPrintContent() {
   return (
     <div>
       <div className="p-4 print:hidden flex justify-between items-center">
-        <Button variant="outline" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
+        <Button variant="outline" onClick={() => window.close()}>
+          <X className="mr-2 h-4 w-4" />
+          Close
         </Button>
         <Button onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" />

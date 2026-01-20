@@ -12,7 +12,7 @@ import {
   TableHead,
 } from '@/components/ui/table';
 import { VehicleStatementTransaction } from '@/lib/data';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
@@ -76,9 +76,9 @@ function PrintPageContent() {
   return (
     <div>
         <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+          <Button variant="outline" onClick={() => window.close()}>
+            <X className="mr-2 h-4 w-4" />
+            Close
           </Button>
           <Button onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />

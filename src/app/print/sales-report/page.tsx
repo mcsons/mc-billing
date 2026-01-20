@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Customer, SalesReportData, BillItem } from '@/lib/data';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
 type SalesReportPrintData = SalesReportData;
@@ -67,9 +67,9 @@ function PrintPageContent() {
   return (
     <div>
         <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Sales Report
+          <Button variant="outline" onClick={() => window.close()}>
+            <X className="mr-2 h-4 w-4" />
+            Close Preview
           </Button>
           <Button onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
