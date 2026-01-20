@@ -141,7 +141,7 @@ function PartyBillPrintContent() {
             color: #000 !important;
           }
           @page {
-            size: 150mm; /* Fixed width, auto height */
+            size: 200mm 147mm;
             margin: 5mm;
           }
 
@@ -151,7 +151,7 @@ function PartyBillPrintContent() {
           }
 
           .print-root {
-            width: 150mm;
+            width: 200mm;
             margin: 0 auto;
           }
 
@@ -160,7 +160,7 @@ function PartyBillPrintContent() {
           #print-area {
             display: flex;
             flex-direction: column;
-            min-height: calc(148mm - 10mm); /* Ensure content can fill at least one "page" before breaking */
+            min-height: calc(147mm - 10mm); /* Ensure content can fill at least one "page" before breaking */
             font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
           }
 
