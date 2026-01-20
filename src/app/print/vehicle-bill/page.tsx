@@ -153,6 +153,7 @@ function PrintPageContent() {
 @media print {
   * {
     box-sizing: border-box;
+    color: #000 !important;
   }
 
   body {

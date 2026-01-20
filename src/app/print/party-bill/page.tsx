@@ -137,6 +137,9 @@ function PartyBillPrintContent() {
       </div>
       <style jsx global>{`
         @media print {
+          * {
+            color: #000 !important;
+          }
           @page {
             size: 150mm; /* Fixed width, auto height */
             margin: 5mm;
