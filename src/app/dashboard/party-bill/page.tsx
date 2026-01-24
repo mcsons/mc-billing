@@ -116,12 +116,14 @@ export default function PartyBillPage() {
     const [date, setDate] = useState<Date>(new Date());
     const [partyId, setPartyId] = useState('');
     const [totalBox, setTotalBox] = useState('');
+    const [totalKgs, setTotalKgs] = useState('');
     const [items, setItems] = useState<PartyBillItem[]>([]);
     
     // Item entry state
     const [rate, setRate] = useState('');
     const [selectedProductId, setSelectedProductId] = useState('');
     const [box, setBox] = useState('');
+    const [kgs, setKgs] = useState('');
 
     // Deductions & Payments
     const [commission, setCommission] = useState('');
@@ -157,6 +159,7 @@ export default function PartyBillPage() {
         setDate(new Date());
         setPartyId('');
         setTotalBox('');
+        setTotalKgs('');
         setItems([]);
         setCommission('');
         setExpenses('');
@@ -180,6 +183,7 @@ export default function PartyBillPage() {
                 setDate(billToEdit.date.toDate());
                 setPartyId(billToEdit.partyId);
                 setTotalBox(billToEdit.totalBox.toString());
+                setTotalKgs(billToEdit.totalKgs.toString());
                 setItems(billToEdit.items);
                 setCommission(billToEdit.commission.toString());
                 setExpenses(billToEdit.expenses.toString());
@@ -214,25 +218,30 @@ export default function PartyBillPage() {
 
     const handleAddItem = () => {
         const product = products.find(p => p.id === selectedProductId);
-        if (!product || !rate || !box) {
+        if (!product || !rate || (!box && !kgs)) {
             toast({ variant: 'destructive', title: 'Missing Item Info' });
             return;
         }
         const rateNum = parseFloat(rate);
-        const boxNum = parseFloat(box);
+        const boxNum = parseFloat(box) || 0;
+        const kgsNum = parseFloat(kgs) || 0;
+        const amount = rateNum * (boxNum > 0 ? boxNum : kgsNum);
+        
         const newItem: PartyBillItem = {
             id: Date.now().toString(),
             productId: product.id,
             productName: product.name_en,
             rate: rateNum,
             box: boxNum,
-            amount: rateNum * boxNum,
+            kgs: kgsNum,
+            amount: amount,
         };
         setItems(prev => [...prev, newItem]);
         // Reset item form
         setSelectedProductId('');
         setRate('');
         setBox('');
+        setKgs('');
         rateInputRef.current?.focus();
     };
 
@@ -258,6 +267,7 @@ export default function PartyBillPage() {
             partyId,
             partyName: party.name,
             totalBox: parseFloat(totalBox) || 0,
+            totalKgs: parseFloat(totalKgs) || 0,
             items,
             totalAmount,
             commission: parseFloat(commission) || 0,
@@ -311,6 +321,7 @@ export default function PartyBillPage() {
             partyId,
             partyName: party.name,
             totalBox: parseFloat(totalBox) || 0,
+            totalKgs: parseFloat(totalKgs) || 0,
             items,
             totalAmount,
             commission: parseFloat(commission) || 0,
@@ -326,7 +337,7 @@ export default function PartyBillPage() {
         };
         return data;
     }, [
-        partyId, parties, editingBillId, date, totalBox, items, totalAmount, 
+        partyId, parties, editingBillId, date, totalBox, totalKgs, items, totalAmount, 
         commission, expenses, rent, totalDeductions, netAmount, cashReceived, 
         bankReceived, totalReceived, previousBalance, finalBalance
     ]);
@@ -433,6 +444,10 @@ export default function PartyBillPage() {
                             <Label>Box :</Label>
                             <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} className="w-24"/>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <Label>Kgs :</Label>
+                            <Input type="number" value={totalKgs} onChange={e => setTotalKgs(e.target.value)} className="w-24"/>
+                        </div>
                     </div>
                     <Separator className="my-2"/>
                 </CardHeader>
@@ -441,10 +456,11 @@ export default function PartyBillPage() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-1/4">Rate</TableHead>
+                                <TableHead className="w-[15%]">Rate</TableHead>
                                 <TableHead>Particulars</TableHead>
-                                <TableHead className="w-1/4">Box</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="w-[15%]">Box</TableHead>
+                                <TableHead className="w-[15%]">Kgs</TableHead>
+                                <TableHead className="text-right w-[20%]">Amount</TableHead>
                                 <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
                         </TableHeader>
@@ -453,7 +469,8 @@ export default function PartyBillPage() {
                                 <TableRow key={item.id}>
                                     <TableCell>{item.rate.toFixed(2)}</TableCell>
                                     <TableCell>{item.productName}</TableCell>
-                                    <TableCell>{item.box}</TableCell>
+                                    <TableCell>{item.box > 0 ? item.box : '-'}</TableCell>
+                                    <TableCell>{item.kgs > 0 ? item.kgs : '-'}</TableCell>
                                     <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
                                     <TableCell><Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
                                 </TableRow>
@@ -474,6 +491,7 @@ export default function PartyBillPage() {
                                     />
                                 </TableCell>
                                 <TableCell><Input placeholder="Box" type="number" value={box} onChange={e => setBox(e.target.value)} /></TableCell>
+                                <TableCell><Input placeholder="Kgs" type="number" value={kgs} onChange={e => setKgs(e.target.value)} /></TableCell>
                                 <TableCell></TableCell>
                                 <TableCell><Button size="icon" onClick={handleAddItem}><PlusCircle className="h-4 w-4"/></Button></TableCell>
                             </TableRow>

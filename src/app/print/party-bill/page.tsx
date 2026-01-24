@@ -44,7 +44,7 @@ function PartyBillPrintContent() {
   }
 
   const {
-    date, partyName, totalBox, items, totalAmount, commission, expenses,
+    date, partyName, totalBox, totalKgs, items, totalAmount, commission, expenses,
     rent, totalDeductions, netAmount, cashReceived, bankReceived,
     totalReceived, previousBalance, finalBalance
   } = billData;
@@ -79,6 +79,7 @@ function PartyBillPrintContent() {
                 <div className="w-1/3 text-right space-y-1">
                   <p>Date : {format(date, 'dd-MM-yyyy')}</p>
                   <p>Box : {totalBox}</p>
+                  <p>Kgs : {totalKgs}</p>
                 </div>
               </div>
               <Separator className="my-2 bg-black" />
@@ -86,10 +87,11 @@ function PartyBillPrintContent() {
                   <Table className="text-sm print-table">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-1/4">Rate</TableHead>
-                        <TableHead>Particulars</TableHead>
-                        <TableHead className="w-1/4">Box</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-[15%]">Rate</TableHead>
+                        <TableHead className="w-[40%]">Particulars</TableHead>
+                        <TableHead className="w-[15%]">Box</TableHead>
+                        <TableHead className="w-[15%]">Kgs</TableHead>
+                        <TableHead className="text-right w-[15%]">Amount</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -97,7 +99,8 @@ function PartyBillPrintContent() {
                         <TableRow key={item.id}>
                           <TableCell>{item.rate.toFixed(2)}</TableCell>
                           <TableCell>{item.productName}</TableCell>
-                          <TableCell>{item.box}</TableCell>
+                          <TableCell>{item.box > 0 ? item.box : '-'}</TableCell>
+                          <TableCell>{item.kgs > 0 ? item.kgs : '-'}</TableCell>
                           <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
                         </TableRow>
                       ))}

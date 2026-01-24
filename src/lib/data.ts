@@ -139,6 +139,7 @@ export type PartyBillItem = {
   productName: string;
   rate: number;
   box: number;
+  kgs: number;
   amount: number;
 };
 
@@ -148,6 +149,7 @@ export type PartyBill = {
   partyId: string;
   partyName: string;
   totalBox: number;
+  totalKgs: number;
   items: PartyBillItem[];
   totalAmount: number;
   commission: number;
