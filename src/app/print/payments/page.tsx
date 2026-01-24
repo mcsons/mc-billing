@@ -22,7 +22,7 @@ interface PrintData {
     dateRange: { from?: string, to?: string };
 }
 
-function PrintPageContent() {
+function PrintPaymentsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'thermal';
@@ -83,7 +83,7 @@ function PrintPageContent() {
 
   return (
     <div>
-        <div className="flex justify-between items-center mb-4 p-4 print:hidden">
+        <div className="p-4 print:hidden flex justify-between items-center">
           <Button variant="outline" onClick={() => window.close()}>
             <X className="mr-2 h-4 w-4" />
             Close Preview
@@ -113,10 +113,10 @@ function PrintPageContent() {
                 </div>
                 <div className="text-right">
                     {dateRange.from && (
-                         <p><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
+                         <p className="bill-date"><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
                     )}
                     {dateRange.to && (
-                         <p><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
+                         <p className="bill-date"><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
                     )}
                 </div>
             </div>
@@ -258,10 +258,16 @@ function PrintPageContent() {
             font-weight: 700;
             font-size: 15px;
           }
+
+          .bill-no > strong,
+          .bill-date > strong {
+            font-weight: 700;
+          }
           
           .text-lg {
              font-size: 16px !important;
              line-height: 1.4;
+             font-weight: 700;
           }
 
           .print-table {
@@ -286,7 +292,7 @@ function PrintPageContent() {
 
           .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 13px;
+            font-size: 11px;
             padding: 2px 4px;
             vertical-align: top;
           }
@@ -365,7 +371,7 @@ function PrintPageContent() {
 export default function PrintPaymentsPage() {
     return (
       <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
-        <PrintPageContent />
+        <PrintPaymentsContent />
       </Suspense>
     );
   }
