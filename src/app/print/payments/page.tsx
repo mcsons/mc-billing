@@ -113,10 +113,10 @@ function PrintPageContent() {
                 </div>
                 <div className="text-right">
                     {dateRange.from && (
-                         <p><span className="font-semibold">From:</span> <strong>{format(dateRange.from, 'dd-MM-yyyy')}</strong></p>
+                         <p><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
                     )}
                     {dateRange.to && (
-                         <p><span className="font-semibold">To:</span> <strong>{format(dateRange.to, 'dd-MM-yyyy')}</strong></p>
+                         <p><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
                     )}
                 </div>
             </div>
@@ -140,6 +140,10 @@ function PrintPageContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                <TableRow>
+                    <TableCell colSpan={2} className="font-semibold">Opening Balance</TableCell>
+                    <TableCell className="col-received text-right font-semibold">{openingBalance.toFixed(2)}</TableCell>
+                </TableRow>
                 {dailyTransactions.map((t, index) => (
                   <TableRow key={index}>
                     <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
@@ -161,10 +165,6 @@ function PrintPageContent() {
             
             <div className="flex justify-end mt-2">
                  <div className="w-full max-w-[300px] space-y-1 totals-section">
-                    <div className="flex justify-between">
-                        <span>Opening Balance:</span>
-                        <span>₹{openingBalance.toFixed(2)}</span>
-                    </div>
                     <div className="flex justify-between">
                         <span>Total Billed:</span>
                         <span>₹{totalBilled.toFixed(2)}</span>
@@ -250,7 +250,7 @@ function PrintPageContent() {
           }
           .table-header-line {
             border-top: 2px solid #000;
-            margin: 4px 0;
+            margin: 0;
           }
 
           .cust-name {
@@ -264,7 +264,9 @@ function PrintPageContent() {
             table-layout: fixed;
           }
 
-          .print-table tr, .print-table th, .print-table td {
+          .print-table tr,
+          .print-table th,
+          .print-table td {
             border: none;
           }
 
@@ -278,11 +280,11 @@ function PrintPageContent() {
 
           .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 13px;
+            font-size: 11px;
             padding: 2px 4px;
             vertical-align: top;
           }
-
+          
           .col-date { width: 34%; text-align: left; }
           .col-billed { width: 33%; text-align: right; }
           .col-received { width: 33%; text-align: right; }
@@ -306,9 +308,9 @@ function PrintPageContent() {
           .print-footer {
             margin-top: 18px;
             text-align: left;
-            font-style: italic;
-            font-size: 8px;
+            font-size: 10px;
             font-weight: 800;
+            font-style: italic;
           }
         }
 
@@ -361,3 +363,5 @@ export default function PrintPaymentsPage() {
       </Suspense>
     );
   }
+
+    
