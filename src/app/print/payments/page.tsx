@@ -223,6 +223,12 @@ function PrintPaymentsContent() {
             padding: 2mm 4mm 18mm 4mm;
             margin-top: 0;
           }
+          
+          h2.text-lg {
+             font-size: 16px !important;
+             line-height: 1.4;
+             font-weight: 700;
+          }
 
           .header-title {
             font-size: 22px !important;
@@ -292,14 +298,14 @@ function PrintPaymentsContent() {
 
           .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 11px;
+            font-size: 13px;
             padding: 2px 4px;
             vertical-align: top;
           }
           
-          .col-date { width: 34%; text-align: left; }
-          .col-billed { width: 33%; text-align: right; }
-          .col-received { width: 33%; text-align: right; }
+          .col-date { width: 40%; text-align: left; }
+          .col-billed { width: 30%; text-align: right; }
+          .col-received { width: 30%; text-align: right; }
 
           .totals-section > div,
           .totals-section span {
@@ -337,7 +343,7 @@ function PrintPaymentsContent() {
             font-size: 12px;
           }
 
-          #print-area {
+          .print-root.a4 #print-area {
             padding: 15mm;
           }
 
