@@ -104,7 +104,7 @@ function PrintPageContent() {
               <p className="header-sub header-phone">📞 9894089889</p>
             </header>
             <div className="hr-line"></div>
-            <h2 className="text-lg font-semibold mt-2 text-center">Customer Statement</h2>
+            <h2 className="text-lg font-semibold my-1 text-center">Customer Statement</h2>
 
             <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
                 <div>
@@ -141,8 +141,9 @@ function PrintPageContent() {
               </TableHeader>
               <TableBody>
                 <TableRow>
-                    <TableCell colSpan={2} className="font-semibold">Opening Balance</TableCell>
-                    <TableCell className="col-received text-right font-semibold">{openingBalance.toFixed(2)}</TableCell>
+                    <TableCell className="col-date">Opening Balance</TableCell>
+                    <TableCell className="col-billed text-right"></TableCell>
+                    <TableCell className="col-received text-right">{openingBalance.toFixed(2)}</TableCell>
                 </TableRow>
                 {dailyTransactions.map((t, index) => (
                   <TableRow key={index}>
@@ -257,6 +258,11 @@ function PrintPageContent() {
             font-weight: 700;
             font-size: 15px;
           }
+          
+          .text-lg {
+             font-size: 16px !important;
+             line-height: 1.4;
+          }
 
           .print-table {
             width: 100%;
@@ -280,7 +286,7 @@ function PrintPageContent() {
 
           .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 11px;
+            font-size: 13px;
             padding: 2px 4px;
             vertical-align: top;
           }
@@ -363,5 +369,3 @@ export default function PrintPaymentsPage() {
       </Suspense>
     );
   }
-
-    
