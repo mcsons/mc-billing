@@ -33,7 +33,7 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<BillPrintData | null>(null);
-  const paper = searchParams.get('paper') || 'thermal';
+  // The 'paper' prop from the query is no longer used, as this is now a single-purpose page.
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -83,13 +83,12 @@ function PrintPageContent() {
           Print
         </Button>
       </div>
-      <div className={`print-root ${paper}`}>
+      <div className="print-root">
         <div id="print-area">
           <header className="text-center">
             <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
             <p className="header-sub">
-              No. 1, Fish Market, Palladam Road,
-              <span className="city">Tiruppur - 641604</span>
+              No. 1, Fish Market, Palladam Road, Tiruppur - 641604
             </p>
             <p className="header-sub header-phone">📞 9894089889</p>
           </header>
@@ -143,11 +142,10 @@ function PrintPageContent() {
                       <span className="uom-text">{item.uom}</span>
                     </span>
                   </TableCell>
-
-                  <TableCell className="col-rate text-right">
+                  <TableCell className="col-rate text-right font-mono">
                     {item.rate.toFixed(2)}
                   </TableCell>
-                  <TableCell className="col-amount text-right">
+                  <TableCell className="col-amount text-right font-mono">
                     {item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
@@ -165,29 +163,29 @@ function PrintPageContent() {
                 <tbody>
                     <tr>
                         <td className="summary-label">Items Total:</td>
-                        <td className="summary-value">₹{itemsTotal.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
                     </tr>
                     {deliveryCharge > 0 && (
                         <tr>
                             <td className="summary-label">Delivery Charge:</td>
-                            <td className="summary-value">₹{deliveryCharge.toFixed(2)}</td>
+                            <td className="summary-value font-mono">₹{deliveryCharge.toFixed(2)}</td>
                         </tr>
                     )}
                     <tr className="summary-total-row">
                         <td className="summary-label">Bill Total:</td>
-                        <td className="summary-value">₹{totalAmount.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{totalAmount.toFixed(2)}</td>
                     </tr>
                     <tr>
                         <td className="summary-label">Previous Balance:</td>
-                        <td className="summary-value">₹{previousBalance.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
                     </tr>
                     <tr>
                         <td className="summary-label">Paid Amount:</td>
-                        <td className="summary-value">₹{paidAmount.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
                     </tr>
                     <tr className="summary-total-row summary-final-balance">
                         <td className="summary-label">Final Balance:</td>
-                        <td className="summary-value">₹{finalBalance.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
                     </tr>
                 </tbody>
             </table>
@@ -202,9 +200,9 @@ function PrintPageContent() {
         @media print {
           * {
             color: #000 !important;
-            -webkit-font-smoothing: none;
-            font-smoothing: none;
-            text-rendering: optimizeSpeed;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
           }
           body {
             margin: 0;
@@ -216,136 +214,103 @@ function PrintPageContent() {
           .print\\:hidden {
             display: none !important;
           }
+
+          /* Define the page size and margins for the laserjet printout */
+          @page {
+            size: 114mm 210mm;
+            margin: 6mm;
+          }
         }
 
         /* ===============================
-          THERMAL (106mm)
+          LASERJET BILL (114mm x 210mm)
         ================================ */
         @media print {
-          .print-root.thermal {
-            width: 106mm;
-            max-width: 106mm;
+          .print-root {
+            width: 102mm; /* 114mm - 2*6mm margin */
             margin: 0 auto;
-            font-family: 'Courier New', 'Lucida Console', monospace !important;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
           }
 
           #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-            margin-top: 0;
+            padding-top: 2mm;
           }
 
           .header-title {
-            font-size: 22px !important;
-            font-weight: 700;
+            font-size: 18px;
+            font-weight: bold;
             letter-spacing: 0.5px;
-            line-height: 1.2;
-            white-space: nowrap;
           }
           .header-sub {
-            display: block;
-            text-align: center;
-            font-size: 13px !important;
-            font-weight: 700;
+            font-size: 10px;
             line-height: 1.3;
-            margin-top: 2px;
-          }
-          .header-sub .city {
-            display: block;
           }
           .header-phone {
-            margin-top: 4px;
+            font-size: 11px;
+            margin-top: 2px;
           }
           .hr-line {
-            border-top: 2px solid #000;
-            margin: 6px 0;
+            border-top: 1px solid #000;
+            margin: 4px 0;
           }
           .table-header-line {
-            border-top: 2px solid #000;
-            margin: 0;
+            border-top: 1px solid #000;
           }
 
           .cust-name {
-            font-weight: 700;
-            font-size: 15px;
+            font-weight: bold;
+            font-size: 14px;
           }
 
-          .bill-no > strong,
-          .bill-date > strong {
-            font-weight: 700;
+          .bill-no, .bill-date {
+            font-size: 11px;
           }
 
           .print-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
+            font-size: 11px;
           }
 
-          .print-table tr,
           .print-table th,
           .print-table td {
             border: none;
-          }
-
-          .print-table thead th {
-            font-weight: 800 !important;
-            font-size: 14px !important;
-            padding: 2px 4px;
-            color: #000;
-            vertical-align: middle;
-          }
-
-          .print-table tbody td {
-            font-weight: 700 !important;
-            font-size: 11px;
-            padding: 2px 4px;
+            padding: 2px;
             vertical-align: top;
           }
 
-          .col-sn {
-            width: 8%;
+          .print-table thead th {
+            font-weight: bold;
             text-align: left;
-            white-space: nowrap;
           }
-          .col-product {
-            width: 36%;
-            text-align: left;
-            word-wrap: break-word;
+          .print-table .text-right {
+            text-align: right;
           }
-          .col-qty {
-            width: 18%;
+          .print-table .text-center {
             text-align: center;
-            white-space: nowrap;
-          }
-          .col-rate {
-            width: 18%;
-            text-align: right;
-            white-space: nowrap;
-          }
-          .col-amount {
-            width: 20%;
-            text-align: right;
-            white-space: nowrap;
           }
 
-          .qty-uom {
-            white-space: nowrap;
-          }
+          .col-sn { width: 8%; }
+          .col-product { width: 42%; word-wrap: break-word; }
+          .col-qty { width: 15%; text-align: center; }
+          .col-rate { width: 15%; text-align: right; }
+          .col-amount { width: 20%; text-align: right; }
+
           .uom-text {
-            font-weight: 700 !important;
-            margin-left: 2px;
+            margin-left: 3px;
           }
           
-          /* NEW SUMMARY TABLE STYLES */
           .summary-table {
             width: 100%;
-            max-width: 300px;
-            border: 2px solid black;
+            max-width: 250px; /* Adjust as needed */
+            border: 1px solid black;
             border-collapse: collapse;
+            font-size: 11px;
           }
           .summary-table td {
-            font-weight: 700 !important;
-            font-size: 15px !important;
-            padding: 2px 5px;
+            padding: 3px 6px;
             border-bottom: 1px solid black;
           }
            .summary-table tr:last-child td {
@@ -354,124 +319,40 @@ function PrintPageContent() {
           .summary-label {
             text-align: left;
             white-space: nowrap;
+            font-weight: bold;
           }
           .summary-value {
             text-align: right;
-            font-family: 'Courier New', monospace;
             white-space: nowrap;
           }
           .summary-total-row td {
-            font-weight: 800 !important;
-            border-top: 2px solid black;
+            border-top: 1px solid black;
+            font-weight: bold;
           }
            .summary-final-balance td {
-            font-size: 16px !important;
-            font-weight: 800 !important;
+            font-size: 13px;
+            font-weight: bold;
           }
 
           .print-footer {
-            margin-top: 18px;
-            text-align: left;
-            font-size: 10px;
-            font-weight: 800;
-            font-style: italic;
-          }
-        }
-
-        /* ===============================
-          A4 PRINT
-        ================================ */
-        @media print {
-          .print-root.a4 {
-            width: 210mm;
-            margin: 0 auto;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-          }
-
-          .print-root.a4 #print-area {
-            padding: 15mm;
-          }
-
-          .print-root.a4 .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: auto;
-          }
-
-          .print-root.a4 .print-table th,
-          .print-root.a4 .print-table td {
-            padding: 5px;
-            border-bottom: 1px solid #eee;
-          }
-
-          .print-root.a4 .print-table th {
-            font-weight: bold;
-            text-align: left;
-          }
-          
-          .print-root.a4 .col-product {
-            word-break: normal;
-          }
-
-          .print-root.a4 .text-right {
-            text-align: right;
-          }
-
-          .print-root.a4 .text-center {
+            position: fixed;
+            bottom: 6mm;
+            left: 6mm;
+            right: 6mm;
             text-align: center;
+            font-size: 9px;
+            color: #555 !important;
           }
-          
-          .print-root.a4 .print-footer {
-            font-weight: normal;
-          }
-          
-          .print-root.a4 .summary-table {
-            border: 1px solid #999;
-          }
-          
-          .print-root.a4 .summary-table td {
-             font-size: 12px !important;
-             font-family: Arial, sans-serif;
-             border-bottom: 1px solid #eee;
-          }
-          .print-root.a4 .summary-total-row td {
-             border-top: 1px solid #999;
-             font-weight: 700 !important;
-          }
-          .print-root.a4 .summary-final-balance td {
-             font-size: 14px !important;
-             font-weight: 800 !important;
-          }
-
-
-          @page {
-            size: A4;
-            margin: 10mm;
-          }
-        }
-
-        /* --- Shared styles --- */
-        .qty-uom {
-          white-space: nowrap;
-        }
-        .uom-text {
-          margin-left: 4px;
         }
       `}</style>
     </div>
   );
 }
 
+
 export default function PrintBillPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center items-center h-screen">
-          Loading Print Preview...
-        </div>
-      }
-    >
+    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
       <PrintPageContent />
     </Suspense>
   );
