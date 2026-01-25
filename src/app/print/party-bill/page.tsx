@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { PartyBill } from '@/lib/data';
+import { PartyBill, PartyBillItem } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -44,7 +44,7 @@ function PartyBillPrintContent() {
     id, date, partyName, items, totalAmount, commission, expenses, netAmount, totalBox
   } = billData;
 
-  const formatQty = (item: (typeof items)[0]) => {
+  const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
     if (item.kgs > 0) return `${item.kgs} KGS`;
     return '-';
