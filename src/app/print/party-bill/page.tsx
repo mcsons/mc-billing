@@ -41,8 +41,10 @@ function PartyBillPrintContent() {
   }
 
   const {
-    id, date, partyName, items, totalAmount, commission, expenses, rent, totalDeductions, netAmount, cashReceived, bankReceived, totalReceived, previousBalance, finalBalance
+    id, date, partyName, items, totalAmount, commission, expenses, rent, totalDeductions, netAmount, cashReceived, bankReceived, totalReceived, previousBalance, finalBalance, totalKgs
   } = billData;
+
+  const commissionPercent = totalAmount > 0 ? (commission / totalAmount) * 100 : 0;
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
@@ -66,75 +68,78 @@ function PartyBillPrintContent() {
         <div id="print-area">
           <header className="invoice-header">
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
-            <p className="sub-header">ICE FISH MERCHANTS</p>
-            <p className="address">Shop No. 1, Fish Market, Santhaipettai, Tiruppur – 641604</p>
+            <p className="sub-header">SEA AND TANK FOOD MERCHANTS</p>
           </header>
 
           <section className="party-details">
-            <div className="grid-item label-cell">Supplier Name</div>
-            <div className="grid-item value-cell">{partyName}</div>
-            <div className="grid-item label-cell">Purchase No</div>
-            <div className="grid-item value-cell">{id.slice(0, 8).toUpperCase()}</div>
-            <div className="grid-item label-cell address-label">Address</div>
-            <div className="grid-item value-cell address-value">{partyName}</div>
-            <div className="grid-item label-cell date-label">Date</div>
-            <div className="grid-item value-cell date-value">{format(date, 'dd/MM/yyyy')}</div>
+            <div className="grid-item">
+                <span className="label">Supplier Name:</span>
+                <span className="value">{partyName}</span>
+            </div>
+             <div className="grid-item">
+                <span className="label">Date:</span>
+                <span className="value font-bold">{format(date, 'dd/MM/yyyy')}</span>
+            </div>
+            <div className="grid-item">
+                <span className="label">Total KGs:</span>
+                <span className="value">{totalKgs.toFixed(2)}</span>
+            </div>
+            <div className="grid-item">
+                <span className="label">Total Amount:</span>
+                <span className="value font-bold">₹{totalAmount.toFixed(2)}</span>
+            </div>
           </section>
 
           <table className="items-table">
             <thead>
               <tr>
-                <th className="col-no">No</th>
+                <th className="col-sn">S/N</th>
                 <th className="col-item">Item Name</th>
+                <th className="col-qty">Qty</th>
                 <th className="col-price">Unit Price</th>
-                <th className="col-qty">Box/Kg</th>
-                <th className="col-total">Total</th>
+                <th className="col-total">Amount</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, index) => (
                 <tr key={item.id}>
-                  <td className="col-no">{index + 1}</td>
+                  <td className="col-sn">{index + 1}</td>
                   <td className="col-item">{item.productName}</td>
-                  <td className="col-price">{item.rate.toFixed(2)}</td>
                   <td className="col-qty">{formatQty(item)}</td>
+                  <td className="col-price">{item.rate.toFixed(2)}</td>
                   <td className="col-total">{item.amount.toFixed(2)}</td>
                 </tr>
-              ))}
-               {/* Add blank rows to extend table if needed */}
-              {Array.from({ length: Math.max(0, 10 - items.length) }).map((_, i) => (
-                 <tr key={`blank-${i}`} className="blank-row"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
               ))}
             </tbody>
           </table>
 
-          <div className="summary-container">
-            <div className="notes-area">
-                {/* This area can be used for notes if needed */}
-            </div>
-            <div className="summary-box">
-                <div className="summary-row">
-                    <span className="summary-label">Total Amount</span>
-                    <span className="summary-value">₹{totalAmount.toFixed(2)}</span>
-                </div>
-                {commission > 0 && <div className="summary-row"><span className="summary-label">Commission</span><span className="summary-value">₹{commission.toFixed(2)}</span></div>}
-                {expenses > 0 && <div className="summary-row"><span className="summary-label">Expenses</span><span className="summary-value">₹{expenses.toFixed(2)}</span></div>}
-                {rent > 0 && <div className="summary-row"><span className="summary-label">Rent</span><span className="summary-value">₹{rent.toFixed(2)}</span></div>}
-                {totalDeductions > 0 && <div className="summary-row total-row"><span className="summary-label">Total Deductions</span><span className="summary-value">₹{totalDeductions.toFixed(2)}</span></div>}
-                <div className="summary-row final-total-row"><span className="summary-label">Net Amount</span><span className="summary-value">₹{netAmount.toFixed(2)}</span></div>
-                
-                {cashReceived > 0 && <div className="summary-row received-row"><span className="summary-label">Cash Received</span><span className="summary-value">₹{cashReceived.toFixed(2)}</span></div>}
-                {bankReceived > 0 && <div className="summary-row received-row"><span className="summary-label">Bank Received</span><span className="summary-value">₹{bankReceived.toFixed(2)}</span></div>}
-                {totalReceived > 0 && <div className="summary-row total-row"><span className="summary-label">Total Received</span><span className="summary-value">₹{totalReceived.toFixed(2)}</span></div>}
-                
-                <div className="summary-row"><span className="summary-label">Previous Balance</span><span className="summary-value">₹{previousBalance.toFixed(2)}</span></div>
-                <div className="summary-row final-total-row"><span className="summary-label">Final Balance</span><span className="summary-value">₹{finalBalance.toFixed(2)}</span></div>
+          <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
+            <table className="left-totals">
+                <tbody>
+                    {commission > 0 && <tr><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commission.toFixed(2)}</td></tr>}
+                    {expenses > 0 && <tr><td>Expenses:</td><td>₹{expenses.toFixed(2)}</td></tr>}
+                    {rent > 0 && <tr><td>Rent:</td><td>₹{rent.toFixed(2)}</td></tr>}
+                    {cashReceived > 0 && <tr><td>Cash Received:</td><td>₹{cashReceived.toFixed(2)}</td></tr>}
+                    {bankReceived > 0 && <tr><td>Bank Received:</td><td>₹{bankReceived.toFixed(2)}</td></tr>}
+                </tbody>
+            </table>
+            <table className="right-totals">
+                <tbody>
+                    {totalDeductions > 0 && <tr><td>Total Deductions:</td><td className="font-bold">₹{totalDeductions.toFixed(2)}</td></tr>}
+                    <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{netAmount.toFixed(2)}</td></tr>
+                    <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
+                    <tr className="heavy-top-border"><td className="font-bold">Final Balance:</td><td className="font-bold text-lg">₹{finalBalance.toFixed(2)}</td></tr>
+                </tbody>
+            </table>
+          </section>
 
-            </div>
-          </div>
+          <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
       <style jsx global>{`
+        /* ===============================
+          PRINT SETUP (114mm x 210mm)
+        ================================ */
         @media print {
           @page {
             size: 114mm 210mm;
@@ -149,6 +154,7 @@ function PartyBillPrintContent() {
           /* Critical: Hide everything BUT the print area */
           body * {
             visibility: hidden;
+            color: #000 !important;
           }
           #print-area, #print-area * {
             visibility: visible;
@@ -158,10 +164,14 @@ function PartyBillPrintContent() {
             left: 0;
             top: 0;
             width: 100%;
+            height: 100%;
           }
           .print\\:hidden { display: none !important; }
         }
 
+        /* ===============================
+          BASE LAYOUT & FONTS
+        ================================ */
         .party-bill-invoice {
           font-family: Arial, sans-serif;
           font-size: 10pt;
@@ -173,123 +183,129 @@ function PartyBillPrintContent() {
           flex-direction: column;
         }
 
+        .font-bold { font-weight: bold; }
+        .text-lg { font-size: 11pt; }
+        
+        /* ===============================
+          HEADER
+        ================================ */
         .invoice-header {
           text-align: center;
-          border-bottom: 1.5px solid black;
           padding-bottom: 8px;
+          margin-bottom: 8px;
         }
         .invoice-header .company-name {
           font-weight: bold;
-          font-size: 16pt;
+          font-size: 14pt;
           margin: 0;
         }
-        .invoice-header .sub-header,
-        .invoice-header .address {
-          font-size: 9pt;
+        .invoice-header .sub-header {
+          font-size: 10pt;
           margin: 1px 0;
+          font-weight: 500;
         }
 
-
+        /* ===============================
+          PARTY DETAILS BOX
+        ================================ */
         .party-details {
           border: 1.5px solid black;
-          margin-top: 8px;
           display: grid;
-          grid-template-columns: auto 1fr;
-          grid-template-rows: auto auto;
+          grid-template-columns: 1fr 1fr;
         }
         .party-details .grid-item {
-          padding: 4px 6px;
+          padding: 6px;
           display: flex;
-          align-items: center;
+          flex-direction: column;
+          border-bottom: 1.5px solid black;
         }
-        .party-details .label-cell {
+         .party-details .grid-item:nth-child(odd) {
+             border-right: 1.5px solid black;
+         }
+         .party-details .grid-item:nth-child(3),
+         .party-details .grid-item:nth-child(4) {
+             border-bottom: none;
+         }
+        .party-details .label {
           font-weight: bold;
-          border-right: 1.5px solid black;
-          white-space: nowrap;
+          font-size: 9pt;
         }
-         .party-details .address-label, .party-details .date-label {
-            border-top: 1.5px solid black;
-         }
-         .party-details .address-value, .party-details .date-value {
-             border-top: 1.5px solid black;
-         }
+        .party-details .value {
+          font-size: 10pt;
+        }
 
+        /* ===============================
+          ITEMS TABLE
+        ================================ */
         .items-table {
           width: 100%;
           margin-top: 8px;
           border-collapse: collapse;
           table-layout: fixed;
-          font-size: 10pt;
         }
         .items-table th, .items-table td {
           border: 1.5px solid black;
-          padding: 4px;
+          padding: 6px;
           vertical-align: top;
         }
         .items-table thead tr {
-          background-color: #e9e9e9 !important;
+          background-color: #f2f2f2 !important;
         }
         .items-table thead th {
           font-weight: bold;
           text-align: center;
         }
         
-        .items-table .blank-row td {
-          border-left: 1.5px solid black;
-          border-right: 1.5px solid black;
-        }
-        .items-table tr:not(:last-child) .blank-row td {
-            border-bottom: none;
-        }
+        .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
+        .items-table .col-item { width: auto; word-break: break-word; }
+        .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
+        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
+        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; }
 
-        .items-table .col-no { width: 8%; text-align: center; }
-        .items-table .col-item { width: 42%; word-wrap: break-word; }
-        .items-table .col-price { width: 15%; text-align: right; font-family: "Courier New", monospace; white-space: nowrap; }
-        .items-table .col-qty { width: 15%; text-align: center; font-family: "Courier New", monospace; white-space: nowrap; }
-        .items-table .col-total { width: 20%; text-align: right; font-family: "Courier New", monospace; white-space: nowrap; }
-
-        .summary-container {
-            display: flex;
-            width: 100%;
-            margin-top: -1.5px; /* Overlap with table bottom border */
-        }
-        .notes-area {
-            flex-grow: 1;
-            border-left: 1.5px solid black;
-            border-bottom: 1.5px solid black;
-        }
-        .summary-box {
-            width: 60%; /* Adjust as needed */
-            border: 1.5px solid black;
-            font-size: 10pt;
-        }
-        .summary-row {
+        /* ===============================
+          TOTALS SECTION
+        ================================ */
+        .totals-container {
             display: flex;
             justify-content: space-between;
+            margin-top: 8px;
+            width: 100%;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .left-totals, .right-totals {
+            width: 50%;
+        }
+        .left-totals table, .right-totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .left-totals td, .right-totals td {
             padding: 4px 6px;
-            border-bottom: 1.5px solid black;
         }
-        .summary-row:last-child {
-            border-bottom: none;
-        }
-        .summary-label {
-            font-weight: bold;
+        .left-totals td:first-child, .right-totals td:first-child {
             text-align: left;
-        }
-        .summary-value {
-            font-family: "Courier New", monospace;
-            text-align: right;
             font-weight: bold;
         }
-        .summary-row.total-row {
-            border-top: 1.5px solid black;
+         .left-totals td:last-child, .right-totals td:last-child {
+            text-align: right;
+            font-family: "Courier New", monospace;
         }
-        .summary-row.final-total-row {
-            font-size: 11pt;
+        .right-totals .heavy-top-border td {
             border-top: 2px solid black;
         }
-         .summary-row.received-row {
-            border-top: 1px dashed black;
+
+        /* ===============================
+          FOOTER
+        ================================ */
+        .print-footer {
+          margin-top: 18px;
+          text-align: left;
+          font-size: 10px;
+          font-weight: 800;
+          font-style: italic;
+          position: absolute;
+          bottom: 6mm;
         }
       `}</style>
     </>

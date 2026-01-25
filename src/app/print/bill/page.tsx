@@ -33,7 +33,6 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<BillPrintData | null>(null);
-  // The 'paper' prop from the query is no longer used, as this is now a single-purpose page.
 
   useEffect(() => {
     const data = searchParams.get('data');
