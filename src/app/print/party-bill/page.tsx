@@ -52,8 +52,8 @@ function PartyBillPrintContent() {
 
   const totalDeductions = commissionAmount + expenses + rent;
   const netAmount = totalAmount - totalDeductions;
-  
-  const finalBalance = previousBalance + netAmount - totalReceived;
+  const totalAfterPrevious = netAmount + previousBalance;
+  const finalBalance = totalAfterPrevious - totalReceived;
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
@@ -127,11 +127,11 @@ function PartyBillPrintContent() {
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
             <table className="left-totals">
                 <tbody>
-                    {commission > 0 && <tr><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commissionAmount.toFixed(2)}</td></tr>}
-                    {expenses > 0 && <tr><td>Expenses:</td><td>₹{expenses.toFixed(2)}</td></tr>}
-                    {rent > 0 && <tr><td>Rent:</td><td>₹{rent.toFixed(2)}</td></tr>}
-                    {cashReceived > 0 && <tr><td>Cash Received:</td><td>₹{cashReceived.toFixed(2)}</td></tr>}
-                    {bankReceived > 0 && <tr><td>Bank Received:</td><td>₹{bankReceived.toFixed(2)}</td></tr>}
+                    {commission > 0 && <tr className="deduction-row"><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commissionAmount.toFixed(2)}</td></tr>}
+                    {expenses > 0 && <tr className="deduction-row"><td>Expenses:</td><td>₹{expenses.toFixed(2)}</td></tr>}
+                    {rent > 0 && <tr className="deduction-row"><td>Rent:</td><td>₹{rent.toFixed(2)}</td></tr>}
+                    {cashReceived > 0 && <tr className="payment-row"><td>Cash Received:</td><td>₹{cashReceived.toFixed(2)}</td></tr>}
+                    {bankReceived > 0 && <tr className="payment-row"><td>Bank Received:</td><td>₹{bankReceived.toFixed(2)}</td></tr>}
                 </tbody>
             </table>
             <table className="right-totals">
@@ -140,6 +140,7 @@ function PartyBillPrintContent() {
                     {totalDeductions > 0 && <tr className="heavy-top-border"><td>Total Deductions:</td><td className="font-bold">₹{totalDeductions.toFixed(2)}</td></tr>}
                     <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
+                    <tr className="heavy-top-border"><td className="font-bold">Total:</td><td className="font-bold">₹{totalAfterPrevious.toFixed(2)}</td></tr>
                     {totalReceived > 0 && <tr><td>Total Received:</td><td>₹{totalReceived.toFixed(2)}</td></tr>}
                     <tr className="heavy-top-border"><td className="font-bold">Final Balance:</td><td className="font-bold text-lg">₹{finalBalance.toFixed(2)}</td></tr>
                 </tbody>
@@ -277,6 +278,7 @@ function PartyBillPrintContent() {
         .items-table .col-item { width: auto; word-break: break-word; }
         .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
         .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
+        .items-table th.col-price { text-align: right; padding-right: 6px; }
         .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; }
 
         /* ===============================
@@ -300,6 +302,10 @@ function PartyBillPrintContent() {
         .left-totals td, .right-totals td {
             padding: 4px 6px;
         }
+        
+        .deduction-row td { padding-top: 2px; padding-bottom: 2px; }
+        .payment-row td { padding-top: 10px; }
+
         .left-totals td:first-child, .right-totals td:first-child {
             text-align: left;
             font-weight: bold;
@@ -316,13 +322,11 @@ function PartyBillPrintContent() {
           FOOTER
         ================================ */
         .print-footer {
-          margin-top: 18px;
+          margin-top: calc(3 * 1.2em);
           text-align: left;
           font-size: 10px;
           font-weight: 800;
           font-style: italic;
-          position: absolute;
-          bottom: 6mm;
         }
       `}</style>
     </>
