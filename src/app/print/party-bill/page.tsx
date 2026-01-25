@@ -41,14 +41,23 @@ function PartyBillPrintContent() {
   }
 
   const {
-    id, date, partyName, items, totalAmount, commission, expenses, rent, totalDeductions, netAmount, cashReceived, bankReceived, totalReceived, previousBalance, finalBalance, totalKgs
+    id, date, partyName, items, totalAmount, commission, expenses, rent, cashReceived, bankReceived, totalReceived, previousBalance
   } = billData;
 
-  const commissionPercent = totalAmount > 0 ? (commission / totalAmount) * 100 : 0;
+  const totalBoxes = items.reduce((sum, item) => sum + item.box, 0);
+  const totalKgs = items.reduce((sum, item) => sum + item.kgs, 0);
+  
+  const commissionPercent = commission;
+  const commissionAmount = (totalAmount * commissionPercent) / 100;
+
+  const totalDeductions = commissionAmount + expenses + rent;
+  const netAmount = totalAmount - totalDeductions;
+  
+  const finalBalance = previousBalance + netAmount - totalReceived;
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
-    if (item.kgs > 0) return `${item.kgs} KGS`;
+    if (item.kgs > 0) return `${item.kgs.toFixed(1)} KGS`;
     return '-';
   };
 
@@ -69,6 +78,8 @@ function PartyBillPrintContent() {
           <header className="invoice-header">
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
             <p className="sub-header">SEA AND TANK FOOD MERCHANTS</p>
+            <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
+            <p className="sub-header-address">📞 9894089889, 9944444497</p>
           </header>
 
           <section className="party-details">
@@ -81,12 +92,12 @@ function PartyBillPrintContent() {
                 <span className="value font-bold">{format(date, 'dd/MM/yyyy')}</span>
             </div>
             <div className="grid-item">
-                <span className="label">Total KGs:</span>
-                <span className="value">{totalKgs.toFixed(2)}</span>
+                <span className="label">Total Boxes:</span>
+                <span className="value">{totalBoxes}</span>
             </div>
             <div className="grid-item">
-                <span className="label">Total Amount:</span>
-                <span className="value font-bold">₹{totalAmount.toFixed(2)}</span>
+                <span className="label">Total Kgs:</span>
+                <span className="value">{totalKgs.toFixed(2)}</span>
             </div>
           </section>
 
@@ -116,7 +127,7 @@ function PartyBillPrintContent() {
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
             <table className="left-totals">
                 <tbody>
-                    {commission > 0 && <tr><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commission.toFixed(2)}</td></tr>}
+                    {commission > 0 && <tr><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commissionAmount.toFixed(2)}</td></tr>}
                     {expenses > 0 && <tr><td>Expenses:</td><td>₹{expenses.toFixed(2)}</td></tr>}
                     {rent > 0 && <tr><td>Rent:</td><td>₹{rent.toFixed(2)}</td></tr>}
                     {cashReceived > 0 && <tr><td>Cash Received:</td><td>₹{cashReceived.toFixed(2)}</td></tr>}
@@ -125,7 +136,8 @@ function PartyBillPrintContent() {
             </table>
             <table className="right-totals">
                 <tbody>
-                    {totalDeductions > 0 && <tr><td>Total Deductions:</td><td className="font-bold">₹{totalDeductions.toFixed(2)}</td></tr>}
+                    <tr><td>Total Amount:</td><td className="font-bold">₹{totalAmount.toFixed(2)}</td></tr>
+                    {totalDeductions > 0 && <tr className="heavy-top-border"><td>Total Deductions:</td><td className="font-bold">₹{totalDeductions.toFixed(2)}</td></tr>}
                     <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
                     <tr className="heavy-top-border"><td className="font-bold">Final Balance:</td><td className="font-bold text-lg">₹{finalBalance.toFixed(2)}</td></tr>
@@ -203,6 +215,10 @@ function PartyBillPrintContent() {
           font-size: 10pt;
           margin: 1px 0;
           font-weight: 500;
+        }
+        .invoice-header .sub-header-address {
+            font-size: 9pt;
+            margin: 1px 0;
         }
 
         /* ===============================
