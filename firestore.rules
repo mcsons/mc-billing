@@ -119,18 +119,17 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages user profiles. Only admins can create, update, or delete
-     *   any user. Users can only read their own profile. Listing users is admin-only.
+     * @description Manages user profiles. Any authenticated user can read user
+     *   profiles to facilitate collaboration. A user can update their own profile.
+     *   Only admins can create new users or modify/delete others.
      * @path /users/{userId}
-     * @allow An admin deletes a user document. (auth.isAdmin == true, delete)
-     * @allow A user reads their own profile. (auth.uid == userId, get)
-     * @deny A non-admin user attempts to create a new user. (auth.isAdmin == false, create)
-     * @deny A regular user tries to list all users. (auth.isAdmin == false, list)
-     * @principle Enforces admin-only management of user accounts and protects user privacy.
+     * @allow An admin deletes a user document. (isAdmin(), delete)
+     * @allow An authenticated user reads a user profile. (isSignedIn(), get)
+     * @deny A non-admin user attempts to create a new user. (isAdmin() == false, create)
+     * @principle Balances collaboration with administrative control over user accounts.
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isSignedIn();
+      allow get, list: if isSignedIn();
       allow create: if isOwner(userId) || isAdmin();
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin() && resource != null;
