@@ -221,30 +221,28 @@ function PrintPageContent() {
           
           /* --- Column Specific Styles --- */
           .col-billdate { 
-            width: 17%; 
+            width: 15%; 
             white-space: nowrap;
           }
           .col-itemname { 
-            width: 33%; 
+            width: 40%; 
             white-space: normal;
-            word-break: normal;
-            overflow-wrap: break-word;
           }
           .col-qty { 
-            width: 18%; 
+            width: 15%; 
             text-align: center;
             white-space: nowrap;
             font-size: 14px !important;
           }
           .col-rate { 
-            width: 16%; 
+            width: 15%; 
             text-align: right; 
             white-space: nowrap;
             font-size: 14px !important;
             font-family: "Courier New", monospace;
           }
           .col-amount { 
-            width: 16%; 
+            width: 15%; 
             text-align: right; 
             white-space: nowrap;
             font-size: 14px !important;
