@@ -226,8 +226,9 @@ function PrintPageContent() {
           }
           .col-itemname { 
             width: 33%; 
-            word-wrap: break-word; /* Allow product name to wrap */
             white-space: normal;
+            word-break: normal;
+            overflow-wrap: break-word;
           }
           .col-qty { 
             width: 18%; 
