@@ -180,12 +180,12 @@ function PrintPageContent() {
           .table-header-line { border-top: 2px solid #000; margin: 4px 0; }
           .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
           .print-table tr, .print-table th, .print-table td { border: none; word-wrap: break-word; }
-          .print-table thead th { font-weight: 800 !important; font-size: 14px !important; padding: 2px 4px; color: #000; vertical-align: middle; text-align: left; }
+          .print-table thead th { font-weight: 800 !important; font-size: 14px !important; padding: 2px 4px; color: #000; vertical-align: middle; text-align: left; white-space: nowrap; }
           .print-table tbody td { font-weight: 700 !important; font-size: 13px; padding: 2px 4px; vertical-align: top; }
           
           .col-billdate { width: 18%; font-size: 12px !important; }
-          .col-itemname { width: 32%; }
-          .col-qty { width: 15%; text-align: right; }
+          .col-itemname { width: 27%; }
+          .col-qty { width: 20%; text-align: right; white-space: nowrap; }
           .col-rate { width: 15%; text-align: right; }
           .col-amount { width: 20%; text-align: right; }
 
