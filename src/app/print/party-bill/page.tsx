@@ -42,11 +42,14 @@ function PartyBillPrintContent() {
 
   const {
     id, date, partyName, partyLocation, items, totalAmount, commission, expenses, rent, 
-    cashReceived, bankReceived, totalReceived, previousBalance, totalAfterPrevious, finalBalance, totalBox
+    cashReceived, bankReceived, totalReceived, previousBalance, totalAfterPrevious, finalBalance
   } = billData;
 
   const commissionPercent = commission;
   const commissionAmount = (totalAmount * commissionPercent) / 100;
+  
+  const totalBoxes = items.reduce((sum, item) => sum + (item.uom === 'BOX' ? item.qty : 0), 0);
+  const totalKgs = items.reduce((sum, item) => sum + (item.uom === 'KGS' ? item.qty : 0), 0);
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
@@ -90,7 +93,7 @@ function PartyBillPrintContent() {
             </div>
             <div className="grid-item">
                 <span className="label">Total Boxes:</span>
-                <span className="value">{totalBox}</span>
+                <span className="value">{totalBoxes}</span>
             </div>
           </section>
 
@@ -118,24 +121,26 @@ function PartyBillPrintContent() {
           </table>
 
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
-            <table className="left-totals">
+            <div className="left-totals">
+                <div className="deductions-group">
+                    {commission > 0 && <div className="detail-row"><span>Commission ({commissionPercent.toFixed(1)}%):</span><span>₹{commissionAmount.toFixed(2)}</span></div>}
+                    {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span>₹{expenses.toFixed(2)}</span></div>}
+                    {rent > 0 && <div className="detail-row"><span>Rent:</span><span>₹{rent.toFixed(2)}</span></div>}
+                </div>
+                <div className="payments-group">
+                    {cashReceived > 0 && <div className="detail-row"><span>Cash Received:</span><span>₹{cashReceived.toFixed(2)}</span></div>}
+                    {bankReceived > 0 && <div className="detail-row"><span>Bank Received:</span><span>₹{bankReceived.toFixed(2)}</span></div>}
+                </div>
+            </div>
+            <table className="right-totals boxed-summary-table">
                 <tbody>
-                    {commission > 0 && <tr className="deduction-row"><td>Commission ({commissionPercent.toFixed(1)}%):</td><td>₹{commissionAmount.toFixed(2)}</td></tr>}
-                    {expenses > 0 && <tr className="deduction-row"><td>Expenses:</td><td>₹{expenses.toFixed(2)}</td></tr>}
-                    {rent > 0 && <tr className="deduction-row"><td>Rent:</td><td>₹{rent.toFixed(2)}</td></tr>}
-                    {cashReceived > 0 && <tr className="payment-row"><td>Cash Received:</td><td>₹{cashReceived.toFixed(2)}</td></tr>}
-                    {bankReceived > 0 && <tr className="payment-row"><td>Bank Received:</td><td>₹{bankReceived.toFixed(2)}</td></tr>}
-                </tbody>
-            </table>
-            <table className="right-totals">
-                <tbody>
-                    <tr><td>Total Amount:</td><td className="font-bold">₹{totalAmount.toFixed(2)}</td></tr>
-                    {billData.totalDeductions > 0 && <tr className="heavy-top-border"><td>Total Deductions:</td><td className="font-bold">₹{billData.totalDeductions.toFixed(2)}</td></tr>}
-                    <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{billData.netAmount.toFixed(2)}</td></tr>
+                    <tr><td>Total Amount:</td><td>₹{totalAmount.toFixed(2)}</td></tr>
+                    {billData.totalDeductions > 0 && <tr><td>Total Deductions:</td><td>₹{billData.totalDeductions.toFixed(2)}</td></tr>}
+                    <tr className="font-bold"><td>Net Amount:</td><td>₹{billData.netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
-                    <tr className="heavy-top-border"><td className="font-bold">Total:</td><td className="font-bold">₹{totalAfterPrevious.toFixed(2)}</td></tr>
+                    <tr className="font-bold"><td>Total:</td><td>₹{totalAfterPrevious.toFixed(2)}</td></tr>
                     {totalReceived > 0 && <tr><td>Total Received:</td><td>₹{totalReceived.toFixed(2)}</td></tr>}
-                    <tr className="heavy-top-border"><td className="font-bold">Final Balance:</td><td className="font-bold text-lg">₹{finalBalance.toFixed(2)}</td></tr>
+                    <tr className="font-bold"><td>Final Balance:</td><td>₹{finalBalance.toFixed(2)}</td></tr>
                 </tbody>
             </table>
           </section>
@@ -158,7 +163,6 @@ function PartyBillPrintContent() {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          /* Critical: Hide everything BUT the print area */
           body * {
             visibility: hidden;
             color: #000 !important;
@@ -201,20 +205,9 @@ function PartyBillPrintContent() {
           padding-bottom: 8px;
           margin-bottom: 8px;
         }
-        .invoice-header .company-name {
-          font-weight: bold;
-          font-size: 14pt;
-          margin: 0;
-        }
-        .invoice-header .sub-header {
-          font-size: 10pt;
-          margin: 1px 0;
-          font-weight: 500;
-        }
-        .invoice-header .sub-header-address {
-            font-size: 9pt;
-            margin: 1px 0;
-        }
+        .invoice-header .company-name { font-weight: bold; font-size: 14pt; margin: 0; }
+        .invoice-header .sub-header { font-size: 10pt; margin: 1px 0; font-weight: 500; }
+        .invoice-header .sub-header-address { font-size: 9pt; margin: 1px 0; }
 
         /* ===============================
           PARTY DETAILS BOX
@@ -224,52 +217,21 @@ function PartyBillPrintContent() {
           display: grid;
           grid-template-columns: 1fr 1fr;
         }
-        .party-details .grid-item {
-          padding: 6px;
-          display: flex;
-          flex-direction: column;
-          border-bottom: 1.5px solid black;
-        }
-         .party-details .grid-item:nth-child(odd) {
-             border-right: 1.5px solid black;
-         }
-         .party-details .grid-item:nth-child(3),
-         .party-details .grid-item:nth-child(4) {
-             border-bottom: none;
-         }
-        .party-details .label {
-          font-weight: bold;
-          font-size: 9pt;
-        }
-        .party-details .value {
-          font-size: 10pt;
-        }
+        .party-details .grid-item { padding: 6px; display: flex; flex-direction: column; border-bottom: 1.5px solid black; }
+        .party-details .grid-item:nth-child(odd) { border-right: 1.5px solid black; }
+        .party-details .grid-item:nth-child(3),
+        .party-details .grid-item:nth-child(4) { border-bottom: none; }
+        .party-details .label { font-weight: bold; font-size: 9pt; }
+        .party-details .value { font-size: 10pt; }
 
         /* ===============================
           ITEMS TABLE
         ================================ */
-        .items-table {
-          width: 100%;
-          margin-top: 8px;
-          border-collapse: collapse;
-          table-layout: fixed;
-        }
-        .items-table th, .items-table td {
-          border: 1.5px solid black;
-          padding: 6px;
-          vertical-align: top;
-        }
-        .items-table thead tr {
-          background-color: #f2f2f2 !important;
-        }
-        .items-table thead th {
-          font-weight: bold;
-          text-align: center;
-        }
-        .items-table th.col-price { 
-          text-align: right; 
-          padding-right: 6px; 
-        }
+        .items-table { width: 100%; margin-top: 8px; border-collapse: collapse; table-layout: fixed; }
+        .items-table th, .items-table td { border: 1.5px solid black; padding: 6px; vertical-align: top; }
+        .items-table thead tr { background-color: #f2f2f2 !important; }
+        .items-table thead th { font-weight: bold; text-align: center; }
+        .items-table th.col-price { text-align: right; padding-right: 6px; }
         
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
         .items-table .col-item { width: auto; word-break: break-word; }
@@ -280,46 +242,42 @@ function PartyBillPrintContent() {
         /* ===============================
           TOTALS SECTION
         ================================ */
-        .totals-container {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            width: 100%;
-            break-inside: avoid;
-            page-break-inside: avoid;
-        }
-        .left-totals, .right-totals {
-            width: 50%;
-        }
-        .left-totals table, .right-totals table {
-            width: 100%;
+        .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; }
+        .left-totals { width: 50%; }
+        .right-totals { width: 50%; }
+        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 2px 4px; }
+        .left-totals .detail-row span:first-child { font-weight: bold; }
+        .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
+        
+        .deductions-group { margin-bottom: 0; }
+        .payments-group { margin-top: 10px; }
+
+        .boxed-summary-table {
+            border: 1.5px solid black;
             border-collapse: collapse;
+            width: 100%;
         }
-        .left-totals td, .right-totals td {
+        .boxed-summary-table td {
+            border-bottom: 1.5px solid black;
             padding: 4px 6px;
         }
-        
-        .deduction-row td { padding-top: 2px; padding-bottom: 2px; }
-        .payment-row td { padding-top: 10px; }
-
-        .left-totals td:first-child, .right-totals td:first-child {
-            text-align: left;
+        .boxed-summary-table tr:last-child td {
+            border-bottom: none;
+        }
+        .boxed-summary-table td:first-child {
+            border-right: 1.5px solid black;
             font-weight: bold;
         }
-         .left-totals td:last-child, .right-totals td:last-child {
+        .boxed-summary-table td:last-child {
             text-align: right;
             font-family: "Courier New", monospace;
         }
-        .right-totals .heavy-top-border td {
-            border-top: 2px solid black;
-        }
+
 
         /* ===============================
           FOOTER
         ================================ */
-        .footer-spacer {
-          height: calc(3 * 1.2em); /* 3 blank lines */
-        }
+        .footer-spacer { height: calc(3 * 1.2em); }
         .print-footer {
           margin-top: 0;
           text-align: left;
