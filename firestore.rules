@@ -88,6 +88,13 @@ service cloud.firestore {
     }
 
     /**
+     * Checks if the user has permission to edit bills (Manager, Admin, or Creator).
+     */
+    function canEditBills() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['MANAGER', 'CREATOR', 'ADMIN'];
+    }
+
+    /**
      * Ensures an immutable relationship field on update.
      * Allows partial updates where the field is not present in the request.
      */
@@ -198,7 +205,7 @@ service cloud.firestore {
     match /bills/{billId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if (isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin()) && isImmutable('createdBy');
+      allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
       allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
 
       /**
@@ -213,7 +220,7 @@ service cloud.firestore {
       match /billItems/{billItemId} {
         allow get, list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.addedBy == request.auth.uid && request.resource.data.billId == billId;
-        allow update: if (isExistingOwner(resource.data.addedBy) || isCreatorOrAdmin()) && isImmutable('addedBy') && isImmutable('billId');
+        allow update: if (isExistingOwner(resource.data.addedBy) || canEditBills()) && isImmutable('addedBy') && isImmutable('billId');
         allow delete: if isExistingOwner(resource.data.addedBy) || isCreatorOrAdmin();
       }
     }
