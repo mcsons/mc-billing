@@ -314,32 +314,47 @@ export default function PartyBillPage() {
     const getPrintData = useCallback(() => {
         const party = parties.find(p => p.id === partyId);
         if (!party) return null;
+        
+        const totalBoxes = items.reduce((sum, item) => sum + item.box, 0);
+        const totalKgs = items.reduce((sum, item) => sum + item.kgs, 0);
 
-        const data: Omit<PartyBill, 'createdBy'| 'createdAt'| 'updatedAt'> & { previousBalance: number; finalBalance: number; } = {
+        const commissionPercent = parseFloat(commission) || 0;
+        const commissionAmount = (totalAmount * commissionPercent) / 100;
+        const expensesNum = parseFloat(expenses) || 0;
+        const rentNum = parseFloat(rent) || 0;
+        const totalDeductionsCalc = commissionAmount + expensesNum + rentNum;
+        const netAmountCalc = totalAmount - totalDeductionsCalc;
+        const totalReceivedCalc = (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0);
+
+        const totalAfterPrevious = netAmountCalc + previousBalance;
+        const finalBalanceCalc = totalAfterPrevious - totalReceivedCalc;
+
+        const data = {
             id: editingBillId || 'N/A',
             date: Timestamp.fromDate(date),
             partyId,
             partyName: party.name,
-            totalBox: parseFloat(totalBox) || 0,
-            totalKgs: parseFloat(totalKgs) || 0,
+            partyLocation: party.location,
+            totalBox: totalBoxes,
+            totalKgs: totalKgs,
             items,
             totalAmount,
-            commission: parseFloat(commission) || 0,
-            expenses: parseFloat(expenses) || 0,
-            rent: parseFloat(rent) || 0,
-            totalDeductions,
-            netAmount,
+            commission: commissionPercent,
+            expenses: expensesNum,
+            rent: rentNum,
+            totalDeductions: totalDeductionsCalc,
+            netAmount: netAmountCalc,
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
-            totalReceived,
+            totalReceived: totalReceivedCalc,
             previousBalance,
-            finalBalance,
+            totalAfterPrevious,
+            finalBalance: finalBalanceCalc,
         };
         return data;
     }, [
-        partyId, parties, editingBillId, date, totalBox, totalKgs, items, totalAmount, 
-        commission, expenses, rent, totalDeductions, netAmount, cashReceived, 
-        bankReceived, totalReceived, previousBalance, finalBalance
+        partyId, parties, editingBillId, date, items, totalAmount, commission, 
+        expenses, rent, cashReceived, bankReceived, previousBalance
     ]);
     
     const proceedToPrint = useCallback((data: any) => {

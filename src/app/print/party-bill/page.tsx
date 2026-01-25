@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 function PartyBillPrintContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [billData, setBillData] = useState<(PartyBill & { previousBalance: number; finalBalance: number; }) | null>(null);
+  const [billData, setBillData] = useState<any | null>(null);
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -41,19 +41,12 @@ function PartyBillPrintContent() {
   }
 
   const {
-    id, date, partyName, items, totalAmount, commission, expenses, rent, cashReceived, bankReceived, totalReceived, previousBalance
+    id, date, partyName, partyLocation, items, totalAmount, commission, expenses, rent, 
+    cashReceived, bankReceived, totalReceived, previousBalance, totalAfterPrevious, finalBalance, totalBox
   } = billData;
 
-  const totalBoxes = items.reduce((sum, item) => sum + item.box, 0);
-  const totalKgs = items.reduce((sum, item) => sum + item.kgs, 0);
-  
   const commissionPercent = commission;
   const commissionAmount = (totalAmount * commissionPercent) / 100;
-
-  const totalDeductions = commissionAmount + expenses + rent;
-  const netAmount = totalAmount - totalDeductions;
-  const totalAfterPrevious = netAmount + previousBalance;
-  const finalBalance = totalAfterPrevious - totalReceived;
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
@@ -92,12 +85,12 @@ function PartyBillPrintContent() {
                 <span className="value font-bold">{format(date, 'dd/MM/yyyy')}</span>
             </div>
             <div className="grid-item">
-                <span className="label">Total Boxes:</span>
-                <span className="value">{totalBoxes}</span>
+                <span className="label">Address:</span>
+                <span className="value">{partyLocation}</span>
             </div>
             <div className="grid-item">
-                <span className="label">Total Kgs:</span>
-                <span className="value">{totalKgs.toFixed(2)}</span>
+                <span className="label">Total Boxes:</span>
+                <span className="value">{totalBox}</span>
             </div>
           </section>
 
@@ -137,8 +130,8 @@ function PartyBillPrintContent() {
             <table className="right-totals">
                 <tbody>
                     <tr><td>Total Amount:</td><td className="font-bold">₹{totalAmount.toFixed(2)}</td></tr>
-                    {totalDeductions > 0 && <tr className="heavy-top-border"><td>Total Deductions:</td><td className="font-bold">₹{totalDeductions.toFixed(2)}</td></tr>}
-                    <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{netAmount.toFixed(2)}</td></tr>
+                    {billData.totalDeductions > 0 && <tr className="heavy-top-border"><td>Total Deductions:</td><td className="font-bold">₹{billData.totalDeductions.toFixed(2)}</td></tr>}
+                    <tr className="heavy-top-border"><td>Net Amount:</td><td className="font-bold">₹{billData.netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
                     <tr className="heavy-top-border"><td className="font-bold">Total:</td><td className="font-bold">₹{totalAfterPrevious.toFixed(2)}</td></tr>
                     {totalReceived > 0 && <tr><td>Total Received:</td><td>₹{totalReceived.toFixed(2)}</td></tr>}
@@ -146,7 +139,7 @@ function PartyBillPrintContent() {
                 </tbody>
             </table>
           </section>
-
+          <div className="footer-spacer"></div>
           <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
@@ -321,8 +314,11 @@ function PartyBillPrintContent() {
         /* ===============================
           FOOTER
         ================================ */
+        .footer-spacer {
+          height: calc(3 * 1.2em); /* 3 blank lines */
+        }
         .print-footer {
-          margin-top: calc(3 * 1.2em);
+          margin-top: 0;
           text-align: left;
           font-size: 10px;
           font-weight: 800;
