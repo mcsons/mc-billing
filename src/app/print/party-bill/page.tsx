@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { PartyBill, PartyBillItem } from '@/lib/data';
+import { PartyBillItem } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -48,8 +48,7 @@ function PartyBillPrintContent() {
   const commissionPercent = commission;
   const commissionAmount = (totalAmount * commissionPercent) / 100;
   
-  const totalBoxes = items.reduce((sum, item) => sum + (item.box > 0 ? item.box : 0), 0);
-  const totalKgs = items.reduce((sum, item) => sum + (item.kgs > 0 ? item.kgs : 0), 0);
+  const totalBoxes = billData.totalBox;
 
 
   const formatQty = (item: PartyBillItem) => {
@@ -83,17 +82,13 @@ function PartyBillPrintContent() {
             <div className="grid-item">
                 <span className="label">Supplier Name:</span>
                 <span className="value">{partyName}</span>
+                 <span className="label mt-2">Address:</span>
+                <span className="value">{partyLocation}</span>
             </div>
              <div className="grid-item">
                 <span className="label">Date:</span>
                 <span className="value font-bold">{format(date, 'dd/MM/yyyy')}</span>
-            </div>
-            <div className="grid-item">
-                <span className="label">Address:</span>
-                <span className="value">{partyLocation}</span>
-            </div>
-            <div className="grid-item">
-                <span className="label">Total Boxes:</span>
+                <span className="label mt-2">Total Boxes:</span>
                 <span className="value">{totalBoxes}</span>
             </div>
           </section>
@@ -145,7 +140,6 @@ function PartyBillPrintContent() {
                 </tbody>
             </table>
           </section>
-          <div className="footer-spacer"></div>
           <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
@@ -176,7 +170,6 @@ function PartyBillPrintContent() {
             left: 0;
             top: 0;
             width: 100%;
-            height: 100%;
           }
           .print\\:hidden { display: none !important; }
         }
@@ -191,8 +184,6 @@ function PartyBillPrintContent() {
           margin: 0 auto;
           background: white;
           color: black;
-          display: flex;
-          flex-direction: column;
         }
 
         .font-bold { font-weight: bold; }
@@ -218,10 +209,10 @@ function PartyBillPrintContent() {
           display: grid;
           grid-template-columns: 1fr 1fr;
         }
-        .party-details .grid-item { padding: 6px; display: flex; flex-direction: column; border-bottom: 1.5px solid black; }
+        .party-details .grid-item { padding: 4px 6px; display: flex; flex-direction: column; border-bottom: 1.5px solid black; }
         .party-details .grid-item:nth-child(odd) { border-right: 1.5px solid black; }
-        .party-details .grid-item:nth-child(3),
-        .party-details .grid-item:nth-child(4) { border-bottom: none; }
+        .party-details .grid-item:last-child { border-bottom: none; }
+        .party-details .grid-item:nth-last-child(2) { border-bottom: none; }
         .party-details .label { font-weight: bold; font-size: 9pt; }
         .party-details .value { font-size: 10pt; }
 
@@ -236,8 +227,8 @@ function PartyBillPrintContent() {
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
         .items-table .col-item { width: auto; word-break: break-word; text-align: left; }
         .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
-        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; padding-right: 6px; }
-        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; padding-right: 6px;}
+        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
+        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold;}
 
         /* ===============================
           TOTALS SECTION
@@ -245,13 +236,12 @@ function PartyBillPrintContent() {
         .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; }
         .left-totals { width: 50%; }
         .right-totals { width: 48%; }
-        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 2px 4px; font-size: 10pt;}
+        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 1px 4px; font-size: 10pt;}
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         
         .deductions-group { margin-bottom: 0; }
-        .deductions-group .detail-row { padding-top: 0; padding-bottom: 0; }
-        .payments-group { margin-top: 12px; }
+        .payments-group { margin-top: 20px; }
 
         .boxed-summary-table {
             border: 1.5px solid black;
@@ -277,13 +267,11 @@ function PartyBillPrintContent() {
             font-family: "Courier New", monospace;
         }
 
-
         /* ===============================
           FOOTER
         ================================ */
-        .footer-spacer { height: calc(3 * 1.2em); }
         .print-footer {
-          margin-top: 0;
+          margin-top: calc(3 * 1.2em);
           text-align: left;
           font-size: 10px;
           font-weight: 800;
