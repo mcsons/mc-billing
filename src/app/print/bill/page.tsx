@@ -161,36 +161,36 @@ function PrintPageContent() {
           </Table>
 
           <div className="flex justify-end mt-2">
-            <div className="w-full max-w-[300px] space-y-1 totals-section">
-              <div className="flex justify-between">
-                <span>Items Total:</span>
-                <span>₹{itemsTotal.toFixed(2)}</span>
-              </div>
-              {deliveryCharge > 0 && (
-                <div className="flex justify-between">
-                  <span>Delivery Charge:</span>
-                  <span>₹{deliveryCharge.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="hr-line my-1"></div>
-              <div className="flex justify-between bill-total">
-                <span>Bill Total:</span>
-                <span>₹{totalAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Previous Balance:</span>
-                <span>₹{previousBalance.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Paid Amount:</span>
-                <span>₹{paidAmount.toFixed(2)}</span>
-              </div>
-              <div className="hr-line my-1"></div>
-              <div className="flex justify-between final-balance">
-                <span>Final Balance:</span>
-                <span>₹{finalBalance.toFixed(2)}</span>
-              </div>
-            </div>
+            <table className="summary-table">
+                <tbody>
+                    <tr>
+                        <td className="summary-label">Items Total:</td>
+                        <td className="summary-value">₹{itemsTotal.toFixed(2)}</td>
+                    </tr>
+                    {deliveryCharge > 0 && (
+                        <tr>
+                            <td className="summary-label">Delivery Charge:</td>
+                            <td className="summary-value">₹{deliveryCharge.toFixed(2)}</td>
+                        </tr>
+                    )}
+                    <tr className="summary-total-row">
+                        <td className="summary-label">Bill Total:</td>
+                        <td className="summary-value">₹{totalAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td className="summary-label">Previous Balance:</td>
+                        <td className="summary-value">₹{previousBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td className="summary-label">Paid Amount:</td>
+                        <td className="summary-value">₹{paidAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-total-row summary-final-balance">
+                        <td className="summary-label">Final Balance:</td>
+                        <td className="summary-value">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
           </div>
           <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
@@ -281,12 +281,9 @@ function PrintPageContent() {
           }
 
           .print-table tr,
-          .print-table th {
-            border: none;
-          }
-          
+          .print-table th,
           .print-table td {
-             border: none;
+            border: none;
           }
 
           .print-table thead th {
@@ -313,7 +310,6 @@ function PrintPageContent() {
             width: 36%;
             text-align: left;
             word-wrap: break-word;
-            white-space: normal;
           }
           .col-qty {
             width: 18%;
@@ -338,19 +334,37 @@ function PrintPageContent() {
             font-weight: 700 !important;
             margin-left: 2px;
           }
-
-          .totals-section > div,
-          .totals-section span {
-            font-size: 15px !important;
-            font-weight: 700 !important;
-          }
           
-          .totals-section .hr-line {
-            margin: 2px 0;
+          /* NEW SUMMARY TABLE STYLES */
+          .summary-table {
+            width: 100%;
+            max-width: 300px;
+            border: 2px solid black;
+            border-collapse: collapse;
           }
-
-          .final-balance,
-          .final-balance span {
+          .summary-table td {
+            font-weight: 700 !important;
+            font-size: 15px !important;
+            padding: 2px 5px;
+            border-bottom: 1px solid black;
+          }
+           .summary-table tr:last-child td {
+            border-bottom: none;
+          }
+          .summary-label {
+            text-align: left;
+            white-space: nowrap;
+          }
+          .summary-value {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            white-space: nowrap;
+          }
+          .summary-total-row td {
+            font-weight: 800 !important;
+            border-top: 2px solid black;
+          }
+           .summary-final-balance td {
             font-size: 16px !important;
             font-weight: 800 !important;
           }
@@ -379,23 +393,10 @@ function PrintPageContent() {
             padding: 15mm;
           }
 
-          .print-root.a4 .qty-uom strong {
-            font-weight: 700;
-          }
-
-          .print-root.a4 .bill-total {
-            font-weight: 700;
-          }
-
-          .print-root.a4 .final-balance {
-            font-weight: 800;
-            font-size: 14px;
-            margin-top: 4px;
-          }
-
           .print-root.a4 .print-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: auto;
           }
 
           .print-root.a4 .print-table th,
@@ -411,7 +412,6 @@ function PrintPageContent() {
           
           .print-root.a4 .col-product {
             word-break: normal;
-            white-space: normal;
           }
 
           .print-root.a4 .text-right {
@@ -425,6 +425,25 @@ function PrintPageContent() {
           .print-root.a4 .print-footer {
             font-weight: normal;
           }
+          
+          .print-root.a4 .summary-table {
+            border: 1px solid #999;
+          }
+          
+          .print-root.a4 .summary-table td {
+             font-size: 12px !important;
+             font-family: Arial, sans-serif;
+             border-bottom: 1px solid #eee;
+          }
+          .print-root.a4 .summary-total-row td {
+             border-top: 1px solid #999;
+             font-weight: 700 !important;
+          }
+          .print-root.a4 .summary-final-balance td {
+             font-size: 14px !important;
+             font-weight: 800 !important;
+          }
+
 
           @page {
             size: A4;
