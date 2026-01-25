@@ -48,8 +48,9 @@ function PartyBillPrintContent() {
   const commissionPercent = commission;
   const commissionAmount = (totalAmount * commissionPercent) / 100;
   
-  const totalBoxes = items.reduce((sum, item) => sum + (item.uom === 'BOX' ? item.qty : 0), 0);
-  const totalKgs = items.reduce((sum, item) => sum + (item.uom === 'KGS' ? item.qty : 0), 0);
+  const totalBoxes = items.reduce((sum, item) => sum + (item.box > 0 ? item.box : 0), 0);
+  const totalKgs = items.reduce((sum, item) => sum + (item.kgs > 0 ? item.kgs : 0), 0);
+
 
   const formatQty = (item: PartyBillItem) => {
     if (item.box > 0) return `${item.box} BOX`;
@@ -132,7 +133,7 @@ function PartyBillPrintContent() {
                     {bankReceived > 0 && <div className="detail-row"><span>Bank Received:</span><span>₹{bankReceived.toFixed(2)}</span></div>}
                 </div>
             </div>
-            <table className="right-totals boxed-summary-table">
+             <table className="right-totals boxed-summary-table">
                 <tbody>
                     <tr><td>Total Amount:</td><td>₹{totalAmount.toFixed(2)}</td></tr>
                     {billData.totalDeductions > 0 && <tr><td>Total Deductions:</td><td>₹{billData.totalDeductions.toFixed(2)}</td></tr>}
@@ -231,26 +232,26 @@ function PartyBillPrintContent() {
         .items-table th, .items-table td { border: 1.5px solid black; padding: 6px; vertical-align: top; }
         .items-table thead tr { background-color: #f2f2f2 !important; }
         .items-table thead th { font-weight: bold; text-align: center; }
-        .items-table th.col-price { text-align: right; padding-right: 6px; }
         
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
-        .items-table .col-item { width: auto; word-break: break-word; }
+        .items-table .col-item { width: auto; word-break: break-word; text-align: left; }
         .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
-        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
-        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; }
+        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; padding-right: 6px; }
+        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; padding-right: 6px;}
 
         /* ===============================
           TOTALS SECTION
         ================================ */
         .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; }
         .left-totals { width: 50%; }
-        .right-totals { width: 50%; }
-        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 2px 4px; }
+        .right-totals { width: 48%; }
+        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 2px 4px; font-size: 10pt;}
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         
         .deductions-group { margin-bottom: 0; }
-        .payments-group { margin-top: 10px; }
+        .deductions-group .detail-row { padding-top: 0; padding-bottom: 0; }
+        .payments-group { margin-top: 12px; }
 
         .boxed-summary-table {
             border: 1.5px solid black;
@@ -260,6 +261,9 @@ function PartyBillPrintContent() {
         .boxed-summary-table td {
             border-bottom: 1.5px solid black;
             padding: 4px 6px;
+        }
+        .boxed-summary-table tr.font-bold td {
+            font-weight: bold;
         }
         .boxed-summary-table tr:last-child td {
             border-bottom: none;
