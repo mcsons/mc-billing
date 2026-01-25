@@ -89,7 +89,7 @@ function PrintPageContent() {
             <div className="hr-line"></div>
             <h2 className="text-lg font-semibold mt-2 text-center">Sales Report</h2>
 
-            <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
+            <div className="grid grid-cols-2 gap-4 mb-1 text-sm">
                 <div></div>
                 <div className="text-right">
                     {dateRange.from && (
@@ -104,14 +104,21 @@ function PrintPageContent() {
             <div className="text-sm">
                 <p><span className="font-semibold">Customer Name:</span> {customer?.name_ta || customer?.name_en || '-'}</p>
             </div>
-            <div className="hr-line my-1"></div>
+            
+            {/* Blank line for spacing */}
+            <div className="py-1"></div>
 
             <Table className="print-table">
               <TableHeader>
                 <TableRow>
+                  <TableCell colSpan={5} className="p-0">
+                    <div className="table-header-line"></div>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
                   <TableHead className="col-billdate">BillDate</TableHead>
                   <TableHead className="col-itemname">ItemName</TableHead>
-                  <TableHead className="col-qty text-right">Qty</TableHead>
+                  <TableHead className="col-qty text-center">Qty</TableHead>
                   <TableHead className="col-rate text-right">Rate</TableHead>
                   <TableHead className="col-amount text-right">Amt</TableHead>
                 </TableRow>
@@ -127,7 +134,7 @@ function PrintPageContent() {
                         <TableRow key={`${date}-${item.id}`}>
                             <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
                             <TableCell className="col-itemname">{item.product}</TableCell>
-                            <TableCell className="col-qty text-right">{item.qty.toFixed(1)} {item.uom}</TableCell>
+                            <TableCell className="col-qty text-center">{item.qty.toFixed(1)} {item.uom}</TableCell>
                             <TableCell className="col-rate text-right">{item.rate.toFixed(2)}</TableCell>
                             <TableCell className="col-amount text-right">{item.amount.toFixed(2)}</TableCell>
                         </TableRow>
@@ -163,13 +170,18 @@ function PrintPageContent() {
           </div>
         </div>
         <style jsx global>{`
-        /* Reuse Customer Statement Print CSS and adapt for Sales Report */
+        /* --- Global Print Reset --- */
         @media print {
           * { color: #000 !important; -webkit-font-smoothing: none; font-smoothing: none; text-rendering: optimizeSpeed; }
           body { margin: 0; padding: 0; background: white !important; print-color-adjust: exact; }
           .print\\:hidden { display: none !important; }
         }
+
+        /* ===============================
+          THERMAL (106mm)
+        ================================ */
         @media print {
+          /* --- Base styles copied from Main Bill Print --- */
           .print-root.thermal { width: 106mm; max-width: 106mm; margin: 0 auto; font-family: 'Courier New', 'Lucida Console', monospace !important; }
           #print-area { padding: 2mm 4mm 18mm 4mm; margin-top: 0; }
           .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
@@ -177,23 +189,77 @@ function PrintPageContent() {
           .header-sub .city { display: block; }
           .header-phone { margin-top: 4px; }
           .hr-line { border-top: 2px solid #000; margin: 6px 0; }
-          .table-header-line { border-top: 2px solid #000; margin: 4px 0; }
-          .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-          .print-table tr, .print-table th, .print-table td { border: none; word-wrap: break-word; }
-          .print-table thead th { font-weight: 800 !important; font-size: 14px !important; padding: 2px 4px; color: #000; vertical-align: middle; text-align: left; white-space: nowrap; }
-          .print-table tbody td { font-weight: 700 !important; font-size: 13px; padding: 2px 4px; vertical-align: top; }
-          
-          .col-billdate { width: 18%; font-size: 12px !important; }
-          .col-itemname { width: 27%; }
-          .col-qty { width: 20%; text-align: right; white-space: nowrap; }
-          .col-rate { width: 15%; text-align: right; }
-          .col-amount { width: 20%; text-align: right; }
+          .table-header-line { border-top: 2px solid #000; margin: 0; }
 
+          /* --- Sales Report Table Layout --- */
+          .print-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            table-layout: fixed; 
+          }
+          .print-table tr, .print-table th, .print-table td { 
+            border: none; 
+            vertical-align: top;
+          }
+          
+          .print-table thead th { 
+            font-weight: 800 !important; 
+            font-size: 14px !important; 
+            padding: 2px 1px; 
+            color: #000; 
+            white-space: nowrap;
+            text-align: left;
+          }
+          .print-table thead th.text-right { text-align: right; }
+          .print-table thead th.text-center { text-align: center; }
+          
+          .print-table tbody td { 
+            padding: 2px 1px; 
+            font-size: 13px;
+            font-weight: 700 !important;
+          }
+          
+          /* --- Column Specific Styles --- */
+          .col-billdate { 
+            width: 17%; 
+            white-space: nowrap;
+          }
+          .col-itemname { 
+            width: 33%; 
+            word-wrap: break-word; /* Allow product name to wrap */
+            white-space: normal;
+          }
+          .col-qty { 
+            width: 18%; 
+            text-align: center;
+            white-space: nowrap;
+            font-size: 14px !important;
+          }
+          .col-rate { 
+            width: 16%; 
+            text-align: right; 
+            white-space: nowrap;
+            font-size: 14px !important;
+            font-family: "Courier New", monospace;
+          }
+          .col-amount { 
+            width: 16%; 
+            text-align: right; 
+            white-space: nowrap;
+            font-size: 14px !important;
+            font-family: "Courier New", monospace;
+          }
+
+          /* --- Totals and Footer --- */
           .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
           .totals-section .hr-line { margin: 2px 0; }
           .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
           .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
         }
+
+        /* ===============================
+          A4 PRINT (Unchanged)
+        ================================ */
         @media print {
           .print-root.a4 { width: 210mm; margin: 0 auto; font-family: Arial, sans-serif; font-size: 12px; }
           .print-root.a4 #print-area { padding: 15mm; }
