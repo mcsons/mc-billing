@@ -70,9 +70,9 @@ function PartyBillPrintContent() {
         <div id="print-area">
           <header className="invoice-header">
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
-            <p className="sub-header">SEA AND TANK FOOD MERCHANTS</p>
+            <p className="sub-header">Dealer : SEA & TANK FOODS</p>
             <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
-            <p className="sub-header-address">📞 9894089889, 9944444497</p>
+            <p className="sub-header-address">📞 9843223078, 9944444497</p>
           </header>
 
           <section className="party-details">
@@ -266,12 +266,15 @@ function PartyBillPrintContent() {
           font-weight: bold;
           text-align: center;
         }
+        .items-table th.col-price { 
+          text-align: right; 
+          padding-right: 6px; 
+        }
         
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
         .items-table .col-item { width: auto; word-break: break-word; }
         .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
         .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
-        .items-table th.col-price { text-align: right; padding-right: 6px; }
         .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold; }
 
         /* ===============================

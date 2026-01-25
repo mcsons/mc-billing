@@ -245,6 +245,34 @@ export default function PartyBillPage() {
         rateInputRef.current?.focus();
     };
 
+    const handleItemUpdate = useCallback((itemId: string, field: 'rate' | 'box' | 'kgs', value: string) => {
+      setItems(prevItems =>
+          prevItems.map(item => {
+              if (item.id === itemId) {
+                  const newValue = parseFloat(value) || 0;
+                  const updatedItem = { ...item };
+  
+                  if (field === 'rate') {
+                      updatedItem.rate = newValue;
+                  } else if (field === 'box') {
+                      updatedItem.box = newValue;
+                      if (newValue > 0) updatedItem.kgs = 0; 
+                  } else if (field === 'kgs') {
+                      updatedItem.kgs = newValue;
+                      if (newValue > 0) updatedItem.box = 0;
+                  }
+                  
+                  const rate = updatedItem.rate;
+                  const qty = updatedItem.box > 0 ? updatedItem.box : updatedItem.kgs;
+                  updatedItem.amount = rate * qty;
+  
+                  return updatedItem;
+              }
+              return item;
+          })
+      );
+  }, []);
+
     const handleRemoveItem = (itemId: string) => {
         showAlertDialog({
           title: 'Delete Item?',
@@ -482,10 +510,33 @@ export default function PartyBillPage() {
                         <TableBody>
                             {items.map(item => (
                                 <TableRow key={item.id}>
-                                    <TableCell>{item.rate.toFixed(2)}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                          type="number"
+                                          value={item.rate}
+                                          onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                                          className="h-8 w-full text-right font-mono"
+                                      />
+                                    </TableCell>
                                     <TableCell>{item.productName}</TableCell>
-                                    <TableCell>{item.box > 0 ? item.box : '-'}</TableCell>
-                                    <TableCell>{item.kgs > 0 ? item.kgs : '-'}</TableCell>
+                                    <TableCell>
+                                      <Input
+                                          type="number"
+                                          value={item.box || ''}
+                                          onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
+                                          className="h-8 w-full text-right font-mono"
+                                          placeholder="Box"
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Input
+                                          type="number"
+                                          value={item.kgs || ''}
+                                          onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
+                                          className="h-8 w-full text-right font-mono"
+                                          placeholder="Kgs"
+                                      />
+                                    </TableCell>
                                     <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
                                     <TableCell><Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
                                 </TableRow>
