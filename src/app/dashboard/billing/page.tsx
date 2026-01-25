@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -306,13 +307,9 @@ export default function BillingPage() {
     }
 
     setQty('');
-    if (isProductLocked) {
-      qtyInputRef.current?.focus();
-    } else {
-      setSelectedProductId('');
-      setRate('');
-      productSelectRef.current?.focus();
-    }
+    setSelectedProductId('');
+    setRate('');
+    productSelectRef.current?.focus();
   }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, isProductLocked, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
 
 
