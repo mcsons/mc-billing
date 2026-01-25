@@ -41,7 +41,7 @@ function PartyBillPrintContent() {
   }
 
   const {
-    id, date, partyName, items, totalAmount, commission, expenses, netAmount, totalBox
+    id, date, partyName, items, totalAmount, commission, expenses, rent, totalDeductions, netAmount, cashReceived, bankReceived, totalReceived, previousBalance, finalBalance
   } = billData;
 
   const formatQty = (item: PartyBillItem) => {
@@ -65,11 +65,9 @@ function PartyBillPrintContent() {
       <div className="party-bill-invoice">
         <div id="print-area">
           <header className="invoice-header">
-            <p className="mobile-offi">Mobile-Offi.: 98432 23078</p>
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
             <p className="sub-header">ICE FISH MERCHANTS</p>
             <p className="address">Shop No. 1, Fish Market, Santhaipettai, Tiruppur – 641604</p>
-            <p className="date-header">DATE: {format(date, 'dd/MM/yyyy')}</p>
           </header>
 
           <section className="party-details">
@@ -79,8 +77,8 @@ function PartyBillPrintContent() {
             <div className="grid-item value-cell">{id.slice(0, 8).toUpperCase()}</div>
             <div className="grid-item label-cell address-label">Address</div>
             <div className="grid-item value-cell address-value">{partyName}</div>
-            <div className="grid-item label-cell"></div>
-            <div className="grid-item value-cell"></div>
+            <div className="grid-item label-cell date-label">Date</div>
+            <div className="grid-item value-cell date-value">{format(date, 'dd/MM/yyyy')}</div>
           </section>
 
           <table className="items-table">
@@ -103,27 +101,37 @@ function PartyBillPrintContent() {
                   <td className="col-total">{item.amount.toFixed(2)}</td>
                 </tr>
               ))}
+               {/* Add blank rows to extend table if needed */}
+              {Array.from({ length: Math.max(0, 10 - items.length) }).map((_, i) => (
+                 <tr key={`blank-${i}`} className="blank-row"><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+              ))}
             </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={2} rowSpan={4} className="notes-area"></td>
-                <td className="summary-label" colSpan={2}>Total</td>
-                <td className="summary-value">{totalAmount.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td className="summary-label" colSpan={2}>Commission</td>
-                <td className="summary-value">{commission.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td className="summary-label" colSpan={2}>Expense</td>
-                <td className="summary-value">{expenses.toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td className="summary-label grand-total-label" colSpan={2}>Grand Total</td>
-                <td className="summary-value grand-total-value">{netAmount.toFixed(2)}</td>
-              </tr>
-            </tfoot>
           </table>
+
+          <div className="summary-container">
+            <div className="notes-area">
+                {/* This area can be used for notes if needed */}
+            </div>
+            <div className="summary-box">
+                <div className="summary-row">
+                    <span className="summary-label">Total Amount</span>
+                    <span className="summary-value">₹{totalAmount.toFixed(2)}</span>
+                </div>
+                {commission > 0 && <div className="summary-row"><span className="summary-label">Commission</span><span className="summary-value">₹{commission.toFixed(2)}</span></div>}
+                {expenses > 0 && <div className="summary-row"><span className="summary-label">Expenses</span><span className="summary-value">₹{expenses.toFixed(2)}</span></div>}
+                {rent > 0 && <div className="summary-row"><span className="summary-label">Rent</span><span className="summary-value">₹{rent.toFixed(2)}</span></div>}
+                {totalDeductions > 0 && <div className="summary-row total-row"><span className="summary-label">Total Deductions</span><span className="summary-value">₹{totalDeductions.toFixed(2)}</span></div>}
+                <div className="summary-row final-total-row"><span className="summary-label">Net Amount</span><span className="summary-value">₹{netAmount.toFixed(2)}</span></div>
+                
+                {cashReceived > 0 && <div className="summary-row received-row"><span className="summary-label">Cash Received</span><span className="summary-value">₹{cashReceived.toFixed(2)}</span></div>}
+                {bankReceived > 0 && <div className="summary-row received-row"><span className="summary-label">Bank Received</span><span className="summary-value">₹{bankReceived.toFixed(2)}</span></div>}
+                {totalReceived > 0 && <div className="summary-row total-row"><span className="summary-label">Total Received</span><span className="summary-value">₹{totalReceived.toFixed(2)}</span></div>}
+                
+                <div className="summary-row"><span className="summary-label">Previous Balance</span><span className="summary-value">₹{previousBalance.toFixed(2)}</span></div>
+                <div className="summary-row final-total-row"><span className="summary-label">Final Balance</span><span className="summary-value">₹{finalBalance.toFixed(2)}</span></div>
+
+            </div>
+          </div>
         </div>
       </div>
       <style jsx global>{`
@@ -161,17 +169,14 @@ function PartyBillPrintContent() {
           margin: 0 auto;
           background: white;
           color: black;
+          display: flex;
+          flex-direction: column;
         }
 
         .invoice-header {
           text-align: center;
-          position: relative;
-        }
-        .invoice-header .mobile-offi {
-            position: absolute;
-            top: 0;
-            right: 0;
-            font-size: 9pt;
+          border-bottom: 1.5px solid black;
+          padding-bottom: 8px;
         }
         .invoice-header .company-name {
           font-weight: bold;
@@ -183,34 +188,29 @@ function PartyBillPrintContent() {
           font-size: 9pt;
           margin: 1px 0;
         }
-         .invoice-header .date-header {
-            position: absolute;
-            bottom: 0;
-            right: 0;
-            font-size: 9pt;
-        }
 
 
         .party-details {
           border: 1.5px solid black;
           margin-top: 8px;
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: auto 1fr;
           grid-template-rows: auto auto;
         }
         .party-details .grid-item {
-          padding: 4px;
+          padding: 4px 6px;
           display: flex;
           align-items: center;
         }
         .party-details .label-cell {
           font-weight: bold;
           border-right: 1.5px solid black;
+          white-space: nowrap;
         }
-         .party-details .address-label {
+         .party-details .address-label, .party-details .date-label {
             border-top: 1.5px solid black;
          }
-         .party-details .address-value {
+         .party-details .address-value, .party-details .date-value {
              border-top: 1.5px solid black;
          }
 
@@ -226,9 +226,20 @@ function PartyBillPrintContent() {
           padding: 4px;
           vertical-align: top;
         }
-        .items-table thead {
+        .items-table thead tr {
           background-color: #e9e9e9 !important;
+        }
+        .items-table thead th {
           font-weight: bold;
+          text-align: center;
+        }
+        
+        .items-table .blank-row td {
+          border-left: 1.5px solid black;
+          border-right: 1.5px solid black;
+        }
+        .items-table tr:not(:last-child) .blank-row td {
+            border-bottom: none;
         }
 
         .items-table .col-no { width: 8%; text-align: center; }
@@ -237,29 +248,48 @@ function PartyBillPrintContent() {
         .items-table .col-qty { width: 15%; text-align: center; font-family: "Courier New", monospace; white-space: nowrap; }
         .items-table .col-total { width: 20%; text-align: right; font-family: "Courier New", monospace; white-space: nowrap; }
 
-        .items-table tfoot td {
+        .summary-container {
+            display: flex;
+            width: 100%;
+            margin-top: -1.5px; /* Overlap with table bottom border */
+        }
+        .notes-area {
+            flex-grow: 1;
+            border-left: 1.5px solid black;
+            border-bottom: 1.5px solid black;
+        }
+        .summary-box {
+            width: 60%; /* Adjust as needed */
             border: 1.5px solid black;
+            font-size: 10pt;
         }
-        .items-table tfoot .notes-area {
-            border-right: none !important;
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 6px;
+            border-bottom: 1.5px solid black;
         }
-        .items-table tfoot .summary-label {
+        .summary-row:last-child {
+            border-bottom: none;
+        }
+        .summary-label {
             font-weight: bold;
-            text-align: right;
-            padding-right: 10px;
+            text-align: left;
         }
-        .items-table tfoot .summary-value {
+        .summary-value {
             font-family: "Courier New", monospace;
             text-align: right;
             font-weight: bold;
         }
-        .items-table tfoot .grand-total-label {
-            border-top: 2px solid black;
-            font-size: 11pt;
+        .summary-row.total-row {
+            border-top: 1.5px solid black;
         }
-        .items-table tfoot .grand-total-value {
+        .summary-row.final-total-row {
+            font-size: 11pt;
             border-top: 2px solid black;
-            font-size: 12pt;
+        }
+         .summary-row.received-row {
+            border-top: 1px dashed black;
         }
       `}</style>
     </>

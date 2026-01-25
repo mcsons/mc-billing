@@ -214,64 +214,68 @@ function PrintPageContent() {
           .print\\:hidden {
             display: none !important;
           }
-
-          /* Define the page size and margins for the laserjet printout */
-          @page {
-            size: 114mm 210mm;
-            margin: 6mm;
-          }
         }
 
         /* ===============================
-          LASERJET BILL (114mm x 210mm)
+          THERMAL BILL (106mm)
         ================================ */
         @media print {
           .print-root {
-            width: 102mm; /* 114mm - 2*6mm margin */
+            width: 106mm;
             margin: 0 auto;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-family: 'Courier New', 'Lucida Console', monospace !important;
           }
 
           #print-area {
-            padding-top: 2mm;
+            padding: 2mm 4mm 18mm 4mm;
+            margin-top: 0;
           }
 
           .header-title {
-            font-size: 18px;
-            font-weight: bold;
+            font-size: 22px !important;
+            font-weight: 700;
             letter-spacing: 0.5px;
+            line-height: 1.2;
+            white-space: nowrap;
           }
           .header-sub {
-            font-size: 10px;
+            display: block;
+            text-align: center;
+            font-size: 13px !important;
+            font-weight: 700;
             line-height: 1.3;
-          }
-          .header-phone {
-            font-size: 11px;
             margin-top: 2px;
           }
+          .header-phone {
+            margin-top: 4px;
+          }
           .hr-line {
-            border-top: 1px solid #000;
-            margin: 4px 0;
+            border-top: 2px solid #000;
+            margin: 6px 0;
           }
           .table-header-line {
-            border-top: 1px solid #000;
+            border-top: 2px solid #000;
+            margin: 0;
           }
 
           .cust-name {
-            font-weight: bold;
-            font-size: 14px;
+            font-weight: 700;
+            font-size: 15px;
           }
 
           .bill-no, .bill-date {
-            font-size: 11px;
+            font-size: 13px;
+          }
+
+          .bill-no > strong,
+          .bill-date > strong {
+            font-weight: 700;
           }
 
           .print-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            font-size: 11px;
           }
 
           .print-table th,
@@ -282,20 +286,23 @@ function PrintPageContent() {
           }
 
           .print-table thead th {
-            font-weight: bold;
+            font-weight: 800 !important;
+            font-size: 14px !important;
             text-align: left;
           }
           .print-table .text-right {
             text-align: right;
           }
-          .print-table .text-center {
-            text-align: center;
+
+          .print-table tbody td {
+            font-weight: 700 !important;
+            font-size: 13px;
           }
 
           .col-sn { width: 8%; }
-          .col-product { width: 42%; word-wrap: break-word; }
-          .col-qty { width: 15%; text-align: center; }
-          .col-rate { width: 15%; text-align: right; }
+          .col-product { width: 36%; word-wrap: break-word; }
+          .col-qty { width: 18%; text-align: center; }
+          .col-rate { width: 18%; text-align: right; }
           .col-amount { width: 20%; text-align: right; }
 
           .uom-text {
@@ -304,44 +311,37 @@ function PrintPageContent() {
           
           .summary-table {
             width: 100%;
-            max-width: 250px; /* Adjust as needed */
-            border: 1px solid black;
+            max-width: 280px;
             border-collapse: collapse;
-            font-size: 11px;
+            font-size: 15px;
+            font-weight: 700;
           }
           .summary-table td {
-            padding: 3px 6px;
-            border-bottom: 1px solid black;
-          }
-           .summary-table tr:last-child td {
-            border-bottom: none;
+            padding: 1px 4px;
           }
           .summary-label {
             text-align: left;
             white-space: nowrap;
-            font-weight: bold;
           }
           .summary-value {
             text-align: right;
             white-space: nowrap;
           }
           .summary-total-row td {
-            border-top: 1px solid black;
+            border-top: 2px solid black;
             font-weight: bold;
           }
            .summary-final-balance td {
-            font-size: 13px;
-            font-weight: bold;
+            font-size: 16px;
+            font-weight: 800;
           }
 
           .print-footer {
-            position: fixed;
-            bottom: 6mm;
-            left: 6mm;
-            right: 6mm;
-            text-align: center;
-            font-size: 9px;
-            color: #555 !important;
+            margin-top: 18px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 800;
+            font-style: italic;
           }
         }
       `}</style>
