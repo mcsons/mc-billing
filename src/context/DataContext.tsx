@@ -82,9 +82,6 @@ interface DataContextType {
   addVehicle: (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => void;
   editVehicle: (vehicleId: string, data: Partial<Omit<Vehicle, 'id'>>) => void;
   deleteVehicle: (vehicleId: string) => void;
-  addDriver: (driver: Omit<Driver, 'id' | 'active'|'createdAt'|'updatedAt'>) => void;
-  editDriver: (driverId: string, data: Partial<Omit<Driver,'id'>>) => void;
-  deleteDriver: (driverId: string) => void;
   addParty: (party: Omit<Party, 'id' | 'active'|'createdAt'|'updatedAt'> & { id?: string }) => void;
   editParty: (partyId: string, data: Partial<Omit<Party, 'id'>>) => void;
   deleteParty: (partyId: string) => void;
@@ -672,24 +669,32 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    const summaryPayload: Omit<LiveBillSummary, 'date'> & { date: Date | Timestamp, updatedAt?: Timestamp, createdAt?: Timestamp } = { 
+    let summaryPayload: Omit<LiveBillSummary, 'date'> & { date: Date | Timestamp, updatedAt?: Timestamp, createdAt?: Timestamp };
+
+    if (existingBillNo) {
+      // For updates, do not include createdBy or createdAt
+      summaryPayload = { 
         ...summary, 
         billNo, 
         amount: totalAmount, 
         deliveryCharge: deliveryCharge,
         paidAmount: paidAmount,
         date: Timestamp.fromDate(date),
-    };
-
-    if (existingBillNo) {
-      summaryPayload.updatedAt = serverTimestamp();
-      // The original creator of the bill must not be changed on update.
-      // Deleting it from the payload ensures the isImmutable check in security rules passes
-      // for managers editing other users' bills. The original creator is preserved in Firestore.
-      const { createdBy, ...updatePayload } = summaryPayload;
-      batch.update(billRef, updatePayload);
+        updatedAt: serverTimestamp(),
+      };
+      batch.update(billRef, summaryPayload as any); // Cast as any to satisfy updateDoc requiring no custom objects
     } else {
-      summaryPayload.createdAt = serverTimestamp();
+       // For creates, include createdBy and createdAt
+       summaryPayload = { 
+        ...summary, 
+        billNo, 
+        amount: totalAmount, 
+        deliveryCharge: deliveryCharge,
+        paidAmount: paidAmount,
+        date: Timestamp.fromDate(date),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
       batch.set(billRef, summaryPayload, {});
       
       if (paidAmount > 0) {
@@ -1094,26 +1099,34 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const addOrUpdateVehicleBill = async (bill: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string): Promise<VehicleBill | null> => {
     if (!firestore || !currentUser) return null;
     
-    const finalBillData: any = {
-        ...bill,
-        createdBy: currentUser.id,
-        updatedAt: serverTimestamp(),
-    };
-
+    let billPayload: any;
+    let billRef;
+    
     try {
       if (existingBillId) {
-          const billRef = doc(firestore, 'vehicleBills', existingBillId);
-          await updateDoc(billRef, finalBillData);
-          return { ...bill, ...finalBillData, id: existingBillId };
+          billRef = doc(firestore, 'vehicleBills', existingBillId);
+          billPayload = {
+            ...bill,
+            updatedAt: serverTimestamp(),
+          };
+          await updateDoc(billRef, billPayload);
+          const originalBill = vehicleBills.find(b => b.id === existingBillId);
+          return { ...originalBill, ...billPayload, id: existingBillId } as VehicleBill;
+
       } else {
-          finalBillData.createdAt = serverTimestamp();
-          const docRef = await addDoc(collection(firestore, 'vehicleBills'), finalBillData);
-          return { ...bill, ...finalBillData, id: docRef.id };
+          billPayload = {
+            ...bill,
+            createdBy: currentUser.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          };
+          const docRef = await addDoc(collection(firestore, 'vehicleBills'), billPayload);
+          return { ...billPayload, id: docRef.id };
       }
     } catch(e) {
         const path = existingBillId ? `vehicleBills/${existingBillId}` : 'vehicleBills';
         const operation = existingBillId ? 'update' : 'create';
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: finalBillData }));
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: billPayload }));
         return null;
     }
   };
@@ -1129,7 +1142,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-    const addOrUpdatePartyBill = async (billData: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null): Promise<PartyBill | null> => {
+  const addOrUpdatePartyBill = async (billData: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null): Promise<PartyBill | null> => {
     if (!firestore || !currentUser) {
         toast({ variant: "destructive", title: "Not logged in" });
         return null;
@@ -1137,27 +1150,31 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const batch = writeBatch(firestore);
     
-    const billPayload: any = {
-      ...billData,
-      createdBy: currentUser.id,
-      updatedAt: serverTimestamp(),
-    };
-    
     let billId = existingBillId;
     let billRef;
     let originalBillState: PartyBill | undefined;
+    let billPayload: any;
 
-    if (billId) {
+    if (billId) { // UPDATE
       billRef = doc(firestore, 'partyBills', billId);
       originalBillState = (partyBills || []).find(b => b.id === billId);
-    } else {
-      billPayload.createdAt = serverTimestamp();
+      billPayload = { // Payload for update - no createdBy
+        ...billData,
+        updatedAt: serverTimestamp(),
+      };
+    } else { // CREATE
+      billPayload = { // Payload for create
+        ...billData,
+        createdBy: currentUser.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
       billRef = doc(collection(firestore, 'partyBills'));
       billId = billRef.id;
     }
     
     batch.set(billRef, billPayload, { merge: true });
-
+    
     const balanceRef = doc(firestore, 'partyBalances', billData.partyId);
     
     let currentBalance = 0;
@@ -1185,7 +1202,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     try {
         await batch.commit();
         toast({ title: existingBillId ? 'Party Bill Updated' : 'Party Bill Saved'});
-        const savedBillData: PartyBill = { ...billData, ...billPayload, id: billId! };
+        const savedBillData: PartyBill = { ...(originalBillState || {}), ...billPayload, id: billId! };
         return savedBillData;
     } catch(e: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: existingBillId ? 'update' : 'create', path: billRef.path, requestResourceData: billPayload }));
