@@ -247,7 +247,6 @@ export default function BillingPage() {
     if (billItemsContainerRef.current) {
         const { scrollHeight } = billItemsContainerRef.current;
         billItemsContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
-        productSelectRef.current?.blur();
     }
   }, [billItems]);
 
