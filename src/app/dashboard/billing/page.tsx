@@ -310,7 +310,7 @@ export default function BillingPage() {
     setSelectedProductId('');
     setRate('');
     productSelectRef.current?.focus();
-  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, isProductLocked, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
+  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
 
 
   const persistItemUpdate = (
