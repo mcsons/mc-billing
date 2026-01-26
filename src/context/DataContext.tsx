@@ -1,3 +1,4 @@
+
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -682,7 +683,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     if (existingBillNo) {
       summaryPayload.updatedAt = serverTimestamp();
-      batch.update(billRef, summaryPayload);
+      // The original creator of the bill must not be changed on update.
+      // Deleting it from the payload ensures the isImmutable check in security rules passes
+      // for managers editing other users' bills. The original creator is preserved in Firestore.
+      const { createdBy, ...updatePayload } = summaryPayload;
+      batch.update(billRef, updatePayload);
     } else {
       summaryPayload.createdAt = serverTimestamp();
       batch.set(billRef, summaryPayload, {});
