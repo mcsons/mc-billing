@@ -282,26 +282,26 @@ service cloud.firestore {
 
     /**
      * @description Manages vehicle bills. Any authenticated user can read bills.
-     *   Only the creator can modify or delete a bill.
+     *   Only the creator, an admin, or manager can modify or delete a bill.
      * @path /vehicleBills/{vehicleBillId}
      */
     match /vehicleBills/{vehicleBillId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
     }
 
     /**
      * @description Manages party bills. Any authenticated user can read bills.
-     *   Only the creator can modify or delete a bill.
+     *   Only the creator, an admin, or manager can modify or delete a bill.
      * @path /partyBills/{partyBillId}
      */
     match /partyBills/{partyBillId} {
       allow get, list: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.createdBy) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy);
+      allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
+      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
     }
     
     /**
