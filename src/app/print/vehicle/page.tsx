@@ -47,7 +47,7 @@ function PrintPageContent() {
     id,
     date,
     vehicleId,
-    driverName,
+    driverNames,
     partyName,
     destination,
     advance,
@@ -76,7 +76,7 @@ function PrintPageContent() {
               No. 1, Fish Market, Palladam Road,
               <span className="city">Tiruppur - 641604</span>
             </p>
-            <p className="header-sub header-phone">📞 9894089889</p>
+            <p className="header-sub header-phone">📞 9843223078, 9944444497</p>
           </header>
           <div className="hr-line"></div>
           <h2 className="text-lg font-semibold mt-2 mb-2 text-center">Vehicle Bill</h2>
@@ -93,7 +93,7 @@ function PrintPageContent() {
             <div className="hr-line"></div>
             <div className="flex justify-between"><span className="font-semibold">Vehicle No:</span><span>{vehicleId}</span></div>
             <div className="flex justify-between"><span className="font-semibold">Party Name:</span><span>{partyName}</span></div>
-            <div className="flex justify-between"><span className="font-semibold">Driver Name:</span><span>{driverName}</span></div>
+            <div className="flex justify-between"><span className="font-semibold">Driver Name:</span><span>{driverNames.join(', ')}</span></div>
             <div className="flex justify-between"><span className="font-semibold">Destination:</span><span>{destination}</span></div>
             <div className="hr-line my-1"></div>
             <div className="flex justify-between"><span className="font-semibold">Advance:</span><span>₹{advance.toFixed(2)}</span></div>

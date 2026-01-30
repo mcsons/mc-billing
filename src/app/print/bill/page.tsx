@@ -89,7 +89,7 @@ function PrintPageContent() {
             <p className="header-sub">
               No. 1, Fish Market, Palladam Road, Tiruppur - 641604
             </p>
-            <p className="header-sub header-phone">📞 9894089889</p>
+            <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
           </header>
           <div className="hr-line"></div>
 

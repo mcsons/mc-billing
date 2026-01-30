@@ -101,7 +101,7 @@ function PrintPaymentsContent() {
                 No. 1, Fish Market, Palladam Road,
                 <span className="city">Tiruppur - 641604</span>
               </p>
-              <p className="header-sub header-phone">📞 9894089889</p>
+              <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
             </header>
             <div className="hr-line"></div>
             <h2 className="text-lg font-semibold my-1 text-center">Customer Statement</h2>
