@@ -430,7 +430,6 @@ export default function BillingPage() {
       return null;
     }
     
-    // Allow saving without a customer
     if (!customer && selectedCustomerId) {
         toast({
             variant: 'destructive',
@@ -440,12 +439,15 @@ export default function BillingPage() {
         return null;
     }
 
-    const billSummary = {
+    const summaryCore = {
       customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
-      createdBy: currentUser?.id || 'unknown-user',
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
     };
+
+    const billSummary = activeBillNo 
+        ? summaryCore
+        : { ...summaryCore, createdBy: currentUser?.id || 'unknown-user' };
 
     const paidAmountNum = parseFloat(paidAmount) || 0;
     const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
