@@ -304,6 +304,10 @@ function PrintPageContent() {
           .col-rate { width: 18%; text-align: right; }
           .col-amount { width: 20%; text-align: right; }
 
+          .print-table thead th.col-qty {
+            padding-left: 10px;
+          }
+
           .uom-text {
             margin-left: 3px;
           }
