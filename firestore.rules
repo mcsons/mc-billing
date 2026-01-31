@@ -121,18 +121,18 @@ service cloud.firestore {
     /**
      * @description Manages user profiles. Any authenticated user can read user
      *   profiles to facilitate collaboration. A user can update their own profile.
-     *   Only admins can create new users or modify/delete others.
+     *   Only admins or creators can create new users or modify/delete others.
      * @path /users/{userId}
-     * @allow An admin deletes a user document. (isAdmin(), delete)
+     * @allow An admin deletes a user document. (isCreatorOrAdmin(), delete)
      * @allow An authenticated user reads a user profile. (isSignedIn(), get)
-     * @deny A non-admin user attempts to create a new user. (isAdmin() == false, create)
+     * @deny A non-admin user attempts to create a new user. (!isCreatorOrAdmin(), create)
      * @principle Balances collaboration with administrative control over user accounts.
      */
     match /users/{userId} {
       allow get, list: if isSignedIn();
-      allow create: if isOwner(userId) || isAdmin();
-      allow update: if isOwner(userId) || isAdmin();
-      allow delete: if isAdmin() && resource != null;
+      allow create: if isOwner(userId) || isCreatorOrAdmin();
+      allow update: if isOwner(userId) || isCreatorOrAdmin();
+      allow delete: if isCreatorOrAdmin() && resource != null;
     }
 
     /**
@@ -240,18 +240,18 @@ service cloud.firestore {
     }
 
     /**
-     * @description Manages administrator roles. Only existing admins can read or
+     * @description Manages administrator roles. Only existing admins or creators can read or
      *   write to this collection, allowing them to grant or revoke admin privileges.
      * @path /roles_admin/{userId}
-     * @allow An admin adds another user as an admin. (isAdmin(), create)
-     * @deny A non-admin user attempts to make themselves an admin. (isAdmin() == false, create)
-     * @deny A non-admin user attempts to list all admins. (isAdmin() == false, list)
+     * @allow An admin adds another user as an admin. (isCreatorOrAdmin(), create)
+     * @deny A non-admin user attempts to make themselves an admin. (!isCreatorOrAdmin(), create)
+     * @deny A non-admin user attempts to list all admins. (!isCreatorOrAdmin(), list)
      * @principle Secures the role management system itself, preventing unauthorized privilege escalation.
      */
     match /roles_admin/{userId} {
       allow get: if isSignedIn();
-      allow list, update, delete: if isAdmin();
-      allow create: if (isOwner(userId) && request.auth.token.email == 'creator@mcandsons.com') || isAdmin();
+      allow list, update, delete: if isCreatorOrAdmin();
+      allow create: if (isOwner(userId) && request.auth.token.email == 'creator@mcandsons.com') || isCreatorOrAdmin();
     }
     
     /**

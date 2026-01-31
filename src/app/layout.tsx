@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { DataProvider } from '@/context/DataContext';
 import { ThemeProvider } from './theme-provider';
 import { FirebaseClientProvider } from '@/firebase';
+import myIcon from "./img.png"; 
 
 export const metadata: Metadata = {
   title: 'MC Billing',
