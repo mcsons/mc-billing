@@ -643,9 +643,8 @@ export default function BillingPage() {
   };
 
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
-    // Check for Tab key (without Shift), no customer selected, and not already confirmed
     if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !walkInConfirmed) {
-      e.preventDefault(); // Prevent default tabbing to stop focus from moving
+      e.preventDefault(); 
       showAlertDialog({
         title: 'Confirm Walk-In Customer',
         description:
@@ -653,13 +652,11 @@ export default function BillingPage() {
         confirmText: 'Yes, Continue as Walk-In',
         cancelText: 'No, Select Customer',
         onConfirm: () => {
-          // User confirmed walk-in, allow proceeding
           setWalkInConfirmed(true);
-          productSelectRef.current?.focus(); // Manually focus the next element
+          setTimeout(() => productSelectRef.current?.focus(), 0);
         },
         onCancel: () => {
-          // User wants to select a customer, focus back on the select input
-          customerSelectRef.current?.focus();
+          setTimeout(() => customerSelectRef.current?.focus(), 0);
         },
       });
     }
@@ -1087,5 +1084,7 @@ export default function BillingPage() {
     </div>
   );
 }
+
+    
 
     
