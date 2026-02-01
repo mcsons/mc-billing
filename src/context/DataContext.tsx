@@ -1,4 +1,3 @@
-
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -70,9 +69,10 @@ interface DataContextType {
   dashboardStats: DashboardStats;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => void;
+  editCustomer: (oldId: string, newData: Omit<Customer, 'id'> & { id: string }) => Promise<void>;
   deleteCustomer: (customerId: string) => void;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
-  editProduct: (productId: string, data: Partial<Omit<Product, 'id'>>) => void;
+  editProduct: (oldId: string, newData: Omit<Product, 'id' | 'uom_allowed'> & { id: string; uom_allowed: string[] }) => Promise<void>;
   deleteProduct: (productId: string) => void;
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => void;
@@ -407,6 +407,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         .reduce((max, num) => Math.max(max, num), 0);
       newId = `C${(maxId + 1).toString().padStart(3, '0')}`;
     }
+    
+    const existingCustomer = await getDoc(doc(firestore, 'customers', newId));
+    if (existingCustomer.exists()) {
+        toast({ variant: "destructive", title: "Duplicate ID", description: `A customer with ID ${newId} already exists.` });
+        return;
+    }
+
 
     const batch = writeBatch(firestore);
     
@@ -438,6 +445,69 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: "destructive", title: "Error", description: "Could not save customer."});
     };
   };
+
+  const editCustomer = async (oldId: string, newData: Omit<Customer, 'id'> & { id: string }) => {
+    if (!firestore) return;
+
+    const newId = newData.id;
+
+    // If ID hasn't changed, just update the document.
+    if (oldId === newId) {
+        const customerRef = doc(firestore, 'customers', oldId);
+        const updateData = {
+            ...newData,
+            updatedAt: serverTimestamp(),
+        };
+        await updateDoc(customerRef, updateData);
+        toast({ title: 'Customer Updated' });
+        return;
+    }
+
+    // If ID has changed, perform migration.
+    const newCustomerRef = doc(firestore, 'customers', newId);
+    const oldCustomerRef = doc(firestore, 'customers', oldId);
+
+    const newCustomerSnap = await getDoc(newCustomerRef);
+    if (newCustomerSnap.exists()) {
+        toast({ variant: 'destructive', title: 'Duplicate ID', description: `A customer with ID ${newId} already exists.` });
+        return;
+    }
+
+    const batch = writeBatch(firestore);
+
+    // 1. Create new customer
+    const newCustomerData = { ...newData, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), active: true };
+    batch.set(newCustomerRef, newCustomerData);
+    
+    // 2. Migrate balance
+    const oldBalanceRef = doc(firestore, 'customerBalances', oldId);
+    const newBalanceRef = doc(firestore, 'customerBalances', newId);
+    const oldBalanceSnap = await getDoc(oldBalanceRef);
+    if (oldBalanceSnap.exists()) {
+        batch.set(newBalanceRef, { ...oldBalanceSnap.data(), customerId: newId });
+        batch.delete(oldBalanceRef);
+    }
+    
+    // 3. Update related bills
+    const billsQuery = query(collection(firestore, 'bills'), where('customerId', '==', oldId));
+    const billsSnap = await getDocs(billsQuery);
+    billsSnap.forEach(billDoc => {
+        batch.update(billDoc.ref, { customerId: newId });
+    });
+
+    // 4. Update related payments
+    const paymentsQuery = query(collection(firestore, 'payments'), where('customerId', '==', oldId));
+    const paymentsSnap = await getDocs(paymentsQuery);
+    paymentsSnap.forEach(paymentDoc => {
+        batch.update(paymentDoc.ref, { customerId: newId });
+    });
+
+    // 5. Delete old customer
+    batch.delete(oldCustomerRef);
+
+    await batch.commit();
+    toast({ title: 'Customer Updated', description: `Customer ID changed from ${oldId} to ${newId}.`});
+  };
   
   const deleteCustomer = async (customerId: string) => {
     if (!firestore) return;
@@ -460,6 +530,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           .reduce((max, num) => Math.max(max, num), 0);
         newId = `P${(maxId + 1).toString().padStart(2, '0')}`;
       }
+
+      const existingProduct = await getDoc(doc(firestore, 'products', newId));
+      if (existingProduct.exists()) {
+          toast({ variant: "destructive", title: "Duplicate ID", description: `A product with ID ${newId} already exists.` });
+          return;
+      }
+
       const productRef = doc(firestore, 'products', newId);
       const newProductData = {
         ...product,
@@ -476,16 +553,43 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       }
   };
   
-  const editProduct = async (productId: string, data: Partial<Omit<Product, 'id'>>) => {
+  const editProduct = async (oldId: string, newData: Omit<Product, 'id' | 'uom_allowed'> & { id: string; uom_allowed: string[] }) => {
     if (!firestore) return;
-    const productRef = doc(firestore, 'products', productId);
-    const updatedData = { ...data, updatedAt: serverTimestamp() };
-    try {
-      await updateDoc(productRef, updatedData);
-      toast({ title: 'Product Updated' });
-    } catch (e) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: productRef.path, requestResourceData: updatedData }));
+
+    const newId = newData.id;
+
+    if (oldId === newId) {
+        const productRef = doc(firestore, 'products', oldId);
+        const updatedData = { ...newData, updatedAt: serverTimestamp() };
+        await updateDoc(productRef, updatedData);
+        toast({ title: 'Product Updated' });
+        return;
     }
+    
+    const newProductRef = doc(firestore, 'products', newId);
+    const oldProductRef = doc(firestore, 'products', oldId);
+
+    const newProductSnap = await getDoc(newProductRef);
+    if (newProductSnap.exists()) {
+        toast({ variant: 'destructive', title: 'Duplicate ID', description: `A product with ID ${newId} already exists.` });
+        return;
+    }
+    
+    const batch = writeBatch(firestore);
+
+    // 1. Create new product
+    const newProductData = { ...newData, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), active: true };
+    batch.set(newProductRef, newProductData);
+
+    // 2. Migrate prices (This is complex as price IDs are based on date)
+    // Note: This won't update past bill items to avoid data integrity issues on historical records.
+    // It will ensure future prices are set for the new product ID.
+
+    // 3. Delete old product
+    batch.delete(oldProductRef);
+
+    await batch.commit();
+    toast({ title: 'Product Updated', description: `Product ID changed from ${oldId} to ${newId}. Related bill items were not modified.`});
   };
   
   const deleteProduct = async (productId: string) => {
@@ -650,7 +754,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     date: Date,
     existingBillNo?: string | null
   ): { billNo: string; commitPromise: Promise<void> } => {
-    if (!firestore) {
+    if (!firestore || !currentUser) {
         toast({ variant: "destructive", title: "Database not available", description: "Could not connect to Firestore." });
         return { billNo: "error-no-firestore", commitPromise: Promise.reject(new Error("Firestore not available")) };
     }
@@ -669,33 +773,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
-    let summaryPayload: Omit<LiveBillSummary, 'date'> & { date: Date | Timestamp, updatedAt?: Timestamp, createdAt?: Timestamp };
+    let summaryPayload: Omit<LiveBillSummary, 'date' | 'createdBy'> & { date: Timestamp, updatedAt: any, createdBy?: string, createdAt?: any };
+
+    summaryPayload = { 
+        ...summary, 
+        billNo, 
+        amount: totalAmount, 
+        deliveryCharge: deliveryCharge,
+        paidAmount: paidAmount,
+        date: Timestamp.fromDate(date),
+        updatedAt: serverTimestamp(),
+    };
 
     if (existingBillNo) {
-      // For updates, do not include createdBy or createdAt
-      summaryPayload = { 
-        ...summary, 
-        billNo, 
-        amount: totalAmount, 
-        deliveryCharge: deliveryCharge,
-        paidAmount: paidAmount,
-        date: Timestamp.fromDate(date),
-        updatedAt: serverTimestamp(),
-      };
-      batch.update(billRef, summaryPayload as any); // Cast as any to satisfy updateDoc requiring no custom objects
+      batch.update(billRef, summaryPayload as any); 
     } else {
-       // For creates, include createdBy and createdAt
-       summaryPayload = { 
-        ...summary, 
-        billNo, 
-        amount: totalAmount, 
-        deliveryCharge: deliveryCharge,
-        paidAmount: paidAmount,
-        date: Timestamp.fromDate(date),
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      batch.set(billRef, summaryPayload, {});
+       summaryPayload.createdBy = currentUser.id;
+       summaryPayload.createdAt = serverTimestamp();
+       batch.set(billRef, summaryPayload, {});
       
       if (paidAmount > 0) {
         addPayment({ customerId: summary.customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
@@ -1205,7 +1300,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const savedBillData: PartyBill = { ...(originalBillState || {}), ...billPayload, id: billId! };
         return savedBillData;
     } catch(e: any) {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: existingBillId ? 'update' : 'create', path: billRef.path, requestResourceData: billPayload }));
+        const operation = existingBillId ? 'update' : 'create';
+        const path = billRef.path;
+        const requestData = { ...billPayload };
+        if(requestData.createdBy) delete requestData.createdBy;
+        if(operation === 'update' && originalBillState?.createdBy) {
+            requestData.createdBy = originalBillState.createdBy;
+        } else if (operation === 'create') {
+            requestData.createdBy = currentUser.id;
+        }
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: requestData }));
         return null;
     }
   };
@@ -1268,6 +1372,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         dashboardStats,
         logout,
         addCustomer,
+        editCustomer,
         deleteCustomer,
         addProduct,
         editProduct,

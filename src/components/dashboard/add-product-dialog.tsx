@@ -65,23 +65,22 @@ export function AddProductDialog({
     });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const productData = {
+      id,
       name_en: nameEn,
       name_ta: nameTa,
       uom_allowed: Array.from(uoms),
     };
 
-    if (isEditing) {
-      editProduct(id, productData);
-      toast({ title: 'Product Updated', description: `"${nameEn}" has been updated.` });
+    if (isEditing && productToEdit) {
+      await editProduct(productToEdit.id, productData);
     } else {
        const newProduct: Omit<Product, 'id'> & { id?: string } = {
+        ...productData,
         id: id || undefined,
-        ...productData
       };
-      addProduct(newProduct);
-      toast({ title: 'Product Added', description: `"${nameEn}" has been added.` });
+      await addProduct(newProduct);
     }
 
     onOpenChange(false);
@@ -107,7 +106,6 @@ export function AddProductDialog({
               value={id}
               onChange={(e) => setId(e.target.value.toUpperCase())}
               placeholder={isEditing ? '' : 'e.g., P10 (Optional)'}
-              disabled={isEditing}
             />
           </div>
           <div className="grid w-full items-center gap-1.5">
@@ -116,7 +114,6 @@ export function AddProductDialog({
               id="name_en"
               value={nameEn}
               onChange={(e) => setNameEn(e.target.value)}
-              disabled={isEditing}
             />
           </div>
           <div className="grid w-full items-center gap-1.5">
@@ -125,7 +122,6 @@ export function AddProductDialog({
               id="name_ta"
               value={nameTa}
               onChange={(e) => setNameTa(e.target.value)}
-               disabled={isEditing}
             />
           </div>
           <div className="grid w-full items-center gap-1.5">

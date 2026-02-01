@@ -15,28 +15,33 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, PlusCircle, Trash2 } from 'lucide-react';
+import { Edit, PlusCircle, Trash2, Search } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { AddProductDialog } from '@/components/dashboard/add-product-dialog';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Product } from '@/lib/data';
+import { Input } from '@/components/ui/input';
 
 export default function ProductsPage() {
   const { products, deleteProduct } = useData();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const showAlertDialog = useAlertDialog();
 
   const handleEdit = (product: Product) => {
     setProductToEdit(product);
-    setIsEditDialogOpen(true);
+    setIsDialogOpen(true);
+  };
+
+  const handleAdd = () => {
+    setProductToEdit(null);
+    setIsDialogOpen(true);
   };
   
   const handleCloseDialogs = () => {
-    setIsAddDialogOpen(false);
-    setIsEditDialogOpen(false);
+    setIsDialogOpen(false);
     setProductToEdit(null);
   };
 
@@ -48,6 +53,17 @@ export default function ProductsPage() {
     });
   };
 
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) return products;
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return products.filter(
+      (product) =>
+        product.id.toLowerCase().includes(lowercasedQuery) ||
+        product.name_en.toLowerCase().includes(lowercasedQuery) ||
+        product.name_ta.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [products, searchQuery]);
+
   return (
     <>
       <Card>
@@ -58,12 +74,23 @@ export default function ProductsPage() {
               Manage your products and their allowed units of measure.
             </CardDescription>
           </div>
-          <Button onClick={() => setIsAddDialogOpen(true)}>
+          <Button onClick={handleAdd}>
             <PlusCircle className="mr-2 h-4 w-4" />
             New Product
           </Button>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search by ID or name..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -76,7 +103,7 @@ export default function ProductsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products.map((product) => (
+                {filteredProducts.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.id}</TableCell>
                     <TableCell>{product.name_en}</TableCell>
@@ -100,7 +127,7 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
       <AddProductDialog
-        isOpen={isAddDialogOpen || isEditDialogOpen}
+        isOpen={isDialogOpen}
         onOpenChange={handleCloseDialogs}
         productToEdit={productToEdit}
       />

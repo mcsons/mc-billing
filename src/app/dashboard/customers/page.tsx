@@ -15,16 +15,30 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Search } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 import { AddCustomerDialog } from '@/components/dashboard/add-customer-dialog';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import { Input } from '@/components/ui/input';
+import { Customer } from '@/lib/data';
 
 export default function CustomersPage() {
   const { customers, deleteCustomer } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const showAlertDialog = useAlertDialog();
+
+  const handleEdit = (customer: Customer) => {
+    setCustomerToEdit(customer);
+    setIsDialogOpen(true);
+  };
+
+  const handleAdd = () => {
+    setCustomerToEdit(null);
+    setIsDialogOpen(true);
+  };
 
   const handleDelete = (customerId: string, customerName: string) => {
     showAlertDialog({
@@ -33,6 +47,17 @@ export default function CustomersPage() {
       onConfirm: () => deleteCustomer(customerId),
     });
   };
+
+  const filteredCustomers = useMemo(() => {
+    if (!searchQuery) return customers;
+    const lowercasedQuery = searchQuery.toLowerCase();
+    return customers.filter(
+      (customer) =>
+        customer.id.toLowerCase().includes(lowercasedQuery) ||
+        customer.name_en.toLowerCase().includes(lowercasedQuery) ||
+        customer.name_ta.toLowerCase().includes(lowercasedQuery)
+    );
+  }, [customers, searchQuery]);
 
   return (
     <>
@@ -44,12 +69,23 @@ export default function CustomersPage() {
               Manage your customers and view their details.
             </CardDescription>
           </div>
-          <Button onClick={() => setIsDialogOpen(true)}>
+          <Button onClick={handleAdd}>
             <PlusCircle className="mr-2 h-4 w-4" />
             New Customer
           </Button>
         </CardHeader>
         <CardContent>
+          <div className="mb-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                placeholder="Search by ID or name..."
+                className="pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -62,13 +98,21 @@ export default function CustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {customers.map((customer) => (
+                {filteredCustomers.map((customer) => (
                   <TableRow key={customer.id}>
                     <TableCell className="font-medium">{customer.id}</TableCell>
                     <TableCell>{customer.name_en}</TableCell>
                     <TableCell>{customer.name_ta}</TableCell>
                     <TableCell>{customer.phone}</TableCell>
                     <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(customer)}
+                      >
+                        <Edit className="h-4 w-4" />
+                        <span className="sr-only">Edit customer</span>
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -90,6 +134,7 @@ export default function CustomersPage() {
       <AddCustomerDialog
         isOpen={isDialogOpen}
         onOpenChange={setIsDialogOpen}
+        customerToEdit={customerToEdit}
       />
     </>
   );
