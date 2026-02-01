@@ -173,11 +173,13 @@ function PrintPageContent() {
         /* ===============================
           SCREEN PREVIEW STYLES
         ================================ */
-        #print-area {
-            background: white;
-            color: black;
-            margin: 2rem auto;
-            width: 106mm;
+        @media screen {
+            #print-area {
+                background: white;
+                color: black;
+                margin: 2rem auto;
+                width: 106mm;
+            }
         }
 
         /* --- Global Print Reset --- */

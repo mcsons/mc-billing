@@ -149,17 +149,19 @@ function PrintPageContent() {
 /* ===============================
   SCREEN PREVIEW STYLES
 ================================ */
-#print-area {
-    background: white;
-    color: black;
-    margin: 2rem auto;
-}
-.print-root.thermal #print-area {
-    width: 79mm;
-}
-.print-root.a4 #print-area {
-    width: 210mm;
-    min-height: 297mm;
+@media screen {
+    #print-area {
+        background: white;
+        color: black;
+        margin: 2rem auto;
+    }
+    .print-root.thermal #print-area {
+        width: 79mm;
+    }
+    .print-root.a4 #print-area {
+        width: 210mm;
+        min-height: 297mm;
+    }
 }
 
 /* ===============================
@@ -260,7 +262,6 @@ function PrintPageContent() {
   }
 }
 `}</style>
-
     </div>
   );
 }

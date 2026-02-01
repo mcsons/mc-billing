@@ -144,6 +144,12 @@ function PartyBillPrintContent() {
         </div>
       </div>
       <style jsx global>{`
+        /* Screen-only styles for preview */
+        @media screen {
+            .party-bill-invoice {
+                margin: 2rem auto;
+            }
+        }
         /* ===============================
           PRINT SETUP (114mm x 210mm)
         ================================ */
@@ -181,7 +187,6 @@ function PartyBillPrintContent() {
           font-family: Arial, sans-serif;
           font-size: 10pt;
           width: 102mm; /* 114mm - 2*6mm margin */
-          margin: 0 auto;
           background: white;
           color: black;
         }

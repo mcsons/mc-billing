@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/table';
 import { VehicleStatementTransaction } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 interface PrintData {
@@ -182,18 +181,20 @@ function PrintPageContent() {
         /* ===============================
           SCREEN PREVIEW STYLES
         ================================ */
-        #print-area {
-            background: white;
-            color: black;
-            margin: 2rem auto;
-        }
+        @media screen {
+            #print-area {
+                background: white;
+                color: black;
+                margin: 2rem auto;
+            }
 
-        .print-root.thermal #print-area {
-            width: 106mm;
-        }
-        .print-root.a4 #print-area {
-            width: 210mm;
-            min-height: 297mm;
+            .print-root.thermal #print-area {
+                width: 106mm;
+            }
+            .print-root.a4 #print-area {
+                width: 210mm;
+                min-height: 297mm;
+            }
         }
         
         /* ===============================

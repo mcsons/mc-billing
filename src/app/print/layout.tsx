@@ -12,8 +12,16 @@ export default function PrintLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
+      {/* This style block ensures the print preview has a dark background, matching the app shell, without affecting the printed output. */}
+      <style jsx global>{`
+        @media screen {
+          body {
+            background-color: hsl(215 28% 12%) !important;
+          }
+        }
+      `}</style>
       <body suppressHydrationWarning>
-        <Suspense fallback={<div className="flex h-screen w-full items-center justify-center">Loading Print Preview...</div>}>
+        <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-white">Loading Print Preview...</div>}>
           {children}
         </Suspense>
       </body>
