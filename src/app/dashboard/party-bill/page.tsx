@@ -421,7 +421,7 @@ export default function PartyBillPage() {
     };
 
 
-    const handleSearchHistory = () => {
+    const handleSearchHistory = useCallback(() => {
         let results = partyBills || [];
         if (historyPartyId) {
             results = results.filter(b => b.partyId === historyPartyId);
@@ -430,7 +430,7 @@ export default function PartyBillPage() {
             results = results.filter(b => b.date && isSameDay(b.date.toDate(), historyDate));
         }
         setFilteredHistory(results.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
-    };
+    }, [partyBills, historyDate, historyPartyId]);
 
     const clearSearchHistory = () => {
         setHistoryPartyId('');
@@ -651,7 +651,19 @@ export default function PartyBillPage() {
                             <ReactSelect
                                 options={parties.map(p => ({ value: p.id, label: p.name}))}
                                 value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
-                                onChange={(o) => setHistoryPartyId(o ? o.value : '')}
+                                onChange={(option) => {
+                                    const newPartyId = option ? option.value : '';
+                                    setHistoryPartyId(newPartyId);
+                                
+                                    let results = partyBills || [];
+                                    if (newPartyId) {
+                                        results = results.filter(b => b.partyId === newPartyId);
+                                    }
+                                    if (historyDate) {
+                                        results = results.filter(b => b.date && isSameDay(b.date.toDate(), historyDate));
+                                    }
+                                    setFilteredHistory(results.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+                                }}
                                 isClearable
                                 placeholder="Filter by party..."
                                 styles={reactSelectStyles}

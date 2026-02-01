@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -152,7 +152,7 @@ export default function HistoryPage() {
     });
   };
 
-  const handleSearch = () => {
+  const handleSearch = useCallback(() => {
     let results = liveBillSummaries;
 
     if (selectedCustomer) {
@@ -172,14 +172,14 @@ export default function HistoryPage() {
     }
 
     setFilteredBills(sortBills(results));
-  };
+  }, [customers, date, liveBillSummaries, selectedCustomer]);
   
   const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
       const firstRow = tableBodyRef.current?.querySelector('tr');
       if (firstRow) {
-        firstRow.focus();
+        (firstRow as HTMLElement).focus();
       }
     }
   };
@@ -204,7 +204,7 @@ export default function HistoryPage() {
         <div>
           <CardTitle className="font-headline">Bill History</CardTitle>
           <CardDescription>
-            Search and view past bills. Double-click a row to open and edit.
+            Search and view past bills. Enter on a row to open and edit.
           </CardDescription>
         </div>
         {selectedBills.size > 0 && canDelete && (
@@ -237,7 +237,25 @@ export default function HistoryPage() {
                     : null
                 }
                 onChange={(option) => {
-                    setSelectedCustomer(option ? option.value : '');
+                    const newCustomerId = option ? option.value : '';
+                    setSelectedCustomer(newCustomerId);
+                
+                    let results = liveBillSummaries;
+                    if (newCustomerId) {
+                        const custData = customers.find(c => c.id === newCustomerId);
+                        if (custData) {
+                            results = results.filter(bill => bill.customerName.includes(custData.name_en));
+                        }
+                    }
+                    // Also filter by date if it's set
+                    if (date) {
+                        results = results.filter(bill => {
+                            if (!bill.date) return false;
+                            const billDate = (bill.date as Timestamp).toDate ? (bill.date as Timestamp).toDate() : bill.date;
+                            return isSameDay(billDate, date);
+                        });
+                    }
+                    setFilteredBills(sortBills(results));
                 }}
                 styles={reactSelectStyles}
                 filterOption={(option, input) =>
@@ -291,7 +309,7 @@ export default function HistoryPage() {
               <TableRow>
                 {canDelete && (
                   <TableHead className="w-[40px] text-center">
-                    #
+                    {/* Removed Select All */}
                   </TableHead>
                 )}
                 <TableHead>Bill No</TableHead>
