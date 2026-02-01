@@ -184,14 +184,14 @@ export default function PartyBillPage() {
                 setBillOriginalState(billToEdit);
                 setDate(billToEdit.date.toDate());
                 setPartyId(billToEdit.partyId);
-                setTotalBox(billToEdit.totalBox.toString());
-                setTotalKgs(billToEdit.totalKgs.toString());
-                setItems(billToEdit.items);
-                setCommission(billToEdit.commission.toString());
-                setExpenses(billToEdit.expenses.toString());
-                setRent(billToEdit.rent.toString());
-                setCashReceived(billToEdit.cashReceived.toString());
-                setBankReceived(billToEdit.bankReceived.toString());
+                setTotalBox((billToEdit.totalBox || 0).toString());
+                setTotalKgs((billToEdit.totalKgs || 0).toString());
+                setItems(billToEdit.items || []);
+                setCommission((billToEdit.commission || 0).toString());
+                setExpenses((billToEdit.expenses || 0).toString());
+                setRent((billToEdit.rent || 0).toString());
+                setCashReceived((billToEdit.cashReceived || 0).toString());
+                setBankReceived((billToEdit.bankReceived || 0).toString());
             }
         } else {
             resetForm();
