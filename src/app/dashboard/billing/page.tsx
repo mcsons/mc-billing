@@ -285,14 +285,18 @@ export default function BillingPage() {
         ...currentItems,
         { ...newItem, id: Date.now().toString() },
     ];
-    const newBillSummary = {
+    const summaryCore = {
         customerName: summaryCustomerName,
         customerId: summaryCustomerId,
         stall: '1',
     };
 
-    const { billNo } = createOrUpdateLiveBill(
-        newBillSummary,
+    const billSummary = activeBillNo 
+        ? summaryCore
+        : { ...summaryCore, createdBy: currentUser?.id || 'unknown-user' };
+
+    const { billNo, commitPromise } = createOrUpdateLiveBill(
+        billSummary,
         newBillItems,
         parseFloat(paidAmount) || 0,
         parseFloat(deliveryCharge) || 0,
@@ -450,7 +454,7 @@ export default function BillingPage() {
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
     };
-
+    
     const billSummary = activeBillNo 
         ? summaryCore
         : { ...summaryCore, createdBy: currentUser?.id || 'unknown-user' };
@@ -660,7 +664,7 @@ export default function BillingPage() {
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {date ? format(date, 'PPP') : <span>Pick a date</span>}
+                      {date ? format(date, 'dd-MM-yyyy') : <span>Pick a date</span>}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -1052,3 +1056,5 @@ export default function BillingPage() {
     </div>
   );
 }
+
+    
