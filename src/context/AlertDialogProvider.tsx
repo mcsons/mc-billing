@@ -7,6 +7,7 @@ type AlertDialogOptions = {
   onConfirm: () => void;
   onCancel?: () => void;
   confirmText?: string;
+  cancelText?: string;
 };
 
 interface AlertDialogContextType {

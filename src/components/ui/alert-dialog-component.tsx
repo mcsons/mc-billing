@@ -37,7 +37,7 @@ export function AlertDialogComponent() {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel onClick={handleCancel}>{options.cancelText || 'Cancel'}</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirm}>
             {options.confirmText || 'Confirm'}
           </AlertDialogAction>

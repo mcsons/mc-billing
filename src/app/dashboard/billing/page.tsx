@@ -124,6 +124,8 @@ export default function BillingPage() {
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
   const [printPaperType, setPrintPaperType] = useState<'a4' | 'thermal'>('thermal');
 
+  const [walkInConfirmed, setWalkInConfirmed] = useState(false);
+
 
   // Refs for keyboard navigation
   const customerSelectRef = useRef<any>(null);
@@ -423,6 +425,7 @@ export default function BillingPage() {
     setPaidAmount('');
     setDeliveryCharge('');
     setInitialBillTotal(0);
+    setWalkInConfirmed(false);
     router.replace('/dashboard/billing');
     customerSelectRef.current?.focus();
   };
@@ -639,6 +642,29 @@ export default function BillingPage() {
     }
   };
 
+  const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
+    // Check for Tab key (without Shift), no customer selected, and not already confirmed
+    if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !walkInConfirmed) {
+      e.preventDefault(); // Prevent default tabbing to stop focus from moving
+      showAlertDialog({
+        title: 'Confirm Walk-In Customer',
+        description:
+          'Are you sure you want to create this bill as a Walk-In customer without selecting a customer name?',
+        confirmText: 'Yes, Continue as Walk-In',
+        cancelText: 'No, Select Customer',
+        onConfirm: () => {
+          // User confirmed walk-in, allow proceeding
+          setWalkInConfirmed(true);
+          productSelectRef.current?.focus(); // Manually focus the next element
+        },
+        onCancel: () => {
+          // User wants to select a customer, focus back on the select input
+          customerSelectRef.current?.focus();
+        },
+      });
+    }
+  };
+
   return (
     <div className="relative">
       <div className="grid auto-rows-max items-start gap-4 pb-24 md:pb-4 lg:grid-cols-2 lg:gap-8">
@@ -704,8 +730,13 @@ export default function BillingPage() {
                         : null
                     }
                     onChange={(option) => {
-                      handleCustomerSelect(option ? option.value : '');
+                      const customerId = option ? option.value : '';
+                      handleCustomerSelect(customerId);
+                      if (!customerId) {
+                        setWalkInConfirmed(false); // Reset confirmation when selection is cleared
+                      }
                     }}
+                    onKeyDown={handleCustomerKeyDown}
                     styles={reactSelectStyles}
                   />
                 </div>
