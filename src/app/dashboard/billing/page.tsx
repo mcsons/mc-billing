@@ -287,7 +287,6 @@ export default function BillingPage() {
     ];
     const newBillSummary = {
         customerName: summaryCustomerName,
-        createdBy: currentUser?.id || 'unknown-user',
         customerId: summaryCustomerId,
         stall: '1',
     };
@@ -306,10 +305,17 @@ export default function BillingPage() {
     }
 
     setQty('');
-    setSelectedProductId('');
     setRate('');
+    
+    // Clear the selection in ReactSelect
+    if (productSelectRef.current) {
+        productSelectRef.current.clearValue();
+    }
+    // Explicitly set productId to empty and focus
+    setSelectedProductId('');
     productSelectRef.current?.focus();
-  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
+
+}, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
 
 
   const persistItemUpdate = (
@@ -849,15 +855,15 @@ export default function BillingPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[40px]">S/N</TableHead>
-                      <TableHead>Product (பெயர்)</TableHead>
-                      <TableHead>UOM</TableHead>
-                      <TableHead className="text-right">Qty</TableHead>
-                      <TableHead className="w-40 text-right">
+                      <TableHead className="w-[40px] font-bold text-base">S/N</TableHead>
+                      <TableHead className="font-bold text-base">Product (பெயர்)</TableHead>
+                      <TableHead className="font-bold text-base">UOM</TableHead>
+                      <TableHead className="text-right font-bold text-base">Qty</TableHead>
+                      <TableHead className="w-40 text-right font-bold text-base">
                         Rate (₹)
                       </TableHead>
-                      <TableHead className="text-right">Amount (₹)</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-right font-bold text-base">Amount (₹)</TableHead>
+                      <TableHead className="text-right font-bold text-base">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
