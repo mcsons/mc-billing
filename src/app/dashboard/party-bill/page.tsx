@@ -126,7 +126,7 @@ export default function PartyBillPage() {
     const [kgs, setKgs] = useState('');
 
     // Deductions & Payments
-    const [commission, setCommission] = useState('');
+    const [commission, setCommission] = useState('10');
     const [expenses, setExpenses] = useState('');
     const [rent, setRent] = useState('');
     const [cashReceived, setCashReceived] = useState('');
@@ -161,7 +161,7 @@ export default function PartyBillPage() {
         setTotalBox('');
         setTotalKgs('');
         setItems([]);
-        setCommission('');
+        setCommission('10');
         setExpenses('');
         setRent('');
         setCashReceived('');
@@ -199,7 +199,8 @@ export default function PartyBillPage() {
 
     // Calculations
     const totalAmount = useMemo(() => items.reduce((sum, item) => sum + item.amount, 0), [items]);
-    const totalDeductions = useMemo(() => (parseFloat(commission) || 0) + (parseFloat(expenses) || 0) + (parseFloat(rent) || 0), [commission, expenses, rent]);
+    const commissionAmount = useMemo(() => (totalAmount * (parseFloat(commission) || 0)) / 100, [totalAmount, commission]);
+    const totalDeductions = useMemo(() => commissionAmount + (parseFloat(expenses) || 0) + (parseFloat(rent) || 0), [commissionAmount, expenses, rent]);
     const netAmount = useMemo(() => totalAmount - totalDeductions, [totalAmount, totalDeductions]);
     const totalReceived = useMemo(() => (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0), [cashReceived, bankReceived]);
     const previousBalance = useMemo(() => {
@@ -344,18 +345,11 @@ export default function PartyBillPage() {
         if (!party) return null;
         
         const totalBoxes = items.reduce((sum, item) => sum + item.box, 0);
-        const totalKgs = items.reduce((sum, item) => sum + item.kgs, 0);
+        const kgsTotal = items.reduce((sum, item) => sum + item.kgs, 0);
 
         const commissionPercent = parseFloat(commission) || 0;
-        const commissionAmount = (totalAmount * commissionPercent) / 100;
-        const expensesNum = parseFloat(expenses) || 0;
-        const rentNum = parseFloat(rent) || 0;
-        const totalDeductionsCalc = commissionAmount + expensesNum + rentNum;
-        const netAmountCalc = totalAmount - totalDeductionsCalc;
-        const totalReceivedCalc = (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0);
-
-        const totalAfterPrevious = netAmountCalc + previousBalance;
-        const finalBalanceCalc = totalAfterPrevious - totalReceivedCalc;
+        
+        const totalAfterPrevious = netAmount + previousBalance;
 
         const data = {
             id: editingBillId || 'N/A',
@@ -364,25 +358,25 @@ export default function PartyBillPage() {
             partyName: party.name,
             partyLocation: party.location,
             totalBox: totalBoxes,
-            totalKgs: totalKgs,
+            totalKgs: kgsTotal,
             items,
             totalAmount,
             commission: commissionPercent,
-            expenses: expensesNum,
-            rent: rentNum,
-            totalDeductions: totalDeductionsCalc,
-            netAmount: netAmountCalc,
+            expenses: parseFloat(expenses) || 0,
+            rent: parseFloat(rent) || 0,
+            totalDeductions,
+            netAmount,
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
-            totalReceived: totalReceivedCalc,
+            totalReceived,
             previousBalance,
             totalAfterPrevious,
-            finalBalance: finalBalanceCalc,
+            finalBalance,
         };
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, previousBalance
+        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -444,228 +438,250 @@ export default function PartyBillPage() {
 
   return (
     <>
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 auto-rows-max">
-        <div className="lg:col-span-2">
-            <Card>
-                <CardHeader>
-                    <div className="relative">
-                        <div className="text-center">
-                            <p className="font-bold">M.C & SONS FISH COMPANY</p>
-                            <p className="text-sm">Dealer : SEA & TANK FOODS</p>
-                            <p className="text-sm">Shop No. 1, Fish Market, Santhaipettai,</p>
-                            <p className="text-sm">Palladam Road, Tiruppur – 641604</p>
-                            <p className="text-sm">Cell : 98432 23078, 99444 44497</p>
+    <div className="grid grid-cols-1 gap-8 auto-rows-max">
+        <Card>
+            <CardHeader>
+                <div className="relative">
+                    <div className="text-center">
+                        <p className="font-bold text-lg">M.C & SONS FISH COMPANY</p>
+                        <p className="text-sm">Cell : 98432 23078, 99444 44497</p>
+                    </div>
+                    <div className="absolute top-0 right-0">
+                         <Popover>
+                            <PopoverTrigger asChild>
+                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
+                            </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={(d) => setDate(d || new Date())} initialFocus /></PopoverContent>
+                        </Popover>
+                    </div>
+                </div>
+                <Separator className="my-2"/>
+                <div className="flex justify-between items-center">
+                    <div className="w-2/3">
+                        <Label>To M/S :</Label>
+                         <ReactSelect
+                            ref={partySelectRef}
+                            instanceId="party-select"
+                            options={parties.map(p => ({ value: p.id, label: p.name }))}
+                            value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
+                            onChange={(option) => setPartyId(option ? option.value : '')}
+                            placeholder="Select Party..."
+                            isClearable
+                            styles={reactSelectStyles}
+                        />
+                    </div>
+                     <div className="flex items-center gap-2">
+                        <Label>Box :</Label>
+                        <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} className="w-24"/>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label>Kgs :</Label>
+                        <Input type="number" value={totalKgs} onChange={e => setTotalKgs(e.target.value)} className="w-24"/>
+                    </div>
+                </div>
+                <Separator className="my-2"/>
+            </CardHeader>
+            <CardContent>
+                {/* Items Table */}
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[150px] font-bold text-base">Rate</TableHead>
+                            <TableHead className="font-bold text-base">Particulars</TableHead>
+                            <TableHead className="w-[120px] font-bold text-base">Box</TableHead>
+                            <TableHead className="w-[120px] font-bold text-base">Kgs</TableHead>
+                            <TableHead className="text-right w-[180px] font-bold text-base">Amount</TableHead>
+                            <TableHead className="w-[50px]"></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {items.map(item => (
+                            <TableRow key={item.id}>
+                                <TableCell>
+                                  <Input
+                                      type="number"
+                                      value={item.rate}
+                                      onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                                      className="h-8 w-full text-right font-mono text-base"
+                                  />
+                                </TableCell>
+                                <TableCell>{item.productName}</TableCell>
+                                <TableCell>
+                                  <Input
+                                      type="number"
+                                      value={item.box || ''}
+                                      onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
+                                      className="h-8 w-full text-right font-mono text-base"
+                                      placeholder="Box"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                      type="number"
+                                      value={item.kgs || ''}
+                                      onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
+                                      className="h-8 w-full text-right font-mono text-base"
+                                      placeholder="Kgs"
+                                  />
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-base">{item.amount.toFixed(2)}</TableCell>
+                                <TableCell><Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
+                            </TableRow>
+                        ))}
+                        {/* Item Entry Row */}
+                         <TableRow>
+                            <TableCell>
+                                <Input 
+                                    ref={rateInputRef} 
+                                    placeholder="Rate" 
+                                    type="number" 
+                                    value={rate} 
+                                    onChange={e => setRate(e.target.value)}
+                                    className="w-32 text-base font-mono"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <ReactSelect
+                                    instanceId="product-select"
+                                    options={products.map(p => ({ value: p.id, label: p.name_en }))}
+                                    value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
+                                    onChange={(option) => setSelectedProductId(option ? option.value : '')}
+                                    placeholder="Select Product..."
+                                    styles={reactSelectStyles}
+                                    menuPortalTarget={isMounted ? document.body : null}
+                                    menuPosition='fixed'
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input 
+                                    placeholder="Box" 
+                                    type="number" 
+                                    value={box} 
+                                    onChange={e => setBox(e.target.value)} 
+                                    className="w-28 text-base font-mono"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input 
+                                    placeholder="Kgs" 
+                                    type="number" 
+                                    value={kgs} 
+                                    onChange={e => setKgs(e.target.value)}
+                                    className="w-28 text-base font-mono"
+                                />
+                            </TableCell>
+                            <TableCell></TableCell>
+                            <TableCell><Button size="icon" onClick={handleAddItem}><PlusCircle className="h-4 w-4"/></Button></TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+                <Separator className="my-4"/>
+                {/* Totals Section */}
+                <div className="grid grid-cols-2 gap-x-12 gap-y-2">
+                    <div className="space-y-2">
+                         <div className="flex justify-between items-center">
+                            <Label>Commission (%)</Label>
+                            <Input className="max-w-32" type="number" value={commission} onChange={e => setCommission(e.target.value)} />
                         </div>
-                        <div className="absolute top-0 right-0">
-                             <Popover>
-                                <PopoverTrigger asChild>
-                                <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')}>
+                         <div className="flex justify-between items-center"><Label>Expenses</Label><Input className="max-w-32" type="number" value={expenses} onChange={e => setExpenses(e.target.value)} /></div>
+                         <div className="flex justify-between items-center"><Label>Rent</Label><Input className="max-w-32" type="number" value={rent} onChange={e => setRent(e.target.value)} /></div>
+                         <Separator/>
+                         <div className="flex justify-between items-center font-semibold"><Label>Total Less</Label><span>{totalDeductions.toFixed(2)}</span></div>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center font-bold text-lg"><Label>Total Bill Value</Label><span>{totalAmount.toFixed(2)}</span></div>
+                        <Separator/>
+                        <div className="flex justify-between items-center font-bold"><Label>Net Bill Value</Label><span>{netAmount.toFixed(2)}</span></div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <div className="flex justify-between items-center"><Label>Cash</Label><Input className="max-w-32" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} /></div>
+                        <div className="flex justify-between items-center"><Label>Bank / Acc</Label><Input className="max-w-32" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} /></div>
+                        <Separator/>
+                        <div className="flex justify-between items-center font-semibold"><Label>Total Received</Label><span>{totalReceived.toFixed(2)}</span></div>
+                    </div>
+
+                     <div className="space-y-2 text-right">
+                         <div className="flex justify-between items-center"><Label>Previous Balance</Label><span>{previousBalance.toFixed(2)}</span></div>
+                         <Separator/>
+                         <div className="flex justify-between items-center font-bold text-xl"><Label>Final Balance</Label><span>{finalBalance.toFixed(2)}</span></div>
+                         <Separator/>
+                     </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                    <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
+                    <Button onClick={onSaveClick}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Party Bill History</CardTitle>
+                <CardDescription>Search and manage previously created party bills.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div className="grid sm:grid-cols-2 items-end gap-4">
+                    <div className="grid gap-2">
+                        <Label>Party</Label>
+                        <ReactSelect
+                            options={parties.map(p => ({ value: p.id, label: p.name}))}
+                            value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
+                            onChange={(o) => setHistoryPartyId(o ? o.value : '')}
+                            isClearable
+                            placeholder="Filter by party..."
+                            styles={reactSelectStyles}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label>Date</Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
+                                    {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={(d) => setDate(d || new Date())} initialFocus /></PopoverContent>
-                            </Popover>
-                        </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
+                        </Popover>
                     </div>
-                    <Separator className="my-2"/>
-                    <div className="flex justify-between items-center">
-                        <div className="w-2/3">
-                            <Label>To M/S :</Label>
-                             <ReactSelect
-                                ref={partySelectRef}
-                                instanceId="party-select"
-                                options={parties.map(p => ({ value: p.id, label: p.name }))}
-                                value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
-                                onChange={(option) => setPartyId(option ? option.value : '')}
-                                placeholder="Select Party..."
-                                isClearable
-                                styles={reactSelectStyles}
-                            />
-                        </div>
-                         <div className="flex items-center gap-2">
-                            <Label>Box :</Label>
-                            <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} className="w-24"/>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Label>Kgs :</Label>
-                            <Input type="number" value={totalKgs} onChange={e => setTotalKgs(e.target.value)} className="w-24"/>
-                        </div>
-                    </div>
-                    <Separator className="my-2"/>
-                </CardHeader>
-                <CardContent>
-                    {/* Items Table */}
+                </div>
+                <div className="flex gap-2">
+                    <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
+                    <Button variant="ghost" onClick={clearSearchHistory} className="w-full sm:w-auto"><X className="mr-2 h-4 w-4" /> Clear</Button>
+                </div>
+                <div className="relative min-h-[500px] overflow-y-auto">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 bg-card">
                             <TableRow>
-                                <TableHead className="w-[15%]">Rate</TableHead>
-                                <TableHead>Particulars</TableHead>
-                                <TableHead className="w-[15%]">Box</TableHead>
-                                <TableHead className="w-[15%]">Kgs</TableHead>
-                                <TableHead className="text-right w-[20%]">Amount</TableHead>
-                                <TableHead className="w-[50px]"></TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Party</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {items.map(item => (
-                                <TableRow key={item.id}>
-                                    <TableCell>
-                                      <Input
-                                          type="number"
-                                          value={item.rate}
-                                          onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
-                                          className="h-8 w-full text-right font-mono"
-                                      />
+                            {filteredHistory.map(bill => (
+                                <TableRow key={bill.id} onDoubleClick={() => router.push(`/dashboard/party-bill?partyBillId=${bill.id}`)} className="cursor-pointer">
+                                    <TableCell>{format(bill.date.toDate(), 'dd-MM-yy')}</TableCell>
+                                    <TableCell>{bill.partyName}</TableCell>
+                                    <TableCell className="text-right">{bill.netAmount.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(bill.id);}}>
+                                            <Trash2 className="h-4 w-4 text-destructive"/>
+                                        </Button>
                                     </TableCell>
-                                    <TableCell>{item.productName}</TableCell>
-                                    <TableCell>
-                                      <Input
-                                          type="number"
-                                          value={item.box || ''}
-                                          onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
-                                          className="h-8 w-full text-right font-mono"
-                                          placeholder="Box"
-                                      />
-                                    </TableCell>
-                                    <TableCell>
-                                      <Input
-                                          type="number"
-                                          value={item.kgs || ''}
-                                          onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
-                                          className="h-8 w-full text-right font-mono"
-                                          placeholder="Kgs"
-                                      />
-                                    </TableCell>
-                                    <TableCell className="text-right">{item.amount.toFixed(2)}</TableCell>
-                                    <TableCell><Button variant="ghost" size="icon" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4 text-destructive"/></Button></TableCell>
                                 </TableRow>
                             ))}
-                            {/* Item Entry Row */}
-                             <TableRow>
-                                <TableCell><Input ref={rateInputRef} placeholder="Rate" type="number" value={rate} onChange={e => setRate(e.target.value)} /></TableCell>
-                                <TableCell>
-                                    <ReactSelect
-                                        instanceId="product-select"
-                                        options={products.map(p => ({ value: p.id, label: p.name_en }))}
-                                        value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
-                                        onChange={(option) => setSelectedProductId(option ? option.value : '')}
-                                        placeholder="Select Product..."
-                                        styles={reactSelectStyles}
-                                        menuPortalTarget={isMounted ? document.body : null}
-                                        menuPosition='fixed'
-                                    />
-                                </TableCell>
-                                <TableCell><Input placeholder="Box" type="number" value={box} onChange={e => setBox(e.target.value)} /></TableCell>
-                                <TableCell><Input placeholder="Kgs" type="number" value={kgs} onChange={e => setKgs(e.target.value)} /></TableCell>
-                                <TableCell></TableCell>
-                                <TableCell><Button size="icon" onClick={handleAddItem}><PlusCircle className="h-4 w-4"/></Button></TableCell>
-                            </TableRow>
                         </TableBody>
                     </Table>
-                    <Separator className="my-4"/>
-                    {/* Totals Section */}
-                    <div className="grid grid-cols-2 gap-x-12 gap-y-2">
-                        <div className="space-y-2">
-                             <div className="flex justify-between items-center"><Label>Commission</Label><Input className="max-w-32" type="number" value={commission} onChange={e => setCommission(e.target.value)} /></div>
-                             <div className="flex justify-between items-center"><Label>Expenses</Label><Input className="max-w-32" type="number" value={expenses} onChange={e => setExpenses(e.target.value)} /></div>
-                             <div className="flex justify-between items-center"><Label>Rent</Label><Input className="max-w-32" type="number" value={rent} onChange={e => setRent(e.target.value)} /></div>
-                             <Separator/>
-                             <div className="flex justify-between items-center font-semibold"><Label>Total Less</Label><span>{totalDeductions.toFixed(2)}</span></div>
-                        </div>
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center font-bold text-lg"><Label>Total Bill Value</Label><span>{totalAmount.toFixed(2)}</span></div>
-                            <Separator/>
-                            <div className="flex justify-between items-center font-bold"><Label>Net Bill Value</Label><span>{netAmount.toFixed(2)}</span></div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center"><Label>Cash</Label><Input className="max-w-32" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} /></div>
-                            <div className="flex justify-between items-center"><Label>Bank / Acc</Label><Input className="max-w-32" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} /></div>
-                            <Separator/>
-                            <div className="flex justify-between items-center font-semibold"><Label>Total Received</Label><span>{totalReceived.toFixed(2)}</span></div>
-                        </div>
-
-                         <div className="space-y-2 text-right">
-                             <div className="flex justify-between items-center"><Label>Previous Balance</Label><span>{previousBalance.toFixed(2)}</span></div>
-                             <Separator/>
-                             <div className="flex justify-between items-center font-bold text-xl"><Label>Final Balance</Label><span>{finalBalance.toFixed(2)}</span></div>
-                             <Separator/>
-                         </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-6">
-                        <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
-                        <Button onClick={onSaveClick}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
-                        <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
-        <div>
-            <Card>
-                <CardHeader>
-                    <CardTitle>Party Bill History</CardTitle>
-                    <CardDescription>Search and manage previously created party bills.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                     <div className="grid sm:grid-cols-2 items-end gap-4">
-                        <div className="grid gap-2">
-                            <Label>Party</Label>
-                            <ReactSelect
-                                options={parties.map(p => ({ value: p.id, label: p.name}))}
-                                value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
-                                onChange={(o) => setHistoryPartyId(o ? o.value : '')}
-                                isClearable
-                                placeholder="Filter by party..."
-                                styles={reactSelectStyles}
-                            />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Date</Label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
-                            </Popover>
-                        </div>
-                    </div>
-                    <div className="flex gap-2">
-                        <Button onClick={handleSearchHistory} className="w-full sm:w-auto"><Search className="mr-2 h-4 w-4" /> Search</Button>
-                        <Button variant="ghost" onClick={clearSearchHistory} className="w-full sm:w-auto"><X className="mr-2 h-4 w-4" /> Clear</Button>
-                    </div>
-                    <div className="relative h-96 overflow-y-auto">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-card">
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Party</TableHead>
-                                    <TableHead className="text-right">Amount</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredHistory.map(bill => (
-                                    <TableRow key={bill.id} onDoubleClick={() => router.push(`/dashboard/party-bill?partyBillId=${bill.id}`)} className="cursor-pointer">
-                                        <TableCell>{format(bill.date.toDate(), 'dd-MM-yy')}</TableCell>
-                                        <TableCell>{bill.partyName}</TableCell>
-                                        <TableCell className="text-right">{bill.netAmount.toFixed(2)}</TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(bill.id);}}>
-                                                <Trash2 className="h-4 w-4 text-destructive"/>
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
-        </div>
+                </div>
+            </CardContent>
+        </Card>
     </div>
     <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
         <AlertDialogContent>
