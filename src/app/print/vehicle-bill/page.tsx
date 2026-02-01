@@ -67,26 +67,26 @@ function PrintPageContent() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-        <Button variant="outline" onClick={() => window.close()}>
-          <X className="mr-2 h-4 w-4" />
-          Close Preview
-        </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
-        </Button>
-      </div>
+        <div className="p-4 print:hidden flex justify-between items-center">
+            <Button variant="outline" onClick={() => window.close()}>
+                <X className="mr-2 h-4 w-4" />
+                Close Preview
+            </Button>
+            <Button onClick={() => window.print()}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print
+            </Button>
+        </div>
       <div className={`print-root ${paper}`}>
         <div id="print-area">
           <header className="text-center mb-6">
-            <h1 className="text-2xl font-bold font-headline text-primary">
+            <h1 className="text-2xl font-bold font-headline">
               M.C & SONS FISH COMPANY
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm">
               No. 1, Fish Market, Palladam Road, Tiruppur-641604
             </p>
-            <p className="text-sm text-muted-foreground">📞 9843223078, 9944444497</p>
+            <p className="text-sm">📞 9843223078, 9944444497</p>
              <h2 className="text-lg font-semibold mt-4">Vehicle Bill</h2>
           </header>
 
@@ -142,125 +142,106 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <footer className="print-footer">Developed by MC & SONS</footer>
+          <footer className="text-center mt-8 text-xs text-muted-foreground">
+            <p>This is a computer-generated bill.</p>
+          </footer>
         </div>
       </div>
       <style jsx global>{`
-/* ===============================
-  SCREEN PREVIEW STYLES
-================================ */
-@media screen {
-    #print-area {
-        background: white;
-        color: black;
-        margin: 2rem auto;
-    }
-    .print-root.thermal #print-area {
-        width: 79mm;
-    }
-    .print-root.a4 #print-area {
-        width: 210mm;
-        min-height: 297mm;
-    }
-}
+        @media screen {
+            #print-area {
+                background: white;
+                color: black;
+                margin: 2rem auto;
+            }
+            .print-root.thermal #print-area {
+                width: 79mm;
+            }
+            .print-root.a4 #print-area {
+                width: 210mm;
+                min-height: 297mm;
+            }
+        }
+        @media print {
+          * {
+            box-sizing: border-box;
+          }
 
-/* ===============================
-   GLOBAL PRINT ISOLATION (CRITICAL)
-================================ */
-@media print {
-  * {
-    box-sizing: border-box;
-    color: #000 !important;
-  }
+          body {
+            margin: 0;
+            padding: 0;
+            background: white !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
 
-  body {
-    margin: 0;
-    padding: 0;
-    background: white !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
+          .print\\:hidden {
+            display: none !important;
+          }
+          
+          #print-area {
+              margin: 0;
+              padding: 0;
+          }
+        }
 
-  /* Hide UI-only elements */
-  .print\\:hidden {
-    display: none !important;
-  }
-  
-  #print-area {
-      margin: 0;
-      padding: 0;
-  }
+        @media print {
+          .print-root.thermal {
+            width: 79mm;
+            font-family: monospace;
+            font-size: 11px;
+          }
 
-  .print-footer {
-    margin-top: 18px;
-    text-align: left;
-    font-size: 10px;
-    font-weight: 800;
-    font-style: italic;
-  }
-}
+          .print-root.thermal #print-area {
+            padding: 4mm;
+          }
 
-/* ===============================
-   THERMAL PRINT — 79mm
-================================ */
-@media print {
-  .print-root.thermal #print-area {
-    padding: 4mm;
-  }
-  .print-root.thermal {
-    width: 79mm;
-    font-family: monospace;
-    font-size: 11px;
-  }
+          .print-root.thermal table {
+            width: 100%;
+            border-collapse: collapse;
+          }
 
-  .print-root.thermal table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+          .print-root.thermal td {
+            padding: 2px 0;
+            font-size: 11px;
+          }
 
-  .print-root.thermal td {
-    padding: 2px 0;
-    font-size: 11px;
-  }
+          .print-root.thermal h1 {
+            font-size: 15px;
+          }
 
-  .print-root.thermal h1 {
-    font-size: 15px;
-  }
+          @page {
+            size: 79mm auto;
+            margin: 0;
+          }
+        }
 
-  @page {
-    size: 79mm auto;
-    margin: 0;
-  }
-}
+        @media print {
+          .print-root.a4 {
+            width: 210mm;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+          }
 
-/* ===============================
-   A4 PRINT
-================================ */
-@media print {
-  .print-root.a4 #print-area {
-    padding: 15mm;
-  }
-  .print-root.a4 {
-    width: 210mm;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-  }
+          .print-root.a4 #print-area {
+            padding: 15mm;
+          }
 
-  .print-root.a4 table {
-    width: 100%;
-    border-collapse: collapse;
-  }
+          .print-root.a4 table {
+            width: 100%;
+            border-collapse: collapse;
+          }
 
-  .print-root.a4 td {
-    padding: 6px;
-    border-bottom: 1px solid #ddd;
-  }
+          .print-root.a4 td {
+            padding: 6px;
+            border-bottom: 1px solid #ddd;
+          }
 
-  @page {
-    size: A4;
-    margin: 10mm;
-  }
-}
+          @page {
+            size: A4;
+            margin: 10mm;
+          }
+        }
 `}</style>
     </div>
   );

@@ -1,6 +1,5 @@
 'use client';
 
-import '../globals.css';
 import { Suspense } from 'react';
 
 // This is a minimal layout for printing pages, ensuring no dashboard UI is included.
