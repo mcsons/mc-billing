@@ -195,6 +195,24 @@ function PrintPageContent() {
       </div>
       <style jsx global>{`
         /* ===============================
+          SCREEN PREVIEW STYLES
+        ================================ */
+        #print-area {
+            background: white;
+            color: black;
+            padding: 2rem;
+            margin: 2rem auto;
+        }
+
+        .print-root.thermal #print-area {
+            width: 106mm;
+        }
+        .print-root.a4 #print-area {
+            width: 210mm;
+            min-height: 297mm; /* To simulate A4 page feel */
+        }
+        
+        /* ===============================
           GLOBAL PRINT
         ================================ */
         @media print {
@@ -211,13 +229,18 @@ function PrintPageContent() {
             print-color-adjust: exact;
           }
 
+          #print-area {
+              margin: 0;
+              padding: 0;
+          }
+
           .print\\:hidden {
             display: none !important;
           }
         }
 
         /* ===============================
-          THERMAL BILL (106mm) - UNCHANGED
+          THERMAL BILL (106mm)
         ================================ */
         @media print {
           .print-root.thermal {

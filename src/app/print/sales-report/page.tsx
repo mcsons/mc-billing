@@ -170,10 +170,21 @@ function PrintPageContent() {
           </div>
         </div>
         <style jsx global>{`
+        /* ===============================
+          SCREEN PREVIEW STYLES
+        ================================ */
+        #print-area {
+            background: white;
+            color: black;
+            margin: 2rem auto;
+            width: 106mm;
+        }
+
         /* --- Global Print Reset --- */
         @media print {
           * { color: #000 !important; -webkit-font-smoothing: none; font-smoothing: none; text-rendering: optimizeSpeed; }
           body { margin: 0; padding: 0; background: white !important; print-color-adjust: exact; }
+          #print-area { margin: 0; padding: 0; }
           .print\\:hidden { display: none !important; }
         }
 
@@ -181,9 +192,11 @@ function PrintPageContent() {
           THERMAL (106mm)
         ================================ */
         @media print {
+          #print-area {
+             padding: 2mm 4mm 18mm 4mm;
+          }
           /* --- Base styles copied from Main Bill Print --- */
           .print-root.thermal { width: 106mm; max-width: 106mm; margin: 0 auto; font-family: 'Courier New', 'Lucida Console', monospace !important; }
-          #print-area { padding: 2mm 4mm 18mm 4mm; margin-top: 0; }
           .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
           .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
           .header-sub .city { display: block; }
@@ -254,18 +267,6 @@ function PrintPageContent() {
           .totals-section .hr-line { margin: 2px 0; }
           .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
           .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
-        }
-
-        /* ===============================
-          A4 PRINT (Unchanged)
-        ================================ */
-        @media print {
-          .print-root.a4 { width: 210mm; margin: 0 auto; font-family: Arial, sans-serif; font-size: 12px; }
-          .print-root.a4 #print-area { padding: 15mm; }
-          .print-root.a4 .print-table { width: 100%; border-collapse: collapse; table-layout: auto; }
-          .print-root.a4 .print-table th, .print-root.a4 .print-table td { padding: 5px; border-bottom: 1px solid #eee; }
-          .print-root.a4 .print-table th { font-weight: bold; text-align: left; }
-          @page { size: A4; margin: 10mm; }
         }
       `}</style>
     </div>

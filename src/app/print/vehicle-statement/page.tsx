@@ -180,6 +180,23 @@ function PrintPageContent() {
         </div>
         <style jsx global>{`
         /* ===============================
+          SCREEN PREVIEW STYLES
+        ================================ */
+        #print-area {
+            background: white;
+            color: black;
+            margin: 2rem auto;
+        }
+
+        .print-root.thermal #print-area {
+            width: 106mm;
+        }
+        .print-root.a4 #print-area {
+            width: 210mm;
+            min-height: 297mm;
+        }
+        
+        /* ===============================
           GLOBAL PRINT
         ================================ */
         @media print {
@@ -196,6 +213,11 @@ function PrintPageContent() {
             print-color-adjust: exact;
           }
 
+          #print-area {
+              margin: 0;
+              padding: 0;
+          }
+
           .print\\:hidden {
             display: none !important;
           }
@@ -205,16 +227,14 @@ function PrintPageContent() {
           THERMAL (106mm)
         ================================ */
         @media print {
+          .print-root.thermal #print-area {
+            padding: 2mm 4mm 18mm 4mm;
+          }
           .print-root.thermal {
             width: 106mm;
             max-width: 106mm;
             margin: 0 auto;
             font-family: 'Courier New', 'Lucida Console', monospace !important;
-          }
-
-          #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-            margin-top: 0;
           }
 
           .header-title {
@@ -316,15 +336,14 @@ function PrintPageContent() {
           A4 PRINT
         ================================ */
         @media print {
+          .print-root.a4 #print-area {
+             padding: 15mm;
+          }
           .print-root.a4 {
             width: 210mm;
             margin: 0 auto;
             font-family: Arial, sans-serif;
             font-size: 12px;
-          }
-
-          .print-root.a4 #print-area {
-            padding: 15mm;
           }
           
           .print-root.a4 .print-table {

@@ -108,6 +108,24 @@ function PrintPageContent() {
       </div>
       <style jsx global>{`
         /* ===============================
+          SCREEN PREVIEW STYLES
+        ================================ */
+        #print-area {
+            background: white;
+            color: black;
+            margin: 2rem auto;
+            padding: 1rem;
+        }
+
+        .print-root.thermal #print-area {
+            width: 106mm;
+        }
+        .print-root.a4 #print-area {
+            width: 210mm;
+            min-height: 297mm;
+        }
+
+        /* ===============================
           GLOBAL PRINT
         ================================ */
         @media print {
@@ -124,6 +142,11 @@ function PrintPageContent() {
             print-color-adjust: exact;
           }
 
+          #print-area {
+              margin: 0;
+              padding: 0;
+          }
+
           .print\\:hidden {
             display: none !important;
           }
@@ -133,16 +156,14 @@ function PrintPageContent() {
           THERMAL (106mm)
         ================================ */
         @media print {
+          .print-root.thermal #print-area {
+            padding: 2mm 4mm 18mm 4mm;
+          }
           .print-root.thermal {
             width: 106mm;
             max-width: 106mm;
             margin: 0 auto;
             font-family: 'Courier New', 'Lucida Console', monospace !important;
-          }
-
-          #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-            margin-top: 0;
           }
 
           .header-title {
@@ -185,71 +206,6 @@ function PrintPageContent() {
             font-weight: 700;
           }
 
-          .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
-
-          .print-table tr,
-          .print-table th {
-            border: none;
-          }
-          
-          .print-table td {
-             border: none;
-          }
-
-          .print-table thead th {
-            font-weight: 800 !important;
-            font-size: 14px !important;
-            padding: 2px 4px;
-            color: #000;
-            vertical-align: middle;
-          }
-
-          .print-table tbody td {
-            font-weight: 700 !important;
-            font-size: 13px;
-            padding: 2px 4px;
-            vertical-align: top;
-          }
-
-          .col-sn {
-            width: 8%;
-            text-align: left;
-            white-space: nowrap;
-          }
-          .col-product {
-            width: 36%;
-            text-align: left;
-            word-break: break-word;
-            white-space: normal;
-          }
-          .col-qty {
-            width: 18%;
-            text-align: center;
-            white-space: nowrap;
-          }
-          .col-rate {
-            width: 18%;
-            text-align: right;
-            white-space: nowrap;
-          }
-          .col-amount {
-            width: 20%;
-            text-align: right;
-            white-space: nowrap;
-          }
-
-          .qty-uom {
-            white-space: nowrap;
-          }
-          .uom-text {
-            font-weight: 700 !important;
-            margin-left: 2px;
-          }
-
           .totals-section > div,
           .totals-section span {
             font-size: 15px !important;
@@ -279,15 +235,14 @@ function PrintPageContent() {
           A4 PRINT
         ================================ */
         @media print {
+          .print-root.a4 #print-area {
+            padding: 15mm;
+          }
           .print-root.a4 {
             width: 210mm;
             margin: 0 auto;
             font-family: Arial, sans-serif;
             font-size: 12px;
-          }
-
-          .print-root.a4 #print-area {
-            padding: 15mm;
           }
 
           @page {

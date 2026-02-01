@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/table';
 import { VehicleBill } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 function PrintPageContent() {
@@ -67,8 +66,8 @@ function PrintPageContent() {
   const billDate = date; // date is now a valid Date object
 
   return (
-    <div className={`print-root ${paper}`}>
-      <div className="flex justify-between items-center mb-4 print:hidden">
+    <div>
+      <div className="flex justify-between items-center mb-4 p-4 print:hidden">
         <Button variant="outline" onClick={() => window.close()}>
           <X className="mr-2 h-4 w-4" />
           Close Preview
@@ -78,8 +77,8 @@ function PrintPageContent() {
           Print
         </Button>
       </div>
-      <Card className="print:shadow-none print:border-none print:bg-white">
-        <CardContent id="print-area" className="p-6 md:p-8">
+      <div className={`print-root ${paper}`}>
+        <div id="print-area">
           <header className="text-center mb-6">
             <h1 className="text-2xl font-bold font-headline text-primary">
               M.C & SONS FISH COMPANY
@@ -144,9 +143,25 @@ function PrintPageContent() {
           </Table>
 
           <footer className="print-footer">Developed by MC & SONS</footer>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
       <style jsx global>{`
+/* ===============================
+  SCREEN PREVIEW STYLES
+================================ */
+#print-area {
+    background: white;
+    color: black;
+    margin: 2rem auto;
+}
+.print-root.thermal #print-area {
+    width: 79mm;
+}
+.print-root.a4 #print-area {
+    width: 210mm;
+    min-height: 297mm;
+}
+
 /* ===============================
    GLOBAL PRINT ISOLATION (CRITICAL)
 ================================ */
@@ -164,28 +179,14 @@ function PrintPageContent() {
     print-color-adjust: exact;
   }
 
-  /* Hide EVERYTHING */
-  body * {
-    visibility: hidden;
-  }
-
-  /* Show ONLY the bill */
-  #print-area,
-  #print-area * {
-    visibility: visible;
-  }
-
-  /* Lock print area to page */
-  #print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-  }
-
   /* Hide UI-only elements */
   .print\\:hidden {
     display: none !important;
+  }
+  
+  #print-area {
+      margin: 0;
+      padding: 0;
   }
 
   .print-footer {
@@ -201,14 +202,13 @@ function PrintPageContent() {
    THERMAL PRINT — 79mm
 ================================ */
 @media print {
+  .print-root.thermal #print-area {
+    padding: 4mm;
+  }
   .print-root.thermal {
     width: 79mm;
     font-family: monospace;
     font-size: 11px;
-  }
-
-  .print-root.thermal #print-area {
-    padding: 4mm;
   }
 
   .print-root.thermal table {
@@ -235,14 +235,13 @@ function PrintPageContent() {
    A4 PRINT
 ================================ */
 @media print {
+  .print-root.a4 #print-area {
+    padding: 15mm;
+  }
   .print-root.a4 {
     width: 210mm;
     font-family: Arial, sans-serif;
     font-size: 14px;
-  }
-
-  .print-root.a4 #print-area {
-    padding: 15mm;
   }
 
   .print-root.a4 table {
