@@ -188,6 +188,14 @@ export default function HistoryPage() {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleEditBill(billNo);
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextRow = e.currentTarget.nextElementSibling as HTMLElement;
+        nextRow?.focus();
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevRow = e.currentTarget.previousElementSibling as HTMLElement;
+        prevRow?.focus();
     }
   };
 

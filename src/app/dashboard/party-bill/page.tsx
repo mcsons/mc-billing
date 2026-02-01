@@ -452,6 +452,14 @@ export default function PartyBillPage() {
         if (e.key === 'Enter') {
             e.preventDefault();
             router.push(`/dashboard/party-bill?partyBillId=${billId}`);
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const nextRow = e.currentTarget.nextElementSibling as HTMLElement;
+            nextRow?.focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prevRow = e.currentTarget.previousElementSibling as HTMLElement;
+            prevRow?.focus();
         }
     };
 
