@@ -2,47 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: var(--font-body), sans-serif;
-}
-
 @layer base {
   :root {
-    /* Customization: Dark background, light text for background */
-    --background: 215 28% 12%;
-    --foreground: 0 0% 98%;
+    /* For components using default tailwind vars like `bg-background` */
+    --background: 0 0% 100%; /* white */
+    --foreground: 222.2 84% 4.9%; /* dark text */
+
+    /* For the main page shell, which will be applied directly to `body` */
+    --shell-background: 215 28% 12%; /* dark blue */
+    --shell-foreground: 0 0% 98%; /* light text */
 
     /* Standard Light theme elements for cards, inputs etc. */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%; /* Standard dark text */
+    --card-foreground: 222.2 84% 4.9%;
+    
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
     /* App's specific primary color */
-    --primary: 174 58% 39%;
+    --primary: 174 58% 39%; /* Muted Teal */
     --primary-foreground: 0 0% 98%;
 
-    /* Standard light secondary/muted/accent */
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
+    
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
-    /* Standard destructive */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    /* Standard light border/input */
     --border: 214.3 31.8% 91.4%;
-    --input: 0 0% 100%; /* White input background */
-
-    /* App's specific ring color */
-    --ring: 174 58% 39%;
+    --input: 214.3 31.8% 91.4%;
+    
+    --ring: 174 58% 39%; /* Muted Teal */
     --radius: 0.5rem;
 
-    /* Customization: Sidebar to match dark background */
+    /* Customization: Sidebar to match dark shell */
     --sidebar-background: 215 28% 18%;
     --sidebar-foreground: 220 13% 80%;
     --sidebar-primary: 0 0% 98%;
@@ -59,6 +58,7 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
   }
+
   .dark {
     --background: 215 28% 12%;
     --foreground: 0 0% 98%;
@@ -100,6 +100,9 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    /* The key change: apply shell colors directly, not via tailwind utility classes */
+    background-color: hsl(var(--shell-background));
+    color: hsl(var(--shell-foreground));
+    font-family: var(--font-body), sans-serif;
   }
 }
