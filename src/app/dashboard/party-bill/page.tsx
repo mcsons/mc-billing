@@ -145,6 +145,8 @@ export default function PartyBillPage() {
     const rateInputRef = useRef<HTMLInputElement>(null);
     const partySelectRef = useRef<any>(null);
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+    const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
+
 
     useEffect(() => {
         setIsMounted(true);
@@ -436,6 +438,23 @@ export default function PartyBillPage() {
         setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
     };
 
+    const handleHistoryPartyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+          e.preventDefault();
+          const firstRow = historyTableBodyRef.current?.querySelector('tr');
+          if (firstRow) {
+              (firstRow as HTMLElement).focus();
+          }
+      }
+    };
+  
+    const handleHistoryRowKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>, billId: string) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            router.push(`/dashboard/party-bill?partyBillId=${billId}`);
+        }
+    };
+
   return (
     <>
     <div className="grid grid-cols-1 gap-8 auto-rows-max">
@@ -628,14 +647,16 @@ export default function PartyBillPage() {
                  <div className="grid sm:grid-cols-2 items-end gap-4">
                     <div className="grid gap-2">
                         <Label>Party</Label>
-                        <ReactSelect
-                            options={parties.map(p => ({ value: p.id, label: p.name}))}
-                            value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
-                            onChange={(o) => setHistoryPartyId(o ? o.value : '')}
-                            isClearable
-                            placeholder="Filter by party..."
-                            styles={reactSelectStyles}
-                        />
+                        <div onKeyDown={handleHistoryPartyKeyDown}>
+                            <ReactSelect
+                                options={parties.map(p => ({ value: p.id, label: p.name}))}
+                                value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
+                                onChange={(o) => setHistoryPartyId(o ? o.value : '')}
+                                isClearable
+                                placeholder="Filter by party..."
+                                styles={reactSelectStyles}
+                            />
+                        </div>
                     </div>
                     <div className="grid gap-2">
                         <Label>Date</Label>
@@ -664,9 +685,15 @@ export default function PartyBillPage() {
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
+                        <TableBody ref={historyTableBodyRef}>
                             {filteredHistory.map(bill => (
-                                <TableRow key={bill.id} onDoubleClick={() => router.push(`/dashboard/party-bill?partyBillId=${bill.id}`)} className="cursor-pointer">
+                                <TableRow 
+                                    key={bill.id} 
+                                    onDoubleClick={() => router.push(`/dashboard/party-bill?partyBillId=${bill.id}`)} 
+                                    className="cursor-pointer"
+                                    tabIndex={0}
+                                    onKeyDown={(e) => handleHistoryRowKeyDown(e, bill.id)}
+                                >
                                     <TableCell>{format(bill.date.toDate(), 'dd-MM-yy')}</TableCell>
                                     <TableCell>{bill.partyName}</TableCell>
                                     <TableCell className="text-right">{bill.netAmount.toFixed(2)}</TableCell>
