@@ -12,7 +12,7 @@ export default function PrintLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning style={{ backgroundColor: 'hsl(215 28% 12%)' }}>
+      <body suppressHydrationWarning>
         <Suspense fallback={<div className="flex h-screen w-full items-center justify-center">Loading Print Preview...</div>}>
           {children}
         </Suspense>
