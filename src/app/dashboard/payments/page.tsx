@@ -38,7 +38,7 @@ import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
 
 export default function PaymentsPage() {
-    const { customers, customerBalances, addPayment, getCustomerLedger } = useData();
+    const { customers, customerBalances, addPayment, getCustomerLedger, currentUser } = useData();
     const { toast } = useToast();
 
     // State for Record Payment form
@@ -52,6 +52,8 @@ export default function PaymentsPage() {
     const [toDate, setToDate] = useState<Date | undefined>();
     const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
     const [openingBalanceForLedger, setOpeningBalanceForLedger] = useState<number>(0);
+
+    const isManager = currentUser?.role === 'MANAGER';
 
     const reactSelectStyles = {
       control: (baseStyles, state) => ({
@@ -201,6 +203,7 @@ export default function PaymentsPage() {
                                 onChange={(option) => setRecordSelectedCustomerId(option ? option.value : '')}
                                 styles={reactSelectStyles}
                                 filterOption={(option, input) => option.label.toLowerCase().includes(input.toLowerCase()) || option.value.toLowerCase().includes(input.toLowerCase())}
+                                isDisabled={isManager}
                             />
                         </div>
 
@@ -225,7 +228,7 @@ export default function PaymentsPage() {
                                 placeholder="0.00"
                                 value={amount}
                                 onChange={e => setAmount(e.target.value)}
-                                disabled={!recordSelectedCustomerId}
+                                disabled={!recordSelectedCustomerId || isManager}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -235,13 +238,13 @@ export default function PaymentsPage() {
                                 placeholder="e.g., Cash payment for last week's bill"
                                 value={notes}
                                 onChange={e => setNotes(e.target.value)}
-                                disabled={!recordSelectedCustomerId}
+                                disabled={!recordSelectedCustomerId || isManager}
                             />
                         </div>
 
                     </CardContent>
                     <CardFooter>
-                        <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount}>
+                        <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager}>
                             <Save className="mr-2 h-4 w-4" />
                             Record Payment
                         </Button>

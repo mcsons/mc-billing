@@ -82,6 +82,7 @@ const initialPermissions: Record<Role, Page[]> = {
     'Profile',
     'Customer Balance',
     'Party Balance',
+    'Sales Report',
   ],
 };
 

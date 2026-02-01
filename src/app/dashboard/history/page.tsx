@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Card,
@@ -49,6 +49,7 @@ export default function HistoryPage() {
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
 
   const [filteredBills, setFilteredBills] = useState<LiveBillSummary[]>([]);
+  const tableBodyRef = useRef<HTMLTableSectionElement>(null);
 
   const reactSelectStyles = {
     control: (baseStyles: any, state: any) => ({
@@ -127,14 +128,6 @@ export default function HistoryPage() {
     });
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedBills(new Set(filteredBills.map((bill) => bill.billNo)));
-    } else {
-      setSelectedBills(new Set());
-    }
-  };
-
   const canDelete = useMemo(() => {
     return currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
   }, [currentUser]);
@@ -180,6 +173,24 @@ export default function HistoryPage() {
 
     setFilteredBills(sortBills(results));
   };
+  
+  const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      const firstRow = tableBodyRef.current?.querySelector('tr');
+      if (firstRow) {
+        firstRow.focus();
+      }
+    }
+  };
+
+  const handleRowKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>, billNo: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleEditBill(billNo);
+    }
+  };
+
 
   const handleClearSearch = () => {
     setDate(undefined);
@@ -207,32 +218,34 @@ export default function HistoryPage() {
         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
           <div className="grid flex-1 gap-2">
             <label htmlFor="customer-search-select" className="text-sm font-medium">Customer</label>
-            <ReactSelect
-              instanceId="history-customer-select"
-              inputId="customer-search-select"
-              placeholder="Select customer..."
-              isClearable
-              options={customers.map((c) => ({
-                value: c.id,
-                label: `${c.name_en} (${c.name_ta})`,
-              }))}
-              value={
-                selectedCustomerData
-                  ? {
-                    value: selectedCustomerData.id,
-                    label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
-                  }
-                  : null
-              }
-              onChange={(option) => {
-                setSelectedCustomer(option ? option.value : '');
-              }}
-              styles={reactSelectStyles}
-              filterOption={(option, input) =>
-                option.label.toLowerCase().includes(input.toLowerCase()) ||
-                option.value.toLowerCase().includes(input.toLowerCase())
-              }
-            />
+             <div onKeyDown={handleCustomerKeyDown}>
+                <ReactSelect
+                instanceId="history-customer-select"
+                inputId="customer-search-select"
+                placeholder="Select customer..."
+                isClearable
+                options={customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name_en} (${c.name_ta})`,
+                }))}
+                value={
+                    selectedCustomerData
+                    ? {
+                        value: selectedCustomerData.id,
+                        label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
+                    }
+                    : null
+                }
+                onChange={(option) => {
+                    setSelectedCustomer(option ? option.value : '');
+                }}
+                styles={reactSelectStyles}
+                filterOption={(option, input) =>
+                    option.label.toLowerCase().includes(input.toLowerCase()) ||
+                    option.value.toLowerCase().includes(input.toLowerCase())
+                }
+                />
+            </div>
           </div>
           <div className="grid gap-2">
             <label htmlFor="date-search-trigger" className="text-sm font-medium">Date</label>
@@ -278,14 +291,7 @@ export default function HistoryPage() {
               <TableRow>
                 {canDelete && (
                   <TableHead className="w-[40px] text-center">
-                    <Checkbox
-                      checked={
-                        filteredBills.length > 0 &&
-                        selectedBills.size === filteredBills.length
-                      }
-                      onCheckedChange={(checked) => handleSelectAll(!!checked)}
-                      aria-label="Select all"
-                    />
+                    #
                   </TableHead>
                 )}
                 <TableHead>Bill No</TableHead>
@@ -295,7 +301,7 @@ export default function HistoryPage() {
                 <TableHead>Created By</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody ref={tableBodyRef}>
               {filteredBills.length > 0 ? (
                 filteredBills.map((bill) => {
                   const creator = users.find((user) => user.id === bill.createdBy);
@@ -307,6 +313,8 @@ export default function HistoryPage() {
                       className="cursor-pointer"
                       onDoubleClick={() => handleEditBill(bill.billNo)}
                       data-state={selectedBills.has(bill.billNo) && 'selected'}
+                      tabIndex={0}
+                      onKeyDown={(e) => handleRowKeyDown(e, bill.billNo)}
                     >
                       {canDelete && (
                         <TableCell className="w-[40px] text-center">
