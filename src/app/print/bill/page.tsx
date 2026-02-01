@@ -74,7 +74,7 @@ function PrintPageContent() {
   return (
     <div>
       <div className="p-4 print:hidden flex justify-between items-center">
-        <Button variant="outline" onClick={() => window.close()}>
+        <Button variant="outline" onClick={() => window.close()} className="text-foreground">
           <X className="mr-2 h-4 w-4" />
           Close Preview
         </Button>

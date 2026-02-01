@@ -12,7 +12,8 @@ import {
   TableHead,
 } from '@/components/ui/table';
 import { VehicleStatementTransaction } from '@/lib/data';
-import { X, Printer } from 'lucide-react';
+import { ArrowLeft, Printer } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 interface PrintData {
@@ -28,7 +29,6 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [printData, setPrintData] = useState<PrintData | null>(null);
-  const paper = searchParams.get('paper') || 'thermal';
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -53,9 +53,9 @@ function PrintPageContent() {
 
   if (!printData) {
     return (
-        <div className="flex justify-center items-center h-screen">
-            <p>Loading print data...</p>
-        </div>
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading print data...</p>
+      </div>
     );
   }
 
@@ -73,302 +73,169 @@ function PrintPageContent() {
   const finalBalance = openingBalance + totalAdvance - totalExpenses;
 
   return (
-    <div>
-        <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-          <Button variant="outline" onClick={() => window.close()}>
-            <X className="mr-2 h-4 w-4" />
-            Close
+    <div className={`print-root a4`}>
+        <div className="flex justify-between items-center mb-4 print:hidden">
+          <Button variant="outline" onClick={() => router.back()} className="text-foreground">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
           </Button>
           <Button onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
             Print
           </Button>
         </div>
-        <div className={`print-root ${paper}`}>
-          <div id="print-area">
-            <header className="text-center">
-              <h1 className="header-title">
+        <Card className="print:shadow-none print:border-none print:bg-white">
+          <CardContent className="print-content" id="print-area">
+            <header className="text-center mb-4">
+              <h1 className="text-2xl font-bold font-headline text-primary">
                 M.C & SONS FISH COMPANY
               </h1>
-              <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,
-                <span className="city">Tiruppur - 641604</span>
+              <p className="text-sm text-muted-foreground">
+                No. 1, Fish Market, Palladam Road, Tiruppur-641604
               </p>
-              <p className="header-sub header-phone">📞 9843223078, 9944444497</p>
+               <h2 className="text-lg font-semibold mt-2">{type} Statement</h2>
             </header>
-            <div className="hr-line"></div>
-            <h2 className="text-lg font-semibold mt-2 text-center">{type} Statement</h2>
 
-            <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
-                <div>
-                    <p className="font-semibold">{type} Details:</p>
-                    <p className="cust-name">{type === 'Driver' ? name : `${name} (${id})`}</p>
-                </div>
-                <div className="text-right">
-                     {dateRange?.from && (
-                         <p><span className="font-semibold">From:</span> <strong>{format(dateRange.from, 'dd-MM-yyyy')}</strong></p>
-                    )}
-                    {dateRange?.to && (
-                         <p><span className="font-semibold">To:</span> <strong>{format(dateRange.to, 'dd-MM-yyyy')}</strong></p>
-                    )}
-                </div>
+            <div className="text-right text-sm mb-4">
+                <p>
+                  <span className="font-semibold">Statement Date:</span>{' '}
+                  {format(new Date(), 'dd-MM-yyyy')}
+                </p>
             </div>
 
-            <Table className="print-table">
+            {dateRange.from && dateRange.to && (
+                <div className="text-center text-sm font-semibold mb-4 period-section">
+                    <span>From: {format(dateRange.from, 'dd-MM-yyyy')}</span>
+                    <span className="mx-4">To: {format(dateRange.to, 'dd-MM-yyyy')}</span>
+                </div>
+            )}
+
+            <div className="mb-4 text-sm">
+                <p className="font-semibold">{type} Details:</p>
+                <p>{name} ({id})</p>
+            </div>
+
+            <Table className="print-table mb-4">
               <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <div className="table-header-line"></div>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead className="col-date">Date</TableHead>
-                  <TableHead className="col-desc">Description</TableHead>
-                  <TableHead className="col-adv text-right">Advance</TableHead>
-                  <TableHead className="col-exp text-right">Expenses</TableHead>
-                  <TableHead className="col-bal text-right">Balance</TableHead>
-                </TableRow>
-                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <div className="table-header-line"></div>
-                  </TableCell>
+                  <TableHead className="w-[100px]">Date</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-right">Advance (₹)</TableHead>
+                  <TableHead className="text-right">Expenses (₹)</TableHead>
+                  <TableHead className="text-right">Balance (₹)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                    <TableCell colSpan={4} className="font-semibold !text-left">Opening Balance for Period</TableCell>
-                    <TableCell className="col-bal font-semibold text-right">{openingBalance.toFixed(2)}</TableCell>
+                <TableRow className="bg-muted/50">
+                    <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
+                    <TableCell className="text-right font-mono font-semibold">{openingBalance.toFixed(2)}</TableCell>
                 </TableRow>
                 {transactions.map((t, index) => (
                   <TableRow key={index}>
-                    <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
-                    <TableCell className="col-desc">{t.description}</TableCell>
-                    <TableCell className="col-adv text-right">{t.advance > 0 ? t.advance.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="col-exp text-right">{t.expenses > 0 ? t.expenses.toFixed(2) : '-'}</TableCell>
-                    <TableCell className="col-bal text-right">{t.balance.toFixed(2)}</TableCell>
+                    <TableCell>{format(t.date, 'dd-MM-yyyy')}</TableCell>
+                    <TableCell>{t.description}</TableCell>
+                    <TableCell className="text-right font-mono text-green-600">{t.advance > 0 ? t.advance.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="text-right font-mono text-red-600">{t.expenses > 0 ? t.expenses.toFixed(2) : '-'}</TableCell>
+                    <TableCell className="text-right font-mono">{t.balance.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
-                <TableRow>
-                  <TableCell colSpan={5} className="p-0">
-                    <div className="table-header-line"></div>
-                  </TableCell>
-                </TableRow>
               </TableBody>
             </Table>
             
-            <div className="flex justify-end mt-2">
-                 <div className="w-full max-w-[300px] space-y-1 totals-section">
-                    <div className="flex justify-between">
-                        <span>Total Advance:</span>
-                        <span>₹{totalAdvance.toFixed(2)}</span>
-                    </div>
-                     <div className="flex justify-between">
-                        <span>Total Expenses:</span>
-                        <span>₹{totalExpenses.toFixed(2)}</span>
-                    </div>
-                    <div className="hr-line my-1"></div>
-                    <div className="flex justify-between final-balance">
-                        <span>Final Balance:</span>
-                        <span>₹{finalBalance.toFixed(2)}</span>
-                    </div>
-                </div>
-            </div>
+            <table className="w-full max-w-sm ml-auto balance-summary mt-4">
+                <tbody>
+                    <tr>
+                        <td>Opening Balance</td>
+                        <td className="text-right font-mono">₹{openingBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Add: Total Advance</td>
+                        <td className="text-right font-mono">{totalAdvance.toFixed(2)}</td>
+                    </tr>
+                    <tr className="border-t">
+                        <td className="pt-1 font-semibold">Subtotal</td>
+                        <td className="pt-1 text-right font-mono font-semibold">{(openingBalance + totalAdvance).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                        <td>Less: Total Expenses</td>
+                        <td className="text-right font-mono">- {totalExpenses.toFixed(2)}</td>
+                    </tr>
+                    <tr className="border-t-2 border-foreground final-balance-row">
+                        <td className="pt-2 font-bold text-base">Final Balance</td>
+                        <td className="pt-2 text-right font-mono font-bold text-lg">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                </tbody>
+            </table>
 
-            <footer className="print-footer">Developed by MC & SONS</footer>
-          </div>
-        </div>
+            <footer className="text-center mt-8 text-xs text-muted-foreground">
+              <p>This is a computer-generated statement.</p>
+            </footer>
+          </CardContent>
+        </Card>
         <style jsx global>{`
-        /* ===============================
-          SCREEN PREVIEW STYLES
-        ================================ */
-        @media screen {
-            #print-area {
-                background: white;
-                color: black;
-                margin: 2rem auto;
-            }
+  @media print {
+    * {
+      box-sizing: border-box;
+    }
 
-            .print-root.thermal #print-area {
-                width: 106mm;
-            }
-            .print-root.a4 #print-area {
-                width: 210mm;
-                min-height: 297mm;
-            }
-        }
-        
-        /* ===============================
-          GLOBAL PRINT
-        ================================ */
-        @media print {
-          * {
-            color: #000 !important;
-            -webkit-font-smoothing: none;
-            font-smoothing: none;
-            text-rendering: optimizeSpeed;
-          }
-          body {
-            margin: 0;
-            padding: 0;
-            background: white !important;
-            print-color-adjust: exact;
-          }
+    body {
+      margin: 0;
+      padding: 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
 
-          #print-area {
-              margin: 0;
-              padding: 0;
-          }
+    .print\\:hidden {
+      display: none !important;
+    }
+  }
 
-          .print\\:hidden {
-            display: none !important;
-          }
-        }
+  @media print {
+    .print-root.a4 {
+      width: 210mm;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+    }
 
-        /* ===============================
-          THERMAL (106mm)
-        ================================ */
-        @media print {
-          .print-root.thermal #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-          }
-          .print-root.thermal {
-            width: 106mm;
-            max-width: 106mm;
-            margin: 0 auto;
-            font-family: 'Courier New', 'Lucida Console', monospace !important;
-          }
+    .print-root.a4 .print-content {
+      padding: 15mm;
+    }
+    
+    .print-root.a4 h1 { font-size: 20px; }
+    .print-root.a4 h2 { font-size: 16px; }
 
-          .header-title {
-            font-size: 22px !important;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            line-height: 1.2;
-            white-space: nowrap;
-          }
-          .header-sub {
-            display: block;
-            text-align: center;
-            font-size: 13px !important;
-            font-weight: 700;
-            line-height: 1.3;
-            margin-top: 2px;
-          }
-          .header-sub .city {
-            display: block;
-          }
-          .header-phone {
-            margin-top: 4px;
-          }
-          .hr-line {
-            border-top: 2px solid #000;
-            margin: 6px 0;
-          }
-          .table-header-line {
-            border-top: 2px solid #000;
-            margin: 4px 0;
-          }
+    .print-root.a4 table {
+      width: 100%;
+      border-collapse: collapse;
+    }
 
-          .cust-name {
-            font-weight: 700;
-            font-size: 15px;
-            word-wrap: break-word;
-          }
+    .print-root.a4 th,
+    .print-root.a4 td {
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+    }
 
-          .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
+    .print-root.a4 th {
+      background: #f9f9f9;
+    }
+    
+    .print-root.a4 .balance-summary {
+        font-size: 14px;
+    }
+    .print-root.a4 .balance-summary td {
+        padding: 4px;
+    }
+    .print-root.a4 .final-balance-row td {
+        font-size: 16px !important;
+    }
 
-          .print-table tr, .print-table th, .print-table td {
-            border: none;
-            word-wrap: break-word; 
-            white-space: pre-wrap;
-            text-align: left;
-          }
-          
-          .print-table thead th {
-            font-weight: 800 !important;
-            font-size: 14px !important;
-            padding: 2px 4px;
-            color: #000;
-            vertical-align: middle;
-          }
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+  }
+`}</style>
 
-          .print-table tbody td {
-            font-weight: 700 !important;
-            font-size: 13px;
-            padding: 2px 4px;
-            vertical-align: top;
-          }
-          
-          .col-date { width: 15%; }
-          .col-desc { width: 35%; }
-          .col-adv { width: 15%; text-align: right; }
-          .col-exp { width: 15%; text-align: right; }
-          .col-bal { width: 20%; text-align: right; }
-
-          .totals-section > div,
-          .totals-section span {
-            font-size: 15px !important;
-            font-weight: 700 !important;
-          }
-          
-          .totals-section .hr-line {
-            margin: 2px 0;
-          }
-
-          .final-balance,
-          .final-balance span {
-            font-size: 16px !important;
-            font-weight: 800 !important;
-          }
-
-          .print-footer {
-            margin-top: 18px;
-            text-align: left;
-            font-size: 10px;
-            font-weight: 800;
-            font-style: italic;
-          }
-        }
-
-        /* ===============================
-          A4 PRINT
-        ================================ */
-        @media print {
-          .print-root.a4 #print-area {
-             padding: 15mm;
-          }
-          .print-root.a4 {
-            width: 210mm;
-            margin: 0 auto;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-          }
-          
-          .print-root.a4 .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: auto;
-          }
-
-          .print-root.a4 .print-table th,
-          .print-root.a4 .print-table td {
-            padding: 5px;
-            border-bottom: 1px solid #eee;
-          }
-           .print-root.a4 .print-table th {
-             font-weight: bold;
-             text-align: left;
-           }
-
-          @page {
-            size: A4;
-            margin: 10mm;
-          }
-        }
-      `}</style>
     </div>
   );
 }

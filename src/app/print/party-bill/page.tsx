@@ -60,7 +60,7 @@ function PartyBillPrintContent() {
   return (
     <>
       <div className="p-4 print:hidden flex justify-between items-center">
-        <Button variant="outline" onClick={() => window.close()}>
+        <Button variant="outline" onClick={() => window.close()} className="text-foreground">
           <X className="mr-2 h-4 w-4" />
           Close
         </Button>
@@ -135,7 +135,7 @@ function PartyBillPrintContent() {
                     <tr className="font-bold"><td>Net Amount:</td><td>₹{billData.netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td>₹{previousBalance.toFixed(2)}</td></tr>
                     <tr className="font-bold"><td>Total:</td><td>₹{totalAfterPrevious.toFixed(2)}</td></tr>
-                    {totalReceived > 0 && <tr><td>Total Received:</td><td>₹{totalReceived.toFixed(2)}</td></tr>}
+                    {totalReceived > 0 && <tr><td>Total Received:</td><td>₹{totalReceived.toFixed(2)}</td></tr>
                     <tr className="font-bold"><td>Final Balance:</td><td>₹{finalBalance.toFixed(2)}</td></tr>
                 </tbody>
             </table>
