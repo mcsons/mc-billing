@@ -111,9 +111,18 @@ export default function HistoryPage() {
     router.push(`/dashboard/billing?billNo=${billNo}`);
   };
 
-  const selectedCustomerData = customers.find(
-    (c) => c.id.toLowerCase() === selectedCustomer.toLowerCase()
-  );
+  const customerOptions = useMemo(() => {
+    const options = customers.map((c) => ({
+        value: c.id,
+        label: `${c.name_en} (${c.name_ta})`,
+    }));
+    options.unshift({ value: 'WALK-IN', label: 'Walk-in Customer' });
+    return options;
+  }, [customers]);
+
+  const selectedCustomerOption = useMemo(() => {
+      return customerOptions.find(opt => opt.value === selectedCustomer) || null;
+  }, [selectedCustomer, customerOptions]);
 
 
   const handleSelectBill = (billNo: string, checked: boolean) => {
@@ -156,10 +165,7 @@ export default function HistoryPage() {
     let results = liveBillSummaries;
 
     if (selectedCustomer) {
-      const custData = customers.find(c => c.id === selectedCustomer);
-      if (custData) {
-        results = results.filter(bill => bill.customerName.includes(custData.name_en));
-      }
+      results = results.filter(bill => bill.customerId === selectedCustomer);
     }
 
     if (date) {
@@ -172,7 +178,7 @@ export default function HistoryPage() {
     }
 
     setFilteredBills(sortBills(results));
-  }, [customers, date, liveBillSummaries, selectedCustomer]);
+  }, [liveBillSummaries, selectedCustomer, date]);
   
   const handleCustomerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Tab' && !e.shiftKey) {
@@ -228,48 +234,35 @@ export default function HistoryPage() {
             <label htmlFor="customer-search-select" className="text-sm font-medium">Customer</label>
              <div onKeyDown={handleCustomerKeyDown}>
                 <ReactSelect
-                instanceId="history-customer-select"
-                inputId="customer-search-select"
-                placeholder="Select customer..."
-                isClearable
-                options={customers.map((c) => ({
-                    value: c.id,
-                    label: `${c.name_en} (${c.name_ta})`,
-                }))}
-                value={
-                    selectedCustomerData
-                    ? {
-                        value: selectedCustomerData.id,
-                        label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
-                    }
-                    : null
-                }
-                onChange={(option) => {
-                    const newCustomerId = option ? option.value : '';
-                    setSelectedCustomer(newCustomerId);
-                
-                    let results = liveBillSummaries;
-                    if (newCustomerId) {
-                        const custData = customers.find(c => c.id === newCustomerId);
-                        if (custData) {
-                            results = results.filter(bill => bill.customerName.includes(custData.name_en));
-                        }
-                    }
-                    // Also filter by date if it's set
-                    if (date) {
-                        results = results.filter(bill => {
-                            if (!bill.date) return false;
-                            const billDate = (bill.date as Timestamp).toDate ? (bill.date as Timestamp).toDate() : bill.date;
-                            return isSameDay(billDate, date);
-                        });
-                    }
-                    setFilteredBills(sortBills(results));
-                }}
-                styles={reactSelectStyles}
-                filterOption={(option, input) =>
-                    option.label.toLowerCase().includes(input.toLowerCase()) ||
-                    option.value.toLowerCase().includes(input.toLowerCase())
-                }
+                  instanceId="history-customer-select"
+                  inputId="customer-search-select"
+                  placeholder="Select customer..."
+                  isClearable
+                  options={customerOptions}
+                  value={selectedCustomerOption}
+                  onChange={(option) => {
+                      const newCustomerId = option ? option.value : '';
+                      setSelectedCustomer(newCustomerId);
+                  
+                      let results = liveBillSummaries;
+                      if (newCustomerId) {
+                          results = results.filter(bill => bill.customerId === newCustomerId);
+                      }
+                      
+                      if (date) {
+                          results = results.filter(bill => {
+                              if (!bill.date) return false;
+                              const billDate = (bill.date as Timestamp).toDate ? (bill.date as Timestamp).toDate() : bill.date;
+                              return isSameDay(billDate, date);
+                          });
+                      }
+                      setFilteredBills(sortBills(results));
+                  }}
+                  styles={reactSelectStyles}
+                  filterOption={(option, input) =>
+                      option.label.toLowerCase().includes(input.toLowerCase()) ||
+                      option.value.toLowerCase().includes(input.toLowerCase())
+                  }
                 />
             </div>
           </div>
