@@ -154,7 +154,11 @@ export default function PartyBillPage() {
     }, []);
 
     useEffect(() => {
-        setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+        setFilteredHistory((partyBills || []).sort((a,b) => {
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+            return dateB.getTime() - dateA.getTime();
+        }));
     }, [partyBills]);
     
     const resetForm = useCallback(() => {
@@ -182,16 +186,16 @@ export default function PartyBillPage() {
             if (billToEdit) {
                 setEditingBillId(billToEdit.id);
                 setBillOriginalState(billToEdit);
-                setDate(billToEdit.date.toDate());
+                setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
                 setPartyId(billToEdit.partyId);
-                setTotalBox((billToEdit.totalBox || 0).toString());
-                setTotalKgs((billToEdit.totalKgs || 0).toString());
+                setTotalBox((billToEdit.totalBox ?? 0).toString());
+                setTotalKgs((billToEdit.totalKgs ?? 0).toString());
                 setItems(billToEdit.items || []);
-                setCommission((billToEdit.commission || 0).toString());
-                setExpenses((billToEdit.expenses || 0).toString());
-                setRent((billToEdit.rent || 0).toString());
-                setCashReceived((billToEdit.cashReceived || 0).toString());
-                setBankReceived((billToEdit.bankReceived || 0).toString());
+                setCommission((billToEdit.commission ?? 0).toString());
+                setExpenses((billToEdit.expenses ?? 0).toString());
+                setRent((billToEdit.rent ?? 0).toString());
+                setCashReceived((billToEdit.cashReceived ?? 0).toString());
+                setBankReceived((billToEdit.bankReceived ?? 0).toString());
             }
         } else {
             resetForm();
@@ -218,6 +222,9 @@ export default function PartyBillPage() {
     }, [partyId, partyBalances, editingBillId, billOriginalState]);
     const finalBalance = useMemo(() => previousBalance + netAmount - totalReceived, [previousBalance, netAmount, totalReceived]);
     
+    // Auto-calculated totals from items
+    const calculatedTotalBox = useMemo(() => items.reduce((sum, item) => sum + (item.box || 0), 0), [items]);
+    const calculatedTotalKgs = useMemo(() => items.reduce((sum, item) => sum + (item.kgs || 0), 0), [items]);
 
     const handleAddItem = () => {
         const product = products.find(p => p.id === selectedProductId);
@@ -297,8 +304,8 @@ export default function PartyBillPage() {
             date: Timestamp.fromDate(date),
             partyId,
             partyName: party.name,
-            totalBox: parseFloat(totalBox) || 0,
-            totalKgs: parseFloat(totalKgs) || 0,
+            totalBox: totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox,
+            totalKgs: totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs,
             items,
             totalAmount,
             commission: parseFloat(commission) || 0,
@@ -346,11 +353,9 @@ export default function PartyBillPage() {
         const party = parties.find(p => p.id === partyId);
         if (!party) return null;
         
-        const totalBoxes = items.reduce((sum, item) => sum + item.box, 0);
-        const kgsTotal = items.reduce((sum, item) => sum + item.kgs, 0);
+        const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
+        const finalKgsValue = totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs;
 
-        const commissionPercent = parseFloat(commission) || 0;
-        
         const totalAfterPrevious = netAmount + previousBalance;
 
         const data = {
@@ -359,11 +364,11 @@ export default function PartyBillPage() {
             partyId,
             partyName: party.name,
             partyLocation: party.location,
-            totalBox: totalBoxes,
-            totalKgs: kgsTotal,
+            totalBox: finalBoxValue,
+            totalKgs: finalKgsValue,
             items,
             totalAmount,
-            commission: commissionPercent,
+            commission: parseFloat(commission) || 0,
             expenses: parseFloat(expenses) || 0,
             rent: parseFloat(rent) || 0,
             totalDeductions,
@@ -378,7 +383,7 @@ export default function PartyBillPage() {
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance
+        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -427,15 +432,26 @@ export default function PartyBillPage() {
             results = results.filter(b => b.partyId === historyPartyId);
         }
         if (historyDate) {
-            results = results.filter(b => b.date && isSameDay(b.date.toDate(), historyDate));
+            results = results.filter(b => {
+                const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+                return isSameDay(bDate, historyDate);
+            });
         }
-        setFilteredHistory(results.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+        setFilteredHistory(results.sort((a,b) => {
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+            return dateB.getTime() - dateA.getTime();
+        }));
     }, [partyBills, historyDate, historyPartyId]);
 
     const clearSearchHistory = () => {
         setHistoryPartyId('');
         setHistoryDate(undefined);
-        setFilteredHistory((partyBills || []).sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+        setFilteredHistory((partyBills || []).sort((a,b) => {
+            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+            return dateB.getTime() - dateA.getTime();
+        }));
     };
 
     const handleHistoryPartyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -502,11 +518,23 @@ export default function PartyBillPage() {
                     </div>
                      <div className="flex items-center gap-2">
                         <Label>Box :</Label>
-                        <Input type="number" value={totalBox} onChange={e => setTotalBox(e.target.value)} className="w-24"/>
+                        <Input 
+                            type="number" 
+                            value={totalBox} 
+                            onChange={e => setTotalBox(e.target.value)} 
+                            className="w-24"
+                            placeholder={calculatedTotalBox.toString()}
+                        />
                     </div>
                     <div className="flex items-center gap-2">
                         <Label>Kgs :</Label>
-                        <Input type="number" value={totalKgs} onChange={e => setTotalKgs(e.target.value)} className="w-24"/>
+                        <Input 
+                            type="number" 
+                            value={totalKgs} 
+                            onChange={e => setTotalKgs(e.target.value)} 
+                            className="w-24"
+                            placeholder={calculatedTotalKgs.toString()}
+                        />
                     </div>
                 </div>
                 <Separator className="my-2"/>
@@ -596,7 +624,7 @@ export default function PartyBillPage() {
                                     placeholder="Kgs" 
                                     type="number" 
                                     value={kgs} 
-                                    onChange={e => setKgs(e.target.value)}
+                                    onChange={e => setKgs(e.target.value)} 
                                     className="w-28 text-base font-mono"
                                 />
                             </TableCell>
@@ -668,9 +696,16 @@ export default function PartyBillPage() {
                                         results = results.filter(b => b.partyId === newPartyId);
                                     }
                                     if (historyDate) {
-                                        results = results.filter(b => b.date && isSameDay(b.date.toDate(), historyDate));
+                                        results = results.filter(b => {
+                                            const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+                                            return isSameDay(bDate, historyDate);
+                                        });
                                     }
-                                    setFilteredHistory(results.sort((a,b) => b.date.toDate().getTime() - a.date.toDate().getTime()));
+                                    setFilteredHistory(results.sort((a,b) => {
+                                        const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
+                                        const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+                                        return dateB.getTime() - dateA.getTime();
+                                    }));
                                 }}
                                 isClearable
                                 placeholder="Filter by party..."
@@ -714,7 +749,7 @@ export default function PartyBillPage() {
                                     tabIndex={0}
                                     onKeyDown={(e) => handleHistoryRowKeyDown(e, bill.id)}
                                 >
-                                    <TableCell>{format(bill.date.toDate(), 'dd-MM-yy')}</TableCell>
+                                    <TableCell>{format(bill.date instanceof Timestamp ? bill.date.toDate() : new Date(bill.date), 'dd-MM-yy')}</TableCell>
                                     <TableCell>{bill.partyName}</TableCell>
                                     <TableCell className="text-right">{bill.netAmount.toFixed(2)}</TableCell>
                                     <TableCell className="text-right">
