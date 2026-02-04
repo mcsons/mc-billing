@@ -260,12 +260,34 @@ export default function VehicleBillingPage() {
         return;
     }
     
-    // Removed automatic handlePrintBill(billToPrint) logic here to prevent extra tab
     setShowWhatsAppShareConfirm(true);
   };
 
   const confirmOpenWhatsApp = () => {
-    const message = `Vehicle Bill for ${vehicleId} from M.C & SONS FISH COMPANY. Date: ${format(date || new Date(), 'dd-MM-yyyy')}`;
+    const party = parties.find(p => p.id === partyId);
+    const selectedDrivers = drivers.filter(d => driverIds.includes(d.id));
+    const driverNames = selectedDrivers.map(d => d.name).join(', ');
+    const formattedDate = format(date || new Date(), 'dd-MM-yyyy');
+    
+    const adv = parseFloat(advance) || 0;
+    const exp = parseFloat(expenses) || 0;
+    const bal = adv - exp;
+
+    let message = `*M.C & SONS FISH COMPANY*\n`;
+    message += `*VEHICLE BILL SUMMARY*\n`;
+    message += `Date: ${formattedDate}\n`;
+    message += `Vehicle No: ${vehicleId}\n`;
+    message += `Party: ${party?.name || partyName}\n`;
+    message += `Driver: ${driverNames}\n`;
+    message += `Destination: ${destination}\n`;
+    message += `-------------------------\n`;
+    message += `Advance Amt: ₹${adv.toFixed(2)}\n`;
+    message += `Expenses: ₹${exp.toFixed(2)}\n`;
+    message += `-------------------------\n`;
+    message += `*Balance: ₹${bal.toFixed(2)}*\n`;
+    message += `-------------------------\n`;
+    message += `Thank you!`;
+
     const encodedMsg = encodeURIComponent(message);
     window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
     setShowWhatsAppShareConfirm(false);
@@ -698,7 +720,7 @@ export default function VehicleBillingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Do you want to open WhatsApp now to share this vehicle bill?
+                    Do you want to open WhatsApp now to share this vehicle bill summary?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

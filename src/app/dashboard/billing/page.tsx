@@ -653,8 +653,41 @@ export default function BillingPage() {
 
   const confirmOpenWhatsApp = () => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
+    const currentItems = billItems || [];
     const phone = customer?.phone || '';
-    const message = `Bill from M.C & SONS FISH COMPANY. Date: ${format(date || new Date(), 'dd-MM-yyyy')}`;
+    
+    const itemsTotal = currentItems.reduce((sum, item) => sum + item.amount, 0);
+    const delCharge = parseFloat(deliveryCharge) || 0;
+    const billTot = itemsTotal + delCharge;
+    const prevBal = (customerBalances[selectedCustomerId] || 0) - (activeBillNo ? initialBillTotal : 0);
+    const paid = parseFloat(paidAmount) || 0;
+    const finalBal = prevBal + billTot - paid;
+    
+    const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
+    const formattedDate = format(date || new Date(), 'dd-MM-yyyy');
+    const billDisplayNo = activeBillNo || 'New Bill';
+
+    let message = `*M.C & SONS FISH COMPANY*\n`;
+    message += `*BILL SUMMARY*\n`;
+    message += `Bill No: ${billDisplayNo}\n`;
+    message += `Date: ${formattedDate}\n`;
+    message += `Customer: ${customerName}\n`;
+    message += `-------------------------\n`;
+    
+    currentItems.forEach((item, index) => {
+        message += `${index + 1}. ${item.product} (${item.qty} ${item.uom} x ${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
+    });
+    
+    message += `-------------------------\n`;
+    message += `Items Total: ₹${itemsTotal.toFixed(2)}\n`;
+    if (delCharge > 0) message += `Delivery: ₹${delCharge.toFixed(2)}\n`;
+    message += `*Bill Total: ₹${billTot.toFixed(2)}*\n`;
+    message += `Prev Bal: ₹${prevBal.toFixed(2)}\n`;
+    message += `Paid: ₹${paid.toFixed(2)}\n`;
+    message += `*Final Bal: ₹${finalBal.toFixed(2)}*\n`;
+    message += `-------------------------\n`;
+    message += `Thank you for your business!`;
+
     const encodedMsg = encodeURIComponent(message);
     
     const whatsappUrl = phone 
@@ -1173,7 +1206,7 @@ export default function BillingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Do you want to open WhatsApp now to share this bill?
+                    Do you want to open WhatsApp now to share this bill summary?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

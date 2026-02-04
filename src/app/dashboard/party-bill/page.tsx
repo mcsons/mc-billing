@@ -471,12 +471,39 @@ export default function PartyBillPage() {
             return;
         }
         
-        // Removed window.open logic here to prevent redirection
         setShowWhatsAppShareConfirm(true);
     };
 
     const confirmOpenWhatsApp = () => {
-        const message = `Party Bill from M.C & SONS FISH COMPANY. Date: ${format(date, 'dd-MM-yyyy')}`;
+        const party = parties.find(p => p.id === partyId);
+        const partyName = party?.name || 'Unknown Party';
+        const formattedDate = format(date, 'dd-MM-yyyy');
+        
+        const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
+        const finalKgsValue = totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs;
+
+        let message = `*M.C & SONS FISH COMPANY*\n`;
+        message += `*PARTY BILL*\n`;
+        message += `Date: ${formattedDate}\n`;
+        message += `Party: ${partyName}\n`;
+        message += `Box: ${finalBoxValue} | Kgs: ${finalKgsValue.toFixed(2)}\n`;
+        message += `-------------------------\n`;
+        
+        items.forEach((item, index) => {
+            const qtyStr = item.box > 0 ? `${item.box} BOX` : `${item.kgs.toFixed(2)} KGS`;
+            message += `${index + 1}. ${item.productName} (${qtyStr} x ${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
+        });
+        
+        message += `-------------------------\n`;
+        message += `Total Amt: ₹${totalAmount.toFixed(2)}\n`;
+        message += `Deductions: ₹${totalDeductions.toFixed(2)}\n`;
+        message += `*Net Amt: ₹${netAmount.toFixed(2)}*\n`;
+        message += `Prev Bal: ₹${previousBalance.toFixed(2)}\n`;
+        message += `Received: ₹${totalReceived.toFixed(2)}\n`;
+        message += `*Final Bal: ₹${finalBalance.toFixed(2)}*\n`;
+        message += `-------------------------\n`;
+        message += `Thank you!`;
+
         const encodedMsg = encodeURIComponent(message);
         window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
         setShowWhatsAppShareConfirm(false);
@@ -842,7 +869,7 @@ export default function PartyBillPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Do you want to open WhatsApp now to share this party bill?
+                    Do you want to open WhatsApp now to share this party bill summary?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
