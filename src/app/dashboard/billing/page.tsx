@@ -109,6 +109,7 @@ export default function BillingPage() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [customerSearchText, setCustomerSearchText] = useState('');
   const [isProductLocked, setIsProductLocked] = useState(false);
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
@@ -671,7 +672,9 @@ export default function BillingPage() {
   };
 
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !walkInConfirmed) {
+    // Only trigger walk-in confirmation if TAB is pressed, no customer is selected, 
+    // AND the search box is entirely empty.
+    if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !customerSearchText && !walkInConfirmed) {
       e.preventDefault(); 
       showAlertDialog({
         title: 'Confirm Walk-In Customer',
@@ -742,6 +745,8 @@ export default function BillingPage() {
                     instanceId="customer-select"
                     placeholder="Select customer or leave blank for walk-in..."
                     isClearable
+                    tabSelectsValue={true}
+                    onInputChange={(val) => setCustomerSearchText(val)}
                     options={customers.map((c) => ({
                       value: c.id,
                       label: `${c.name_en} (${c.name_ta})`,
