@@ -258,7 +258,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const allTransactions: {customerId: string, amount: number, type: 'bill' | 'payment', date: Date | Timestamp}[] = [
-        ...(liveBillSummaries || []).map(bill => ({
+        ...(liveBillSummaries || []).filter(b => b.amount > 0).map(bill => ({
             customerId: bill.customerId,
             amount: bill.amount,
             type: 'bill' as const,
@@ -310,12 +310,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
       const todayBillsList = (liveBillSummaries || []).filter(bill => {
           const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
-          return billDate && billDate >= todayStart && billDate <= todayEnd;
+          return billDate && billDate >= todayStart && billDate <= todayEnd && bill.amount > 0;
       });
 
       const yesterdayBillsList = (liveBillSummaries || []).filter(bill => {
           const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
-          return billDate && billDate >= yesterdayStart && billDate <= yesterdayEnd;
+          return billDate && billDate >= yesterdayStart && billDate <= yesterdayEnd && bill.amount > 0;
       });
 
       // Sales and Bills stats
@@ -914,7 +914,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const initialOpeningBalance = openingBalances[customerId] || 0;
 
-    const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date);
+    const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date && b.amount > 0);
     const allPayments = (payments || []).filter(p => p.customerId === customerId);
 
     const priorBills = allBills.filter(b => ((b.date as Timestamp).toDate()) < fromDateStart);
@@ -974,7 +974,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const initialOpeningBalance = openingBalances[customerId] || 0;
     const allBills = (liveBillSummaries || []).filter(
-      (b) => b.customerId === customerId && b.date
+      (b) => b.customerId === customerId && b.date && b.amount > 0
     );
     const allPayments = (payments || []).filter(
       (p) => p.customerId === customerId
@@ -1026,7 +1026,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const itemsGroupedByDate = allItemsInRange.reduce((acc, item) => {
       const dateStr = format(item.billDate, 'dd/MM/yy');
       if (!acc[dateStr]) {
-        acc[dateStr] = [];
+        acc[acc[dateStr]] = [];
       }
       acc[dateStr].push(item);
       return acc;

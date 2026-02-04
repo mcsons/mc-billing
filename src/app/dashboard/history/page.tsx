@@ -98,11 +98,14 @@ export default function HistoryPage() {
   };
 
   const sortBills = (bills: LiveBillSummary[]): LiveBillSummary[] => {
-    return [...bills].sort((a, b) => {
-      const dateA = a.date ? ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date as any)) : new Date(0);
-      const dateB = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date as any)) : new Date(0);
-      return dateB.getTime() - dateA.getTime();
-    });
+    // Filter out zero amount bills as they are clutter
+    return [...bills]
+      .filter(b => b.amount > 0)
+      .sort((a, b) => {
+        const dateA = a.date ? ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date as any)) : new Date(0);
+        const dateB = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date as any)) : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
   };
 
   useEffect(() => {
