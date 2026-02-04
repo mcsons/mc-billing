@@ -647,13 +647,7 @@ export default function BillingPage() {
         return;
     }
     
-    // First, open the A4 preview so the user can see/save it
-    const billData = getBillPrintData();
-    if (billData) {
-        const encodedData = encodeURIComponent(JSON.stringify(billData));
-        window.open(`/print/bill?data=${encodedData}&paper=a4`, '_blank');
-    }
-    
+    // Logic updated: Only show confirmation dialog, don't auto-open preview tab
     setShowWhatsAppShareConfirm(true);
   };
 
@@ -1179,7 +1173,7 @@ export default function BillingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    The bill PDF has been generated in the other tab. Do you want to open WhatsApp now to share it?
+                    Do you want to open WhatsApp now to share this bill?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

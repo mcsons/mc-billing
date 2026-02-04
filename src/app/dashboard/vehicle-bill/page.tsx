@@ -260,16 +260,7 @@ export default function VehicleBillingPage() {
         return;
     }
     
-    // Trigger preview
-    const billToPrint = vehicleBills.find(b => b.id === editingBillId);
-    if (billToPrint) {
-        handlePrintBill(billToPrint);
-    } else {
-        // If not saved, we can't easily get the ID for the print preview link without saving first
-        toast({ variant: 'outline', title: 'Save Required', description: 'Please save the bill first to generate a professional shareable link.' });
-        return;
-    }
-    
+    // Removed automatic handlePrintBill(billToPrint) logic here to prevent extra tab
     setShowWhatsAppShareConfirm(true);
   };
 
@@ -707,7 +698,7 @@ export default function VehicleBillingPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    The vehicle bill preview has been opened in the other tab. Do you want to open WhatsApp now to share it?
+                    Do you want to open WhatsApp now to share this vehicle bill?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

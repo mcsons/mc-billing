@@ -471,13 +471,7 @@ export default function PartyBillPage() {
             return;
         }
         
-        // Open preview first
-        const data = getPrintData();
-        if (data) {
-            const encodedData = encodeURIComponent(JSON.stringify(data));
-            window.open(`/print/party-bill?data=${encodedData}`, '_blank');
-        }
-        
+        // Removed window.open logic here to prevent redirection
         setShowWhatsAppShareConfirm(true);
     };
 
@@ -848,7 +842,7 @@ export default function PartyBillPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
                 <AlertDialogDescription>
-                    The party bill preview has been opened in the other tab. Do you want to open WhatsApp now to share it?
+                    Do you want to open WhatsApp now to share this party bill?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
