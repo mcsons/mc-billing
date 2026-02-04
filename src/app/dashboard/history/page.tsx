@@ -32,16 +32,19 @@ import { useData } from '@/context/DataContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useToast } from '@/hooks/use-toast';
-import { LiveBillSummary } from '@/lib/data';
+import { ToastAction } from '@/components/ui/toast';
+import { LiveBillSummary, BillItem } from '@/lib/data';
 import ReactSelect from 'react-select';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, collection, getDocs } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 
 export default function HistoryPage() {
-  const { liveBillSummaries, customers, users, deleteBills, currentUser } = useData();
+  const { liveBillSummaries, customers, users, deleteBills, currentUser, createOrUpdateLiveBill } = useData();
   const router = useRouter();
   const showAlertDialog = useAlertDialog();
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const [date, setDate] = useState<Date | undefined>();
 
@@ -142,7 +145,7 @@ export default function HistoryPage() {
   }, [currentUser]);
 
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) {
       toast({
         variant: 'destructive',
@@ -151,12 +154,50 @@ export default function HistoryPage() {
       });
       return;
     }
+
+    // Capture data for undo
+    const billsToRestore: { summary: LiveBillSummary, items: BillItem[] }[] = [];
+    try {
+      for (const billNo of selectedBills) {
+        const summary = liveBillSummaries.find(b => b.billNo === billNo);
+        if (summary && firestore) {
+          const itemsSnap = await getDocs(collection(firestore, 'bills', billNo, 'billItems'));
+          const items = itemsSnap.docs.map(d => d.data() as BillItem);
+          billsToRestore.push({ summary, items });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to capture bill data for undo", err);
+    }
+
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete ${selectedBills.size} bill(s). This action cannot be undone.`,
       onConfirm: () => {
-        deleteBills(Array.from(selectedBills));
+        const billNosToDelete = Array.from(selectedBills);
+        deleteBills(billNosToDelete);
         setSelectedBills(new Set());
+
+        toast({
+          title: "Bills deleted",
+          description: "Bills have been removed.",
+          duration: 10000,
+          action: (
+            <ToastAction altText="Undo" onClick={() => {
+              billsToRestore.forEach(data => {
+                createOrUpdateLiveBill(
+                  data.summary,
+                  data.items,
+                  data.summary.paidAmount || 0,
+                  data.summary.deliveryCharge || 0,
+                  data.summary.date instanceof Timestamp ? data.summary.date.toDate() : new Date(data.summary.date),
+                  data.summary.billNo
+                );
+              });
+              toast({ title: "Bills restored" });
+            }}>Undo</ToastAction>
+          ),
+        });
       },
     });
   };

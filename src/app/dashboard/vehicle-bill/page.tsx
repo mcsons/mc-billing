@@ -41,6 +41,7 @@ import { format, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
 import { VehicleBill, VehicleStatementTransaction } from '@/lib/data';
@@ -247,7 +248,18 @@ export default function VehicleBillingPage() {
     showAlertDialog({
         title: 'Delete Vehicle Bill?',
         description: `Are you sure you want to delete the bill for vehicle ${bill.vehicleId} on ${bill.date instanceof Timestamp ? format(bill.date.toDate(), 'PPP') : 'this date'}?`,
-        onConfirm: () => deleteVehicleBill(bill.id),
+        onConfirm: () => {
+            deleteVehicleBill(bill.id);
+            toast({
+              title: "Vehicle bill deleted",
+              duration: 10000,
+              action: (
+                <ToastAction altText="Undo" onClick={() => {
+                  addOrUpdateVehicleBill(bill, bill.id);
+                }}>Undo</ToastAction>
+              )
+            });
+        },
     });
   };
 

@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -63,6 +62,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
 import {
@@ -70,6 +70,8 @@ import {
   doc,
   writeBatch,
   Timestamp,
+  setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
@@ -368,13 +370,14 @@ export default function BillingPage() {
   };
 
   const handleRemoveItem = (itemId: string) => {
+    const itemToDelete = billItems?.find((i) => i.id === itemId);
+    if (!itemToDelete || !activeBillNo || !firestore) return;
+
     showAlertDialog({
       title: 'Delete Item?',
       description:
         'Are you sure you want to remove this item from the bill? This cannot be undone.',
       onConfirm: () => {
-        if (!activeBillNo || !firestore) return;
-
         const batch = writeBatch(firestore);
         const itemRef = doc(
           firestore,
@@ -400,7 +403,21 @@ export default function BillingPage() {
           .then(() => {
             toast({
               title: 'Item Removed',
-              description: 'The item has been removed from the bill.',
+              description: 'The item has been removed.',
+              duration: 10000,
+              action: (
+                <ToastAction altText="Undo" onClick={() => {
+                  const undoBatch = writeBatch(firestore);
+                  undoBatch.set(itemRef, itemToDelete);
+                  // Recalculate bill total with restored item
+                  const restoredItemsTotal = remainingItems.reduce((sum, item) => sum + item.amount, 0) + itemToDelete.amount;
+                  const restoredBillTotal = restoredItemsTotal + (parseFloat(deliveryCharge) || 0);
+                  undoBatch.update(billRef, { amount: restoredBillTotal });
+                  undoBatch.commit().then(() => {
+                    toast({ title: 'Item restored' });
+                  });
+                }}>Undo</ToastAction>
+              )
             });
           })
           .catch((error) => {
@@ -1084,7 +1101,3 @@ export default function BillingPage() {
     </div>
   );
 }
-
-    
-
-    

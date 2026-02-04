@@ -46,6 +46,7 @@ import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
 import { PartyBill, PartyBillItem } from '@/lib/data';
@@ -284,11 +285,21 @@ export default function PartyBillPage() {
   }, []);
 
     const handleRemoveItem = (itemId: string) => {
+        const itemToDelete = items.find(item => item.id === itemId);
+        if (!itemToDelete) return;
+
         showAlertDialog({
           title: 'Delete Item?',
           description: 'Are you sure you want to remove this item from the bill?',
           onConfirm: () => {
             setItems(prev => prev.filter(item => item.id !== itemId));
+            toast({
+              title: "Item removed",
+              duration: 10000,
+              action: (
+                <ToastAction altText="Undo" onClick={() => setItems(prev => [...prev, itemToDelete])}>Undo</ToastAction>
+              )
+            });
           },
         });
     };
@@ -334,17 +345,26 @@ export default function PartyBillPage() {
     };
     
     const handleDelete = (billId: string) => {
+        const billToDelete = (partyBills || []).find(b => b.id === billId);
+        if (!billToDelete) return;
+
         showAlertDialog({
             title: 'Delete Party Bill?',
             description: 'This will permanently delete this bill and update the party balance. This cannot be undone.',
             onConfirm: () => {
-                const billToDelete = (partyBills || []).find(b => b.id === billId);
-                if (billToDelete) {
-                    deletePartyBill(billToDelete);
-                    if (editingBillId === billId) {
-                        resetForm();
-                    }
+                deletePartyBill(billToDelete);
+                if (editingBillId === billId) {
+                    resetForm();
                 }
+                toast({
+                  title: "Bill deleted",
+                  duration: 10000,
+                  action: (
+                    <ToastAction altText="Undo" onClick={() => {
+                      addOrUpdatePartyBill(billToDelete, billToDelete.id);
+                    }}>Undo</ToastAction>
+                  )
+                });
             },
         });
     };
