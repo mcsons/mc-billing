@@ -22,9 +22,11 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Party } from '@/lib/data';
 import { AddPartyDialog } from '@/components/dashboard/add-party-dialog';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 export default function PartiesPage() {
   const { parties, deleteParty } = useData();
+  const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [partyToEdit, setPartyToEdit] = useState<Party | null>(null);
@@ -45,7 +47,10 @@ export default function PartiesPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete the party "${partyName}". This action cannot be undone.`,
-      onConfirm: () => deleteParty(partyId),
+      onConfirm: async () => {
+        await deleteParty(partyId);
+        toast({ title: 'Party Deleted', description: `Party "${partyName}" removed.` });
+      },
     });
   };
 
@@ -54,7 +59,7 @@ export default function PartiesPage() {
       <Card>
         <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="font-headline">Manage Parties</CardTitle>
+            <CardTitle className="font-headline">Manage Parties</CardTitle(CardTitle>
             <CardDescription>
               Add, edit, and manage your business parties and destinations.
             </CardDescription>

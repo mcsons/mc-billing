@@ -30,10 +30,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { User } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
   
   
   export default function UsersPage() {
     const { users, currentUser, deleteUser, promoteUser, isCurrentUserAdmin } = useData();
+    const { toast } = useToast();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const showAlertDialog = useAlertDialog();
 
@@ -43,7 +45,10 @@ import { User } from '@/lib/data';
       showAlertDialog({
         title: 'Are you sure?',
         description: `This will permanently delete the user "${username}" from the database. To fully remove their login access, you must also delete them from the Firebase Authentication console.`,
-        onConfirm: () => deleteUser(userId),
+        onConfirm: async () => {
+          await deleteUser(userId);
+          toast({ title: 'User Data Removed', description: `Data for "${username}" has been removed.` });
+        },
       });
     };
 

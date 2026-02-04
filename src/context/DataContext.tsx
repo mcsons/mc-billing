@@ -70,25 +70,25 @@ interface DataContextType {
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => void;
   editCustomer: (oldId: string, newData: Omit<Customer, 'id'> & { id: string }) => Promise<void>;
-  deleteCustomer: (customerId: string) => void;
+  deleteCustomer: (customerId: string) => Promise<void>;
   addProduct: (product: Omit<Product, 'id'> & { id?: string }) => void;
   editProduct: (oldId: string, newData: Omit<Product, 'id' | 'uom_allowed'> & { id: string; uom_allowed: string[] }) => Promise<void>;
-  deleteProduct: (productId: string) => void;
+  deleteProduct: (productId: string) => Promise<void>;
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
-  deleteUser: (userId: string) => void;
+  deleteUser: (userId: string) => Promise<void>;
   promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
   updateUserProfile: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<void>;
   addUom: (uom: Uom) => void;
   addVehicle: (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => void;
   editVehicle: (vehicleId: string, data: Partial<Omit<Vehicle, 'id'>>) => void;
-  deleteVehicle: (vehicleId: string) => void;
+  deleteVehicle: (vehicleId: string) => Promise<void>;
   addParty: (party: Omit<Party, 'id' | 'active'|'createdAt'|'updatedAt'> & { id?: string }) => void;
   editParty: (partyId: string, data: Partial<Omit<Party, 'id'>>) => void;
-  deleteParty: (partyId: string) => void;
+  deleteParty: (partyId: string) => Promise<void>;
   addOrUpdateVehicleBill: (bill: Omit<VehicleBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string) => Promise<VehicleBill | null>;
-  deleteVehicleBill: (billId: string) => void;
+  deleteVehicleBill: (billId: string) => Promise<void>;
   addOrUpdatePartyBill: (bill: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null) => Promise<PartyBill | null>;
-  deletePartyBill: (bill: PartyBill) => void;
+  deletePartyBill: (bill: PartyBill) => Promise<void>;
   setOpeningBalance: (customerId: string, balance: number) => void;
   setPartyBalance: (partyId: string, balance: number) => void;
   createOrUpdateLiveBill: (
@@ -99,7 +99,7 @@ interface DataContextType {
     date: Date,
     existingBillNo?: string | null
   ) => { billNo: string; commitPromise: Promise<void> };
-  deleteBills: (billNos: string[]) => void;
+  deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
@@ -112,6 +112,9 @@ interface DataContextType {
     customerId: string,
     dateRange: { from: Date; to: Date }
   ) => Promise<SalesReportData | null>;
+  addDriver: (driver: Omit<Driver, 'id' | 'active'|'createdAt'|'updatedAt'>) => void;
+  editDriver: (driverId: string, data: Partial<Driver>) => void;
+  deleteDriver: (driverId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -514,7 +517,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const customerRef = doc(firestore, 'customers', customerId);
     try {
       await deleteDoc(customerRef);
-      toast({ title: 'Customer Deleted', description: `Customer ${customerId} has been deleted.` });
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: customerRef.path }));
     }
@@ -597,7 +599,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const productRef = doc(firestore, 'products', productId);
     try {
       await deleteDoc(productRef);
-      toast({ title: 'Product Deleted', description: `Product ${productId} has been deleted.` });
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: productRef.path }));
     }
@@ -675,7 +676,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     try {
       await batch.commit();
-      toast({ title: 'User Data Removed', description: 'To fully delete their login, you must also remove the user from the Firebase Authentication console.', duration: 10000 });
     } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: `users/${userId}` }));
     }
@@ -837,8 +837,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
               });
               batch.delete(billRef);
           } catch(e) {
-              // This might fail if user can list bills but not items.
-              // We emit a granular error here.
               const contextualError = new FirestorePermissionError({ operation: 'list', path: `bills/${billNo}/billItems` });
               errorEmitter.emit('permission-error', contextualError);
               return; 
@@ -847,17 +845,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   
       try {
           await batch.commit();
-          toast({ title: 'Bills Deleted', description: `${billNos.length} bill(s) and their items have been permanently deleted.`});
       } catch (error) {
-          // Path for a batch delete is ambiguous. We'll report the first bill path for context.
           const pathForError = billNos.length > 0 ? `bills/${billNos[0]}` : 'bills';
           const contextualError = new FirestorePermissionError({
               operation: 'delete',
               path: pathForError, 
           });
           errorEmitter.emit('permission-error', contextualError);
-          // Re-throw so the UI can know the operation failed if needed, though toast is primary feedback.
-          // In this app, we let the global error handler show the dev overlay.
       }
     };
     
@@ -1100,8 +1094,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const vehicleRef = doc(firestore, 'vehicles', vehicleId);
     try {
       await deleteDoc(vehicleRef);
-      toast({ title: 'Vehicle Deleted' });
-    } catch(e) {
+    } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: vehicleRef.path }));
     }
   };
@@ -1135,8 +1128,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const driverRef = doc(firestore, 'drivers', driverId);
     try {
       await deleteDoc(driverRef);
-      toast({ title: 'Driver Deleted' });
-    } catch(e) {
+    } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: driverRef.path }));
     }
   };
@@ -1185,8 +1177,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const partyRef = doc(firestore, 'parties', partyId);
         try {
           await deleteDoc(partyRef);
-          toast({ title: 'Party Deleted' });
-        } catch(e) {
+        } catch (e) {
           errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: partyRef.path }));
         }
     };
@@ -1231,8 +1222,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'vehicleBills', billId);
     try {
       await deleteDoc(billRef);
-      toast({ title: 'Vehicle Bill Deleted' });
-    } catch(e) {
+    } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
     }
   };
@@ -1340,7 +1330,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     try {
         await batch.commit();
-        toast({ title: 'Party Bill Deleted' });
     } catch(e) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
     }

@@ -22,9 +22,11 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Driver } from '@/lib/data';
 import { AddDriverDialog } from '@/components/dashboard/add-driver-dialog';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 export default function DriversPage() {
   const { drivers, deleteDriver } = useData();
+  const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [driverToEdit, setDriverToEdit] = useState<Driver | null>(null);
@@ -45,7 +47,10 @@ export default function DriversPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete the driver "${driverName}". This action cannot be undone.`,
-      onConfirm: () => deleteDriver(driverId),
+      onConfirm: async () => {
+        await deleteDriver(driverId);
+        toast({ title: 'Driver Deleted', description: `Driver "${driverName}" removed.` });
+      },
     });
   };
 

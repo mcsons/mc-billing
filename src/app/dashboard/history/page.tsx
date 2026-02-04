@@ -173,17 +173,20 @@ export default function HistoryPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete ${selectedBills.size} bill(s). This action cannot be undone.`,
-      onConfirm: () => {
+      onConfirm: async () => {
+        let undoClicked = false;
         const billNosToDelete = Array.from(selectedBills);
-        deleteBills(billNosToDelete);
+        
+        await deleteBills(billNosToDelete);
         setSelectedBills(new Set());
 
         toast({
-          title: "Bills deleted",
-          description: "Bills have been removed.",
+          title: "Bills removed",
+          description: "Undo is available for 10 seconds.",
           duration: 10000,
           action: (
             <ToastAction altText="Undo" onClick={() => {
+              undoClicked = true;
               billsToRestore.forEach(data => {
                 createOrUpdateLiveBill(
                   data.summary,
@@ -198,6 +201,16 @@ export default function HistoryPage() {
             }}>Undo</ToastAction>
           ),
         });
+
+        // After 10 seconds, show the "permanently deleted" message if not undone
+        setTimeout(() => {
+          if (!undoClicked) {
+            toast({
+              title: "Bills Deleted",
+              description: `${billNosToDelete.length} bill(s) and their items have been permanently deleted.`
+            });
+          }
+        }, 10500);
       },
     });
   };

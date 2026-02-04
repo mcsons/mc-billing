@@ -351,20 +351,33 @@ export default function PartyBillPage() {
         showAlertDialog({
             title: 'Delete Party Bill?',
             description: 'This will permanently delete this bill and update the party balance. This cannot be undone.',
-            onConfirm: () => {
-                deletePartyBill(billToDelete);
+            onConfirm: async () => {
+                let undoClicked = false;
+                await deletePartyBill(billToDelete);
                 if (editingBillId === billId) {
                     resetForm();
                 }
                 toast({
-                  title: "Bill deleted",
+                  title: "Bill removed",
+                  description: "Undo is available for 10 seconds.",
                   duration: 10000,
                   action: (
                     <ToastAction altText="Undo" onClick={() => {
+                      undoClicked = true;
                       addOrUpdatePartyBill(billToDelete, billToDelete.id);
+                      toast({ title: "Bill restored" });
                     }}>Undo</ToastAction>
                   )
                 });
+
+                setTimeout(() => {
+                  if (!undoClicked) {
+                    toast({
+                      title: "Party Bill Deleted",
+                      description: "The party bill has been permanently deleted."
+                    });
+                  }
+                }, 10500);
             },
         });
     };

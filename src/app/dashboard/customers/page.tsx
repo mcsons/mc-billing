@@ -22,9 +22,11 @@ import { useState, useMemo } from 'react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Input } from '@/components/ui/input';
 import { Customer } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
 
 export default function CustomersPage() {
   const { customers, deleteCustomer } = useData();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +46,10 @@ export default function CustomersPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete the customer "${customerName}". This action cannot be undone.`,
-      onConfirm: () => deleteCustomer(customerId),
+      onConfirm: async () => {
+        await deleteCustomer(customerId);
+        toast({ title: "Customer Deleted", description: `Customer "${customerName}" has been removed.` });
+      },
     });
   };
 

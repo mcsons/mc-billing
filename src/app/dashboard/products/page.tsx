@@ -22,9 +22,11 @@ import { useState, useMemo } from 'react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Product } from '@/lib/data';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProductsPage() {
   const { products, deleteProduct } = useData();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,7 +51,10 @@ export default function ProductsPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete the product "${productName}". This action cannot be undone.`,
-      onConfirm: () => deleteProduct(productId),
+      onConfirm: async () => {
+        await deleteProduct(productId);
+        toast({ title: "Product Deleted", description: `Product "${productName}" has been removed.` });
+      },
     });
   };
 

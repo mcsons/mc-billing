@@ -248,17 +248,30 @@ export default function VehicleBillingPage() {
     showAlertDialog({
         title: 'Delete Vehicle Bill?',
         description: `Are you sure you want to delete the bill for vehicle ${bill.vehicleId} on ${bill.date instanceof Timestamp ? format(bill.date.toDate(), 'PPP') : 'this date'}?`,
-        onConfirm: () => {
-            deleteVehicleBill(bill.id);
+        onConfirm: async () => {
+            let undoClicked = false;
+            await deleteVehicleBill(bill.id);
             toast({
-              title: "Vehicle bill deleted",
+              title: "Bill removed",
+              description: "Undo is available for 10 seconds.",
               duration: 10000,
               action: (
                 <ToastAction altText="Undo" onClick={() => {
+                  undoClicked = true;
                   addOrUpdateVehicleBill(bill, bill.id);
+                  toast({ title: "Vehicle bill restored" });
                 }}>Undo</ToastAction>
               )
             });
+
+            setTimeout(() => {
+              if (!undoClicked) {
+                toast({
+                  title: "Vehicle Bill Deleted",
+                  description: `The vehicle bill for ${bill.vehicleId} has been permanently deleted.`
+                });
+              }
+            }, 10500);
         },
     });
   };

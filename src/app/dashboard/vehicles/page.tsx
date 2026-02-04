@@ -22,9 +22,11 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Vehicle } from '@/lib/data';
 import { AddVehicleDialog } from '@/components/dashboard/add-vehicle-dialog';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 export default function VehiclesPage() {
   const { vehicles, deleteVehicle } = useData();
+  const { toast } = useToast();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
@@ -45,7 +47,10 @@ export default function VehiclesPage() {
     showAlertDialog({
       title: 'Are you sure?',
       description: `This will permanently delete the vehicle "${vehicleName} (${vehicleId})". This action cannot be undone.`,
-      onConfirm: () => deleteVehicle(vehicleId),
+      onConfirm: async () => {
+        await deleteVehicle(vehicleId);
+        toast({ title: 'Vehicle Deleted', description: `Vehicle "${vehicleName}" removed.` });
+      },
     });
   };
 
