@@ -36,6 +36,7 @@ import {
   Save,
   Trash2,
   MoreVertical,
+  Share,
 } from 'lucide-react';
 import { BillItem, Customer } from '@/lib/data';
 import {
@@ -55,6 +56,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -126,6 +130,9 @@ export default function BillingPage() {
   const [printPaperType, setPrintPaperType] = useState<'a4' | 'thermal'>('thermal');
 
   const [walkInConfirmed, setWalkInConfirmed] = useState(false);
+
+  // WhatsApp share state
+  const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
 
   // Refs for keyboard navigation
@@ -629,6 +636,41 @@ export default function BillingPage() {
     setShowPrintConfirm(true);
   };
 
+  const handleShareWhatsApp = async () => {
+    const currentItems = billItems || [];
+    if (currentItems.length === 0 && !activeBillNo) {
+        toast({
+            variant: 'destructive',
+            title: 'Cannot Share',
+            description: 'Please add at least one item to the bill.',
+        });
+        return;
+    }
+    
+    // First, open the A4 preview so the user can see/save it
+    const billData = getBillPrintData();
+    if (billData) {
+        const encodedData = encodeURIComponent(JSON.stringify(billData));
+        window.open(`/print/bill?data=${encodedData}&paper=a4`, '_blank');
+    }
+    
+    setShowWhatsAppShareConfirm(true);
+  };
+
+  const confirmOpenWhatsApp = () => {
+    const customer = customers.find((c) => c.id === selectedCustomerId);
+    const phone = customer?.phone || '';
+    const message = `Bill from M.C & SONS FISH COMPANY. Date: ${format(date || new Date(), 'dd-MM-yyyy')}`;
+    const encodedMsg = encodeURIComponent(message);
+    
+    const whatsappUrl = phone 
+        ? `https://wa.me/${phone}?text=${encodedMsg}` 
+        : `https://wa.me/?text=${encodedMsg}`;
+        
+    window.open(whatsappUrl, '_blank');
+    setShowWhatsAppShareConfirm(false);
+  };
+
   const itemsTotal = useMemo(
     () => (billItems || []).reduce((sum, item) => sum + item.amount, 0),
     [billItems]
@@ -1050,6 +1092,13 @@ export default function BillingPage() {
                   >
                     Print A4
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleShareWhatsApp}
+                  >
+                    <Share className="mr-2 h-4 w-4" />
+                    Share
+                  </Button>
                 </div>
               </CardFooter>
             )}
@@ -1095,6 +1144,10 @@ export default function BillingPage() {
                     <Printer className="mr-2 h-4 w-4" />
                     <span>Print A4</span>
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleShareWhatsApp}>
+                    <Share className="mr-2 h-4 w-4" />
+                    <span>Share WhatsApp</span>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -1118,6 +1171,21 @@ export default function BillingPage() {
                     </p>
                 }
             </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showWhatsAppShareConfirm} onOpenChange={setShowWhatsAppShareConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
+                <AlertDialogDescription>
+                    The bill PDF has been generated in the other tab. Do you want to open WhatsApp now to share it?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmOpenWhatsApp}>Open WhatsApp</AlertDialogAction>
+            </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>

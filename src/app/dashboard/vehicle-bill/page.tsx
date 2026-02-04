@@ -30,12 +30,23 @@ import {
   X,
   PlusCircle,
   MinusCircle,
+  Share,
 } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -84,6 +95,9 @@ export default function VehicleBillingPage() {
   const [statementId, setStatementId] = useState('');
   const [statementFromDate, setStatementFromDate] = useState<Date | undefined>();
   const [statementToDate, setStatementToDate] = useState<Date | undefined>();
+
+  // WhatsApp share state
+  const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
   const vehicleSelectRef = useRef<any>(null);
 
@@ -237,6 +251,33 @@ export default function VehicleBillingPage() {
     } else {
         toast({ variant: 'destructive', title: 'Bill Not Found', description: 'Could not find the bill to print.' });
     }
+  };
+
+  const handleShareWhatsApp = async () => {
+    const validDriverIds = driverIds.filter(id => id);
+    if (!date || !vehicleId || validDriverIds.length === 0 || !partyId) {
+        toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out all required fields first.'});
+        return;
+    }
+    
+    // Trigger preview
+    const billToPrint = vehicleBills.find(b => b.id === editingBillId);
+    if (billToPrint) {
+        handlePrintBill(billToPrint);
+    } else {
+        // If not saved, we can't easily get the ID for the print preview link without saving first
+        toast({ variant: 'outline', title: 'Save Required', description: 'Please save the bill first to generate a professional shareable link.' });
+        return;
+    }
+    
+    setShowWhatsAppShareConfirm(true);
+  };
+
+  const confirmOpenWhatsApp = () => {
+    const message = `Vehicle Bill for ${vehicleId} from M.C & SONS FISH COMPANY. Date: ${format(date || new Date(), 'dd-MM-yyyy')}`;
+    const encodedMsg = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
+    setShowWhatsAppShareConfirm(false);
   };
 
 
@@ -501,6 +542,9 @@ export default function VehicleBillingPage() {
             <Button size="lg" onClick={handleSaveAndPrint}>
                 <Printer className="mr-2 h-4 w-4" /> Save &amp; Print
             </Button>
+            <Button size="lg" variant="outline" onClick={handleShareWhatsApp}>
+                <Share className="mr-2 h-4 w-4" /> Share
+            </Button>
         </CardFooter>
       </Card>
 
@@ -657,6 +701,21 @@ export default function VehicleBillingPage() {
           </CardFooter>
         </Card>
       </div>
+
+      <AlertDialog open={showWhatsAppShareConfirm} onOpenChange={setShowWhatsAppShareConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
+                <AlertDialogDescription>
+                    The vehicle bill preview has been opened in the other tab. Do you want to open WhatsApp now to share it?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmOpenWhatsApp}>Open WhatsApp</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

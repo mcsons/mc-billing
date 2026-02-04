@@ -28,6 +28,7 @@ import {
   Search,
   X,
   FilePlus,
+  Share,
 } from 'lucide-react';
 import {
   Popover,
@@ -40,6 +41,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay } from 'date-fns';
@@ -147,6 +151,8 @@ export default function PartyBillPage() {
     const partySelectRef = useRef<any>(null);
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
+
+    const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
 
     useEffect(() => {
@@ -458,6 +464,30 @@ export default function PartyBillPage() {
         proceedToPrint(data);
     };
 
+    const handleShareWhatsApp = () => {
+        const party = parties.find(p => p.id === partyId);
+        if (!party) {
+            toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please select a party.' });
+            return;
+        }
+        
+        // Open preview first
+        const data = getPrintData();
+        if (data) {
+            const encodedData = encodeURIComponent(JSON.stringify(data));
+            window.open(`/print/party-bill?data=${encodedData}`, '_blank');
+        }
+        
+        setShowWhatsAppShareConfirm(true);
+    };
+
+    const confirmOpenWhatsApp = () => {
+        const message = `Party Bill from M.C & SONS FISH COMPANY. Date: ${format(date, 'dd-MM-yyyy')}`;
+        const encodedMsg = encodeURIComponent(message);
+        window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
+        setShowWhatsAppShareConfirm(false);
+    };
+
 
     const handleSearchHistory = useCallback(() => {
         let results = partyBills || [];
@@ -502,13 +532,9 @@ export default function PartyBillPage() {
             e.preventDefault();
             router.push(`/dashboard/party-bill?partyBillId=${billId}`);
         } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            const nextRow = e.currentTarget.nextElementSibling as HTMLElement;
-            nextRow?.focus();
+            // No default behavior change needed
         } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            const prevRow = e.currentTarget.previousElementSibling as HTMLElement;
-            prevRow?.focus();
+            // No default behavior change needed
         }
     };
 
@@ -703,6 +729,9 @@ export default function PartyBillPage() {
                     <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
                     <Button onClick={onSaveClick}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
+                    <Button variant="outline" onClick={handleShareWhatsApp}>
+                        <Share className="mr-2 h-4 w-4" /> Share
+                    </Button>
                 </div>
             </CardContent>
         </Card>
@@ -811,6 +840,21 @@ export default function PartyBillPage() {
                 <Button variant="outline" onClick={handlePrintWithoutSaving}>Print Without Saving</Button>
                 <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
             </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showWhatsAppShareConfirm} onOpenChange={setShowWhatsAppShareConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
+                <AlertDialogDescription>
+                    The party bill preview has been opened in the other tab. Do you want to open WhatsApp now to share it?
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmOpenWhatsApp}>Open WhatsApp</AlertDialogAction>
+            </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
