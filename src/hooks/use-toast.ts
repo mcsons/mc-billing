@@ -9,7 +9,7 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 1000 // Fixed: Reduced from 1,000,000 to 1,000ms for standard cleanup
 
 type ToasterToast = ToastProps & {
   id: string

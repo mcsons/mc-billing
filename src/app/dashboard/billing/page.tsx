@@ -191,8 +191,11 @@ export default function BillingPage() {
     customerSelectRef.current?.focus();
   }, []);
 
+  // Centralized Effect for State Initialization and Customer Changes
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
+    
+    // Case 1: Editing a specific bill via URL parameter
     if (billNoFromParams) {
       const billToEdit = getBill(billNoFromParams);
       if (billToEdit) {
@@ -202,21 +205,40 @@ export default function BillingPage() {
         setActiveBillNo(billToEdit.billNo);
         setInitialBillTotal(billToEdit.amount);
         setDeliveryCharge(billToEdit.deliveryCharge?.toString() || '');
-        setPaidAmount(''); // Clear paid amount when editing an existing bill
+        setPaidAmount('');
 
-        const dateFromBill = billToEdit.date;
-        if (dateFromBill) {
-          setDate(
-            dateFromBill instanceof Timestamp
-              ? dateFromBill.toDate()
-              : new Date(dateFromBill)
-          );
-        } else {
-          setDate(new Date());
+        if (billToEdit.date) {
+          setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
         }
+        return; 
       }
     }
-  }, [searchParams, getBill, selectedCustomerId]);
+
+    // Case 2: Selected a specific customer (not in edit mode from URL)
+    if (selectedCustomerId) {
+      const existingBill = findBillForCustomerToday(selectedCustomerId);
+      if (existingBill) {
+        setActiveBillNo(existingBill.billNo);
+        setInitialBillTotal(existingBill.amount);
+        setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
+      } else {
+        setActiveBillNo(null);
+        setInitialBillTotal(0);
+        setDeliveryCharge('');
+      }
+      setPaidAmount('');
+      return;
+    }
+
+    // Case 3: Walk-in Customer (selectedCustomerId is empty)
+    // CRITICAL FIX: Reset all balance-related state to ensure Prev Balance is 0
+    setActiveBillNo(null);
+    setInitialBillTotal(0);
+    setDeliveryCharge('');
+    setPaidAmount('');
+    setDate(new Date());
+
+  }, [selectedCustomerId, searchParams, getBill, findBillForCustomerToday]);
 
   useEffect(() => {
     if (selectedProductId && uom) {
@@ -231,22 +253,6 @@ export default function BillingPage() {
     }
   }, [selectedProductId, uom, productPrices]);
 
-  useEffect(() => {
-    if (selectedCustomerId && !searchParams.get('billNo')) {
-      const existingBill = findBillForCustomerToday(selectedCustomerId);
-      if (existingBill) {
-        setActiveBillNo(existingBill.billNo);
-        setInitialBillTotal(existingBill.amount);
-        setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
-      } else {
-        setActiveBillNo(null);
-        setInitialBillTotal(0);
-        setDeliveryCharge('');
-      }
-      setPaidAmount('');
-    }
-  }, [selectedCustomerId, findBillForCustomerToday, searchParams]);
-  
   useEffect(() => {
     if (billItemsContainerRef.current) {
         const { scrollHeight } = billItemsContainerRef.current;
@@ -670,10 +676,12 @@ export default function BillingPage() {
         cancelText: 'No, Select Customer',
         onConfirm: () => {
           setWalkInConfirmed(true);
-          setTimeout(() => productSelectRef.current?.focus(), 0);
+          // Fixed: Reliability improvement for focus
+          setTimeout(() => productSelectRef.current?.focus(), 50);
         },
         onCancel: () => {
-          setTimeout(() => customerSelectRef.current?.focus(), 0);
+          // Fixed: Reliability improvement for focus
+          setTimeout(() => customerSelectRef.current?.focus(), 50);
         },
       });
     }
