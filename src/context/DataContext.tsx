@@ -681,21 +681,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
   
-  const findBillForCustomerToday = (customerId: string) => {
+  const findBillForCustomerToday = useCallback((customerId: string) => {
     const today = startOfDay(new Date());
     return (liveBillSummaries || []).find(bill => {
         const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
         if (!billDate || bill.customerId !== customerId) return false;
         return startOfDay(billDate).getTime() === today.getTime();
     });
-  };
+  }, [liveBillSummaries]);
 
-  const getBill = (billNo: string) => {
+  const getBill = useCallback((billNo: string) => {
     return (liveBillSummaries || []).find(b => b.billNo === billNo);
-  };
+  }, [liveBillSummaries]);
 
 
-  const createOrUpdateLiveBill = (
+  const createOrUpdateLiveBill = useCallback((
     summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy'>,
     items: BillItem[],
     paidAmount: number,
@@ -760,11 +760,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return { billNo, commitPromise };
-  };
+  }, [firestore, currentUser, liveBillSummaries]);
 
     const deleteBills = async (billNos: string[]) => {
       if (!firestore) return;
-      if (!isCreatorOrAdmin) {
+      if (!isCurrentUserAdmin) {
           toast({ variant: "destructive", title: "Permission Denied" });
           return;
       }
@@ -828,7 +828,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  const getCustomerLedger = (
+  const getCustomerLedger = useCallback((
     customerId: string, 
     dateRange: { from: Date, to: Date }
   ): { transactions: Transaction[], openingBalance: number } => {
@@ -882,9 +882,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return { transactions: finalTransactions, openingBalance: openingBalanceForPeriod };
-  };
+  }, [liveBillSummaries, payments, openingBalances]);
 
-  const getSalesReport = async (
+  const getSalesReport = useCallback(async (
     customerId: string,
     dateRange: { from: Date; to: Date }
   ): Promise<SalesReportData | null> => {
@@ -986,7 +986,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       netAmount,
       dateRange,
     };
-  };
+  }, [firestore, customers, openingBalances, liveBillSummaries, payments]);
 
   // Vehicle and Driver Management
   const addVehicle = async (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => {
@@ -1137,7 +1137,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
   
-  const addOrUpdatePartyBill = async (billData: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null): Promise<PartyBill | null> => {
+  const addOrUpdatePartyBill = useCallback(async (billData: Omit<PartyBill, 'id' | 'createdBy'|'createdAt'|'updatedAt'>, existingBillId?: string | null): Promise<PartyBill | null> => {
     if (!firestore || !currentUser) {
         return null;
     }
@@ -1204,9 +1204,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: billPayload }));
         return null;
     }
-  };
+  }, [firestore, currentUser, partyBills, toast]);
 
-  const deletePartyBill = async (billToDelete: PartyBill) => {
+  const deletePartyBill = useCallback(async (billToDelete: PartyBill) => {
     if (!firestore || !currentUser) return;
     
     const batch = writeBatch(firestore);
@@ -1233,7 +1233,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     batch.commit().catch(e => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
     });
-  };
+  }, [firestore, currentUser]);
 
 
 

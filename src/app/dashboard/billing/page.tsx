@@ -133,6 +133,7 @@ export default function BillingPage() {
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
+  const initializationPathRef = useRef<string | null>(null);
 
 
   // --- Reactive Bill Items from Firestore ---
@@ -192,13 +193,21 @@ export default function BillingPage() {
   // Centralized Effect for State Initialization and Customer Changes
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
+    const pathKey = `${selectedCustomerId}-${billNoFromParams}`;
+    
+    // Safety check: If we've already initialized for this path, or if we have an active bill 
+    // that matches the current selection, don't reset. This protects ongoing billing (adding items).
+    if (initializationPathRef.current === pathKey) {
+        return;
+    }
     
     // Case 1: Editing a specific bill via URL parameter
     if (billNoFromParams) {
       const billToEdit = getBill(billNoFromParams);
       if (billToEdit) {
+        initializationPathRef.current = pathKey;
         if (billToEdit.customerId !== selectedCustomerId) {
-          setSelectedCustomerId(billToEdit.customerId);
+          setSelectedCustomerId(billToEdit.customerId === 'WALK-IN' ? '' : billToEdit.customerId);
         }
         setActiveBillNo(billToEdit.billNo);
         setInitialBillTotal(billToEdit.amount);
@@ -215,6 +224,7 @@ export default function BillingPage() {
     // Case 2: Selected a specific customer (not in edit mode from URL)
     if (selectedCustomerId) {
       const existingBill = findBillForCustomerToday(selectedCustomerId);
+      initializationPathRef.current = pathKey;
       if (existingBill) {
         setActiveBillNo(existingBill.billNo);
         setInitialBillTotal(existingBill.amount);
@@ -229,13 +239,17 @@ export default function BillingPage() {
     }
 
     // Case 3: Walk-in Customer (selectedCustomerId is empty)
-    setActiveBillNo(null);
-    setInitialBillTotal(0);
-    setDeliveryCharge('');
-    setPaidAmount('');
-    setDate(new Date());
+    // Only clear if we don't already have an active bill number we are working on
+    if (!activeBillNo) {
+        initializationPathRef.current = pathKey;
+        setActiveBillNo(null);
+        setInitialBillTotal(0);
+        setDeliveryCharge('');
+        setPaidAmount('');
+        setDate(new Date());
+    }
 
-  }, [selectedCustomerId, searchParams, getBill, findBillForCustomerToday]);
+  }, [selectedCustomerId, searchParams, getBill, findBillForCustomerToday, activeBillNo]);
 
   useEffect(() => {
     if (selectedProductId && uom) {
@@ -432,6 +446,7 @@ export default function BillingPage() {
   };
 
   const handleNewBill = () => {
+    initializationPathRef.current = null;
     setSelectedCustomerId('');
     setActiveBillNo(null);
     setDate(new Date());
@@ -636,6 +651,7 @@ export default function BillingPage() {
   );
 
   const handleCustomerSelect = (customerId: string) => {
+    initializationPathRef.current = null;
     router.replace('/dashboard/billing');
     setSelectedCustomerId(customerId);
   };
