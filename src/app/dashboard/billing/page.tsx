@@ -70,8 +70,6 @@ import {
   doc,
   writeBatch,
   Timestamp,
-  setDoc,
-  updateDoc,
 } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 
@@ -142,10 +140,10 @@ export default function BillingPage() {
     if (!firestore || !activeBillNo) return null;
     return collection(firestore, 'bills', activeBillNo, 'billItems');
   }, [firestore, activeBillNo]);
-  const { data: billItems } = useCollection<BillItem>(billItemsQuery);
+  const { data: billItems, isLoading: isBillItemsLoading } = useCollection<BillItem>(billItemsQuery);
 
   const reactSelectStyles = {
-    control: (baseStyles, state) => ({
+    control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -154,12 +152,12 @@ export default function BillingPage() {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
-    option: (baseStyles, state) => ({
+    option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
@@ -173,15 +171,15 @@ export default function BillingPage() {
         backgroundColor: 'hsl(var(--accent))',
       },
     }),
-    singleValue: (baseStyles) => ({
+    singleValue: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    input: (baseStyles) => ({
+    input: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    placeholder: (baseStyles) => ({
+    placeholder: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -231,7 +229,6 @@ export default function BillingPage() {
     }
 
     // Case 3: Walk-in Customer (selectedCustomerId is empty)
-    // CRITICAL FIX: Reset all balance-related state to ensure Prev Balance is 0
     setActiveBillNo(null);
     setInitialBillTotal(0);
     setDeliveryCharge('');
@@ -295,15 +292,11 @@ export default function BillingPage() {
         ...currentItems,
         { ...newItem, id: Date.now().toString() },
     ];
-    const summaryCore = {
+    const billSummary = {
         customerName: summaryCustomerName,
         customerId: summaryCustomerId,
         stall: '1',
     };
-
-    const billSummary = activeBillNo 
-        ? summaryCore
-        : { ...summaryCore, createdBy: currentUser?.id || 'unknown-user' };
 
     const { billNo, commitPromise } = createOrUpdateLiveBill(
         billSummary,
@@ -475,16 +468,12 @@ export default function BillingPage() {
         return null;
     }
 
-    const summaryCore = {
+    const billSummary = {
       customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
     };
     
-    const billSummary = activeBillNo 
-        ? summaryCore
-        : { ...summaryCore, createdBy: currentUser?.id || 'unknown-user' };
-
     const paidAmountNum = parseFloat(paidAmount) || 0;
     const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
 
@@ -561,7 +550,7 @@ export default function BillingPage() {
     return {
         billNo,
         date: date?.toISOString() || new Date().toISOString(),
-        customer: printCustomer,
+        customer: printCustomer as Customer,
         items: currentItems,
         itemsTotal: finalItemsTotal,
         deliveryCharge: deliveryChargeNum,
@@ -571,7 +560,7 @@ export default function BillingPage() {
         finalBalance: finalFinalBalance,
         stall: '1'
     };
-  }, [customers, selectedCustomerId, billItems, activeBillNo, deliveryCharge, paidAmount, customerBalances, initialBillTotal, date, liveBillSummaries, toast]);
+  }, [customers, selectedCustomerId, billItems, activeBillNo, deliveryCharge, paidAmount, customerBalances, initialBillTotal, date, liveBillSummaries]);
 
 
   const handleSaveBill = async () => {
@@ -676,11 +665,9 @@ export default function BillingPage() {
         cancelText: 'No, Select Customer',
         onConfirm: () => {
           setWalkInConfirmed(true);
-          // Fixed: Reliability improvement for focus
           setTimeout(() => productSelectRef.current?.focus(), 50);
         },
         onCancel: () => {
-          // Fixed: Reliability improvement for focus
           setTimeout(() => customerSelectRef.current?.focus(), 50);
         },
       });
@@ -718,7 +705,7 @@ export default function BillingPage() {
                   <PopoverContent className="w-auto p-0">
                     <Calendar
                       mode="single"
-                      selected={date instanceof Timestamp ? date.toDate() : date}
+                      selected={date}
                       onSelect={setDate}
                       initialFocus
                     />
@@ -755,7 +742,7 @@ export default function BillingPage() {
                       const customerId = option ? option.value : '';
                       handleCustomerSelect(customerId);
                       if (!customerId) {
-                        setWalkInConfirmed(false); // Reset confirmation when selection is cleared
+                        setWalkInConfirmed(false);
                       }
                     }}
                     onKeyDown={handleCustomerKeyDown}
@@ -924,7 +911,13 @@ export default function BillingPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {billItems && billItems.length > 0 ? (
+                    {isBillItemsLoading && !billItems ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center">
+                            Loading items...
+                        </TableCell>
+                      </TableRow>
+                    ) : billItems && billItems.length > 0 ? (
                       billItems.map((item, index) => (
                         <TableRow key={item.id}>
                           <TableCell>{index + 1}</TableCell>
