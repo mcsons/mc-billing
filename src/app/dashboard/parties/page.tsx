@@ -59,7 +59,7 @@ export default function PartiesPage() {
       <Card>
         <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="font-headline">Manage Parties</CardTitle(CardTitle>
+          <CardTitle className="font-headline">Manage Parties</CardTitle>
             <CardDescription>
               Add, edit, and manage your business parties and destinations.
             </CardDescription>

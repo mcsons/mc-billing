@@ -19,8 +19,10 @@ function PartyBillPrintContent() {
         const decodedData = JSON.parse(decodeURIComponent(data));
         if (decodedData.date) {
             if (typeof decodedData.date === 'object' && decodedData.date.seconds) {
+                // Handle Firestore Timestamp that was JSON.stringified
                 decodedData.date = new Date(decodedData.date.seconds * 1000);
             } else {
+                // Handle ISO date string
                 decodedData.date = new Date(decodedData.date);
             }
         }
@@ -151,11 +153,11 @@ function PartyBillPrintContent() {
             }
         }
         /* ===============================
-          PRINT SETUP (114mm x 210mm)
+          PRINT SETUP (147mm x 208mm)
         ================================ */
         @media print {
           @page {
-            size: 114mm 210mm;
+            size: 147mm 208mm;
             margin: 6mm;
           }
           body {
