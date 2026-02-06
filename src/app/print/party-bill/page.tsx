@@ -236,8 +236,11 @@ function PartyBillPrintContent() {
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
         .items-table .col-item { width: auto; word-break: break-word; text-align: left; }
         .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
-        .items-table .col-price { width: 22mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; }
-        .items-table .col-total { width: 26mm; text-align: right; white-space: nowrap; font-family: "Courier New", monospace; font-weight: bold;}
+        .items-table .col-price { width: 25mm; white-space: nowrap; }
+        .items-table .col-total { width: 25mm; white-space: nowrap; }
+
+        .items-table td.col-price { text-align: right; font-family: "Courier New", monospace; }
+        .items-table td.col-total { text-align: right; font-family: "Courier New", monospace; font-weight: bold; }
 
         /* ===============================
           TOTALS SECTION
