@@ -158,7 +158,7 @@ function PartyBillPrintContent() {
         @media print {
           @page {
             size: 147mm 208mm;
-            margin: 0mm 6mm 6mm 6mm; /* Top margin zeroed to remove blank space */
+            margin: 0mm; /* Using internal padding for precise margin control */
           }
           body {
             background: white !important;
@@ -178,6 +178,8 @@ function PartyBillPrintContent() {
             left: 0;
             top: 0;
             width: 100%;
+            padding: 4mm 6mm 6mm 6mm; /* Safe printable margins: 4mm top, 6mm sides/bottom */
+            box-sizing: border-box;
           }
           .print\\:hidden { display: none !important; }
         }
