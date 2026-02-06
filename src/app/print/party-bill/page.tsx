@@ -158,7 +158,7 @@ function PartyBillPrintContent() {
         @media print {
           @page {
             size: 147mm 208mm;
-            margin: 6mm;
+            margin: 0mm 6mm 6mm 6mm; /* Top margin zeroed to remove blank space */
           }
           body {
             background: white !important;
@@ -188,7 +188,7 @@ function PartyBillPrintContent() {
         .party-bill-invoice {
           font-family: Arial, sans-serif;
           font-size: 10pt;
-          width: 102mm; /* 114mm - 2*6mm margin */
+          width: 135mm; /* Utilizing 147mm paper width minus 6mm margins */
           background: white;
           color: black;
         }
