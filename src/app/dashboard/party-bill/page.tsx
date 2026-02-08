@@ -242,8 +242,7 @@ export default function PartyBillPage() {
         const rateNum = parseFloat(rate);
         const boxNum = parseFloat(box) || 0;
         const kgsNum = parseFloat(kgs) || 0;
-        const totalWeight = boxNum * kgsNum;
-        const amount = rateNum * totalWeight;
+        const amount = boxNum * rateNum; // Corrected: Amount is Box x Rate
         
         const newItem: PartyBillItem = {
             id: Date.now().toString(),
@@ -278,8 +277,8 @@ export default function PartyBillPage() {
                       updatedItem.kgs = newValue;
                   }
                   
-                  const totalWeight = updatedItem.box * updatedItem.kgs;
-                  updatedItem.amount = updatedItem.rate * totalWeight;
+                  // Financial amount is strictly Box x Rate
+                  updatedItem.amount = updatedItem.box * updatedItem.rate;
   
                   return updatedItem;
               }
@@ -488,8 +487,7 @@ export default function PartyBillPage() {
         message += `-------------------------\n`;
         
         items.forEach((item, index) => {
-            const totalWeight = item.box * item.kgs;
-            message += `${index + 1}. ${item.productName} (${item.box} BOX x ${item.kgs.toFixed(2)} Kgs @ ₹${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
+            message += `${index + 1}. ${item.productName} (${item.box} BOX x ₹${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
         });
         
         message += `-------------------------\n`;
