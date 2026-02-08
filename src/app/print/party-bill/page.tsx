@@ -52,7 +52,6 @@ function PartyBillPrintContent() {
   const commissionAmount = (totalAmount * commissionPercent) / 100;
   
   // Calculate sums for the new summary row
-  const sumBoxes = items.reduce((sum: number, item: PartyBillItem) => sum + (item.box || 0), 0);
   const sumWeight = items.reduce((sum: number, item: PartyBillItem) => sum + ((item.box || 0) * (item.kgs || 0)), 0);
   
   const totalBoxes = billData.totalBox;
@@ -80,19 +79,19 @@ function PartyBillPrintContent() {
 
           <section className="party-details">
             <div className="grid-item">
-                <span className="label">Supplier Name:</span>
+                <span className="label">Supplier Name :</span>
                 <span className="value font-bold">{partyName}</span>
             </div>
              <div className="grid-item">
-                <span className="label">Date:</span>
+                <span className="label">Date :</span>
                 <span className="value font-bold">{format(date, 'dd/MM/yyyy')}</span>
             </div>
             <div className="grid-item">
-                 <span className="label">Address:</span>
+                 <span className="label">Address :</span>
                 <span className="value font-bold">{partyLocation}</span>
             </div>
             <div className="grid-item">
-                <span className="label">Total Boxes:</span>
+                <span className="label">Total Boxes :</span>
                 <span className="value font-bold">{totalBoxes}</span>
             </div>
           </section>
@@ -124,10 +123,6 @@ function PartyBillPrintContent() {
 
           {/* New Totals Summary Row */}
           <div className="table-summary-row">
-            <div className="summary-item">
-              <span className="label">Total Box:</span>
-              <span className="value">{sumBoxes}</span>
-            </div>
             <div className="summary-item">
               <span className="label">Total Weight:</span>
               <span className="value">{sumWeight.toFixed(2)} KGS</span>

@@ -536,6 +536,9 @@ export default function PartyBillPage() {
 
     const handleHistoryPartyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Tab' && !e.shiftKey) {
+          getDocs(collection(firestore, 'partyBills')).then(snap => {
+              // placeholder
+          });
           e.preventDefault();
           const firstRow = historyTableBodyRef.current?.querySelector('tr');
           if (firstRow) {
@@ -723,6 +726,8 @@ export default function PartyBillPage() {
                          <div className="flex justify-between items-center font-semibold"><Label>Total Less</Label><span>{totalDeductions.toFixed(2)}</span></div>
                     </div>
                     <div className="space-y-2">
+                        <div className="flex justify-between items-center font-bold text-lg"><Label>Live Total Box</Label><span>{calculatedTotalBox}</span></div>
+                        <Separator />
                         <div className="flex justify-between items-center font-bold text-lg"><Label>Total Bill Value</Label><span>{totalAmount.toFixed(2)}</span></div>
                         <Separator/>
                         <div className="flex justify-between items-center font-bold"><Label>Net Bill Value</Label><span>{netAmount.toFixed(2)}</span></div>
