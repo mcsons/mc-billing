@@ -231,18 +231,19 @@ export default function PartyBillPage() {
     
     // Auto-calculated totals from items
     const calculatedTotalBox = useMemo(() => items.reduce((sum, item) => sum + (item.box || 0), 0), [items]);
-    const calculatedTotalKgs = useMemo(() => items.reduce((sum, item) => sum + (item.kgs || 0), 0), [items]);
+    const calculatedTotalKgs = useMemo(() => items.reduce((sum, item) => sum + ((item.box || 0) * (item.kgs || 0)), 0), [items]);
 
     const handleAddItem = () => {
         const product = products.find(p => p.id === selectedProductId);
-        if (!product || !rate || (!box && !kgs)) {
-            toast({ variant: 'destructive', title: 'Missing Item Info' });
+        if (!product || !rate || !box || !kgs) {
+            toast({ variant: 'destructive', title: 'Missing Item Info', description: 'Please enter Rate, Product, Box count and Kgs per box.' });
             return;
         }
         const rateNum = parseFloat(rate);
         const boxNum = parseFloat(box) || 0;
         const kgsNum = parseFloat(kgs) || 0;
-        const amount = rateNum * (boxNum > 0 ? boxNum : kgsNum);
+        const totalWeight = boxNum * kgsNum;
+        const amount = rateNum * totalWeight;
         
         const newItem: PartyBillItem = {
             id: Date.now().toString(),
@@ -273,15 +274,12 @@ export default function PartyBillPage() {
                       updatedItem.rate = newValue;
                   } else if (field === 'box') {
                       updatedItem.box = newValue;
-                      if (newValue > 0) updatedItem.kgs = 0; 
                   } else if (field === 'kgs') {
                       updatedItem.kgs = newValue;
-                      if (newValue > 0) updatedItem.box = 0;
                   }
                   
-                  const rate = updatedItem.rate;
-                  const qty = updatedItem.box > 0 ? updatedItem.box : updatedItem.kgs;
-                  updatedItem.amount = rate * qty;
+                  const totalWeight = updatedItem.box * updatedItem.kgs;
+                  updatedItem.amount = updatedItem.rate * totalWeight;
   
                   return updatedItem;
               }
@@ -490,8 +488,8 @@ export default function PartyBillPage() {
         message += `-------------------------\n`;
         
         items.forEach((item, index) => {
-            const qtyStr = item.box > 0 ? `${item.box} BOX` : `${item.kgs.toFixed(2)} KGS`;
-            message += `${index + 1}. ${item.productName} (${qtyStr} x ${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
+            const totalWeight = item.box * item.kgs;
+            message += `${index + 1}. ${item.productName} (${item.box} BOX x ${item.kgs.toFixed(2)} Kgs @ ₹${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
         });
         
         message += `-------------------------\n`;
@@ -597,7 +595,7 @@ export default function PartyBillPage() {
                         />
                     </div>
                      <div className="flex items-center gap-2">
-                        <Label>Box :</Label>
+                        <Label>Total Box :</Label>
                         <Input 
                             type="number" 
                             value={totalBox} 
@@ -607,7 +605,7 @@ export default function PartyBillPage() {
                         />
                     </div>
                     <div className="flex items-center gap-2">
-                        <Label>Kgs :</Label>
+                        <Label>Total Weight :</Label>
                         <Input 
                             type="number" 
                             value={totalKgs} 
@@ -624,32 +622,24 @@ export default function PartyBillPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[150px] font-bold text-base">Rate</TableHead>
                             <TableHead className="font-bold text-base">Particulars</TableHead>
-                            <TableHead className="w-[120px] font-bold text-base">Box</TableHead>
-                            <TableHead className="w-[120px] font-bold text-base">Kgs</TableHead>
-                            <TableHead className="text-right w-[180px] font-bold text-base">Amount</TableHead>
+                            <TableHead className="w-[100px] font-bold text-base text-center">Box</TableHead>
+                            <TableHead className="w-[100px] font-bold text-base text-center">Kgs (per box)</TableHead>
+                            <TableHead className="w-[120px] font-bold text-base text-center">Rate</TableHead>
+                            <TableHead className="text-right w-[150px] font-bold text-base">Amount</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {items.map(item => (
                             <TableRow key={item.id}>
-                                <TableCell>
-                                  <Input
-                                      type="number"
-                                      value={item.rate}
-                                      onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
-                                      className="h-8 w-full text-right font-mono text-base"
-                                  />
-                                </TableCell>
                                 <TableCell>{item.productName}</TableCell>
                                 <TableCell>
                                   <Input
                                       type="number"
                                       value={item.box || ''}
                                       onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
-                                      className="h-8 w-full text-right font-mono text-base"
+                                      className="h-8 w-full text-center font-mono text-base"
                                       placeholder="Box"
                                   />
                                 </TableCell>
@@ -658,8 +648,16 @@ export default function PartyBillPage() {
                                       type="number"
                                       value={item.kgs || ''}
                                       onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
-                                      className="h-8 w-full text-right font-mono text-base"
+                                      className="h-8 w-full text-center font-mono text-base"
                                       placeholder="Kgs"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Input
+                                      type="number"
+                                      value={item.rate}
+                                      onChange={(e) => handleItemUpdate(item.id, 'rate', e.target.value)}
+                                      className="h-8 w-full text-center font-mono text-base"
                                   />
                                 </TableCell>
                                 <TableCell className="text-right font-mono text-base">{item.amount.toFixed(2)}</TableCell>
@@ -668,16 +666,6 @@ export default function PartyBillPage() {
                         ))}
                         {/* Item Entry Row */}
                          <TableRow>
-                            <TableCell>
-                                <Input 
-                                    ref={rateInputRef} 
-                                    placeholder="Rate" 
-                                    type="number" 
-                                    value={rate} 
-                                    onChange={e => setRate(e.target.value)}
-                                    className="w-32 text-base font-mono"
-                                />
-                            </TableCell>
                             <TableCell>
                                 <ReactSelect
                                     instanceId="product-select"
@@ -696,7 +684,7 @@ export default function PartyBillPage() {
                                     type="number" 
                                     value={box} 
                                     onChange={e => setBox(e.target.value)} 
-                                    className="w-28 text-base font-mono"
+                                    className="w-full text-center text-base font-mono"
                                 />
                             </TableCell>
                             <TableCell>
@@ -705,7 +693,17 @@ export default function PartyBillPage() {
                                     type="number" 
                                     value={kgs} 
                                     onChange={e => setKgs(e.target.value)} 
-                                    className="w-28 text-base font-mono"
+                                    className="w-full text-center text-base font-mono"
+                                />
+                            </TableCell>
+                            <TableCell>
+                                <Input 
+                                    ref={rateInputRef} 
+                                    placeholder="Rate" 
+                                    type="number" 
+                                    value={rate} 
+                                    onChange={e => setRate(e.target.value)}
+                                    className="w-full text-center text-base font-mono"
                                 />
                             </TableCell>
                             <TableCell></TableCell>

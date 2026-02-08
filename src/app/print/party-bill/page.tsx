@@ -52,15 +52,9 @@ function PartyBillPrintContent() {
   
   // Calculate sums for the new summary row
   const sumBoxes = items.reduce((sum: number, item: PartyBillItem) => sum + (item.box || 0), 0);
-  const sumWeight = items.reduce((sum: number, item: PartyBillItem) => sum + (item.kgs || 0), 0);
+  const sumWeight = items.reduce((sum: number, item: PartyBillItem) => sum + ((item.box || 0) * (item.kgs || 0)), 0);
   
   const totalBoxes = billData.totalBox;
-
-  const formatQty = (item: PartyBillItem) => {
-    if (item.box > 0) return `${item.box} BOX`;
-    if (item.kgs > 0) return `${item.kgs.toFixed(1)} KGS`;
-    return '-';
-  };
 
   return (
     <>
@@ -107,8 +101,9 @@ function PartyBillPrintContent() {
               <tr>
                 <th className="col-sn">S/N</th>
                 <th className="col-item">Item Name</th>
-                <th className="col-qty">Qty</th>
-                <th className="col-price">Unit Price</th>
+                <th className="col-box">Box</th>
+                <th className="col-kgs">Kgs</th>
+                <th className="col-rate">Rate</th>
                 <th className="col-total">Amount</th>
               </tr>
             </thead>
@@ -117,8 +112,9 @@ function PartyBillPrintContent() {
                 <tr key={item.id}>
                   <td className="col-sn">{index + 1}</td>
                   <td className="col-item">{item.productName}</td>
-                  <td className="col-qty">{formatQty(item)}</td>
-                  <td className="col-price">{item.rate.toFixed(2)}</td>
+                  <td className="col-box">{item.box}</td>
+                  <td className="col-kgs">{item.kgs.toFixed(2)}</td>
+                  <td className="col-rate">{item.rate.toFixed(2)}</td>
                   <td className="col-total">{item.amount.toFixed(2)}</td>
                 </tr>
               ))}
@@ -144,10 +140,12 @@ function PartyBillPrintContent() {
                     {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span>₹{expenses.toFixed(2)}</span></div>}
                     {rent > 0 && <div className="detail-row"><span>Rent:</span><span>₹{rent.toFixed(2)}</span></div>}
                 </div>
+                <Separator className="my-1 border-black" />
                 <div className="payments-group">
                     {cashReceived > 0 && <div className="detail-row"><span>By Cash:</span><span>₹{cashReceived.toFixed(2)}</span></div>}
                     {bankReceived > 0 && <div className="detail-row"><span>By Bank:</span><span>₹{bankReceived.toFixed(2)}</span></div>}
                 </div>
+                <Separator className="my-1 border-black" />
             </div>
              <table className="right-totals boxed-summary-table">
                 <tbody>
@@ -156,7 +154,7 @@ function PartyBillPrintContent() {
                     <tr className="font-bold"><td>Net Amount:</td><td className="val-net-amount">₹{billData.netAmount.toFixed(2)}</td></tr>
                     <tr><td>Previous Balance:</td><td className="val-previous-balance">₹{previousBalance.toFixed(2)}</td></tr>
                     <tr className="font-bold"><td>Total Amount:</td><td className="val-total">₹{totalAfterPrevious.toFixed(2)}</td></tr>
-                    {totalReceived > 0 ? (<tr><td>Total Received:</td><td className="val-total-received">₹{totalReceived.toFixed(2)}</td></tr>) : null}
+                    {totalReceived > 0 ? (<tr><td>Total Paid:</td><td className="val-total-received">₹{totalReceived.toFixed(2)}</td></tr>) : null}
                     <tr className="font-bold"><td>Net Balance:</td><td className="val-final-balance">₹{finalBalance.toFixed(2)}</td></tr>
                 </tbody>
             </table>
@@ -257,24 +255,27 @@ function PartyBillPrintContent() {
         .items-table { width: 100%; margin-top: 8px; border-collapse: collapse; table-layout: fixed; }
         .items-table th, .items-table td { border: 1.5px solid black; padding: 6px; vertical-align: top; }
         .items-table thead tr { background-color: #f2f2f2 !important; }
-        .items-table thead th { font-weight: bold; text-align: center; }
+        .items-table thead th { font-weight: bold; text-align: center; font-size: 9pt; }
         
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
-        .items-table .col-item { width: auto; word-break: break-word; text-align: left; }
-        .items-table .col-qty { width: 22mm; text-align: center; white-space: nowrap; }
-        .items-table .col-price { width: 25mm; white-space: nowrap; text-align: center; }
+        .items-table .col-item { width: auto; word-break: break-word; text-align: left; font-size: 10pt; }
+        .items-table .col-box { width: 15mm; text-align: center; white-space: nowrap; }
+        .items-table .col-kgs { width: 15mm; text-align: center; white-space: nowrap; }
+        .items-table .col-rate { width: 20mm; white-space: nowrap; text-align: center; }
         .items-table .col-total { width: 25mm; white-space: nowrap; text-align: center; }
 
-        .items-table td.col-price { text-align: right; font-family: "Courier New", monospace; }
-        .items-table td.col-total { text-align: right; font-family: "Courier New", monospace; font-weight: bold; }
+        .items-table td.col-box, .items-table td.col-kgs, .items-table td.col-rate, .items-table td.col-total { 
+            text-align: right; font-family: "Courier New", monospace; 
+        }
+        .items-table td.col-total { font-weight: bold; }
 
         /* ===============================
-          TABLE SUMMARY ROW (New)
+          TABLE SUMMARY ROW
         ================================ */
         .table-summary-row {
           display: flex;
           justify-content: flex-end;
-          gap: 20mm;
+          gap: 15mm;
           padding: 6px;
           border: 1.5px solid black;
           border-top: none;
@@ -299,13 +300,7 @@ function PartyBillPrintContent() {
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         
         .deductions-group { margin-bottom: 0; }
-        .payments-group { 
-            margin-top: 12px; 
-            padding-top: 8px;
-            border-top: 1.5px solid black;
-            border-bottom: 1.5px solid black;
-            padding-bottom: 8px;
-        }
+        .payments-group { margin-top: 4px; }
 
         .boxed-summary-table {
             border: 1.5px solid black;
