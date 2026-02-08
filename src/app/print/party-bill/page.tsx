@@ -32,6 +32,8 @@ function PartyBillPrintContent() {
         console.error('Failed to parse bill data:', error);
         router.push('/dashboard/party-bill');
       }
+    } else {
+      router.push('/dashboard/party-bill');
     }
   }, [searchParams, router]);
 
@@ -266,15 +268,27 @@ function PartyBillPrintContent() {
         .items-table .col-rate { width: 20mm; white-space: nowrap; text-align: center; }
         .items-table .col-total { width: 25mm; white-space: nowrap; text-align: center; }
 
-        .items-table td.col-box, .items-table td.col-kgs {
+        .items-table td.col-box {
             text-align: right;
             font-weight: bold;
         }
-
-        .items-table td.col-rate, .items-table td.col-total { 
-            text-align: right; font-family: "Courier New", monospace; 
+        
+        .items-table td.col-kgs {
+            text-align: right;
+            font-weight: bold;
+            color: #444; /* Reduced darkness for separation */
         }
-        .items-table td.col-total { font-weight: bold; }
+
+        .items-table td.col-rate { 
+            text-align: right; 
+            font-family: "Courier New", monospace; 
+        }
+        
+        .items-table td.col-total { 
+            text-align: right; 
+            font-family: "Courier New", monospace; 
+            font-weight: bold; /* Bolded amount val */
+        }
 
         /* ===============================
           TABLE SUMMARY ROW
