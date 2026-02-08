@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { PartyBillItem } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
+import { Separator } from '@/components/ui/separator';
 
 function PartyBillPrintContent() {
   const router = useRouter();
