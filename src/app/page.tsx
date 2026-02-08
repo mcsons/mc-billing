@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Fish } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
@@ -116,10 +115,6 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-muted p-4">
-      <div className="flex flex-col items-center gap-2 mb-6 text-primary">
-        <Fish className="h-10 w-10" />
-        <h1 className="text-3xl font-bold font-headline">MC Billing</h1>
-      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="space-y-2">
           <CompanyHeader />
