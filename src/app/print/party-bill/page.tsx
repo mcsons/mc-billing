@@ -266,7 +266,12 @@ function PartyBillPrintContent() {
         .items-table .col-rate { width: 20mm; white-space: nowrap; text-align: center; }
         .items-table .col-total { width: 25mm; white-space: nowrap; text-align: center; }
 
-        .items-table td.col-box, .items-table td.col-kgs, .items-table td.col-rate, .items-table td.col-total { 
+        .items-table td.col-box, .items-table td.col-kgs {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .items-table td.col-rate, .items-table td.col-total { 
             text-align: right; font-family: "Courier New", monospace; 
         }
         .items-table td.col-total { font-weight: bold; }
