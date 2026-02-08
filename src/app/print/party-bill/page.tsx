@@ -81,7 +81,7 @@ function PartyBillPrintContent() {
           <section className="party-details">
             <div className="grid-item">
                 <span className="label">Supplier Name:</span>
-                <span className="value">{partyName}</span>
+                <span className="value font-bold">{partyName}</span>
             </div>
              <div className="grid-item">
                 <span className="label">Date:</span>
@@ -89,11 +89,11 @@ function PartyBillPrintContent() {
             </div>
             <div className="grid-item">
                  <span className="label">Address:</span>
-                <span className="value">{partyLocation}</span>
+                <span className="value font-bold">{partyLocation}</span>
             </div>
             <div className="grid-item">
                 <span className="label">Total Boxes:</span>
-                <span className="value">{totalBoxes}</span>
+                <span className="value font-bold">{totalBoxes}</span>
             </div>
           </section>
 
@@ -241,13 +241,19 @@ function PartyBillPrintContent() {
           display: flex; 
           flex-direction: row; 
           align-items: baseline;
-          gap: 6px;
           border-bottom: 1.5px solid black; 
         }
         .party-details .grid-item:nth-child(odd) { border-right: 1.5px solid black; }
         .party-details .grid-item:last-child { border-bottom: none; }
         .party-details .grid-item:nth-last-child(2) { border-bottom: none; }
-        .party-details .label { font-weight: bold; font-size: 9pt; white-space: nowrap; }
+        .party-details .label { 
+          font-weight: bold; 
+          font-size: 9pt; 
+          white-space: nowrap; 
+          width: 28mm; 
+          display: inline-block;
+          flex-shrink: 0;
+        }
         .party-details .value { font-size: 10pt; }
 
         /* ===============================
