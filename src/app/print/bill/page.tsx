@@ -114,19 +114,18 @@ function PrintPageContent() {
           <Table className="print-table">
             <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
                 </TableCell>
               </TableRow>
               <TableRow>
-                <TableHead className="col-sn">S/N</TableHead>
                 <TableHead className="col-product">Product</TableHead>
                 <TableHead className="col-qty">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
                 </TableCell>
               </TableRow>
@@ -134,7 +133,6 @@ function PrintPageContent() {
             <TableBody>
               {items.map((item, index) => (
                 <TableRow key={item.id}>
-                  <TableCell className="col-sn">{index + 1}</TableCell>
                   <TableCell className="col-product">{item.product}</TableCell>
                   <TableCell className="col-qty">
                     <span className="qty-uom">
@@ -151,7 +149,7 @@ function PrintPageContent() {
                 </TableRow>
               ))}
               <TableRow>
-                <TableCell colSpan={5} className="p-0">
+                <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
                 </TableCell>
               </TableRow>
@@ -161,6 +159,10 @@ function PrintPageContent() {
           <div className="flex justify-end mt-2">
             <table className="summary-table">
                 <tbody>
+                    <tr>
+                        <td className="summary-label">Total Items:</td>
+                        <td className="summary-value font-mono">{items.length}</td>
+                    </tr>
                     <tr>
                         <td className="summary-label">Items Total:</td>
                         <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
@@ -324,8 +326,7 @@ function PrintPageContent() {
             font-size: 13px;
           }
 
-          .print-root.thermal .col-sn { width: 8%; }
-          .print-root.thermal .col-product { width: 36%; word-wrap: break-word; }
+          .print-root.thermal .col-product { width: 44%; word-wrap: break-word; }
           .print-root.thermal .col-qty { width: 18%; text-align: center; padding-left: 10px; }
           .print-root.thermal .col-rate { width: 18%; text-align: right; }
           .print-root.thermal .col-amount { width: 20%; text-align: right; }
