@@ -326,10 +326,10 @@ function PrintPageContent() {
             font-size: 13px;
           }
 
-          .print-root.thermal .col-product { width: 44%; word-wrap: break-word; }
-          .print-root.thermal .col-qty { width: 18%; text-align: center; padding-left: 10px; }
-          .print-root.thermal .col-rate { width: 18%; text-align: right; }
-          .print-root.thermal .col-amount { width: 20%; text-align: right; }
+          .print-root.thermal .col-product { width: 58%; white-space: normal; word-break: keep-all; }
+          .print-root.thermal .col-qty { width: 12%; text-align: center; }
+          .print-root.thermal .col-rate { width: 15%; text-align: right; }
+          .print-root.thermal .col-amount { width: 15%; text-align: right; }
 
           .print-root.thermal .uom-text {
             margin-left: 3px;
