@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -131,10 +131,10 @@ function PrintPageContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="col-product">{item.product}</TableCell>
-                  <TableCell className="col-qty">
+                  <TableCell className="col-qty text-center">
                     <span className="qty-uom">
                       <strong>{item.qty}</strong>
                       <span className="uom-text">{item.uom}</span>
@@ -212,7 +212,7 @@ function PrintPageContent() {
             }
             .print-root.a4 #print-area {
                 width: 210mm;
-                min-height: 297mm; /* To simulate A4 page feel */
+                min-height: 297mm;
             }
         }
         
@@ -374,7 +374,7 @@ function PrintPageContent() {
           }
         }
         /* ===============================
-           A4 PRINT - UPDATED
+           A4 PRINT
         ================================ */
         @media print {
           .print-root.a4 {
@@ -417,6 +417,9 @@ function PrintPageContent() {
           }
           .print-root.a4 .print-table .text-right {
             text-align: right;
+          }
+          .print-root.a4 .print-table .text-center {
+            text-align: center;
           }
           
           .print-root.a4 .summary-table {
