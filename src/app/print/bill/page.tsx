@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'navigation';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -120,7 +120,7 @@ function PrintPageContent() {
               </TableRow>
               <TableRow>
                 <TableHead className="col-product">Product</TableHead>
-                <TableHead className="col-qty">Qty</TableHead>
+                <TableHead className="col-qty text-center">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
@@ -320,6 +320,9 @@ function PrintPageContent() {
           .print-root.thermal .print-table .text-right {
             text-align: right;
           }
+          .print-root.thermal .print-table .text-center {
+            text-align: center;
+          }
 
           .print-root.thermal .print-table tbody td {
             font-weight: 700 !important;
@@ -327,9 +330,9 @@ function PrintPageContent() {
           }
 
           .print-root.thermal .col-product { width: 58%; white-space: normal; word-break: keep-all; }
-          .print-root.thermal .col-qty { width: 12%; text-align: center; }
-          .print-root.thermal .col-rate { width: 15%; text-align: right; }
-          .print-root.thermal .col-amount { width: 15%; text-align: right; }
+          .print-root.thermal .col-qty { width: 14%; text-align: center; }
+          .print-root.thermal .col-rate { width: 12%; text-align: right; }
+          .print-root.thermal .col-amount { width: 16%; text-align: right; }
 
           .print-root.thermal .uom-text {
             margin-left: 3px;
