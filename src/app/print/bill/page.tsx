@@ -184,7 +184,7 @@ function PrintPageContent() {
             </table>
           </div>
           
-          <div className="label-total-items text-right mt-3 px-1">
+          <div className="label-total-items text-left mt-3 px-1">
             Total Items: <span className="value-total-items font-mono">{items.length}</span>
           </div>
 
