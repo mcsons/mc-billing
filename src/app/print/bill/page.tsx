@@ -155,13 +155,12 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-between items-start mt-2">
+            <div className="summary-label label-total-items text-left pt-1">
+              Total Items: <span className="font-mono font-bold">{items.length}</span>
+            </div>
             <table className="summary-table">
               <tbody>
-                <tr>
-                  <td className="summary-label label-total-items">Total Items:</td>
-                  <td className="summary-value font-mono">{items.length}</td>
-                </tr>
                 {deliveryCharge > 0 && (
                   <tr>
                     <td className="summary-label">Delivery Charge:</td>
@@ -311,7 +310,7 @@ function PrintPageContent() {
             font-weight: 800 !important;
             font-size: 14px !important;
             text-align: left;
-            padding-bottom: 1px; /* Tighter header spacing */
+            padding-bottom: 0px !important;
           }
 
           .print-root.thermal .text-center {
@@ -379,7 +378,8 @@ function PrintPageContent() {
             white-space: nowrap;
           }
           .print-root.thermal .label-total-items {
-            font-size: 13px; /* subtle label */
+            font-size: 13px;
+            font-weight: 700;
           }
           .print-root.thermal .summary-value {
             text-align: right;
