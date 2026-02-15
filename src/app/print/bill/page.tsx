@@ -72,6 +72,8 @@ function PrintPageContent() {
     finalBalance,
   } = billData;
 
+  const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
+
   return (
     <div>
       <div className="p-4 print:hidden flex justify-between items-center">
@@ -164,13 +166,19 @@ function PrintPageContent() {
                   <td className="summary-label">Items Total:</td>
                   <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
                 </tr>
+                {displayDeliveryCharge > 0 && (
+                  <tr>
+                    <td className="summary-label">Delivery Charge:</td>
+                    <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
+                  </tr>
+                )}
                 <tr>
                   <td className="summary-label">Previous Balance:</td>
                   <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
                 </tr>
                 <tr className="summary-divider-row summary-total-row">
                   <td className="summary-label">Bill Total:</td>
-                  <td className="summary-value font-mono">₹{(itemsTotal + previousBalance).toFixed(2)}</td>
+                  <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td className="summary-label">Received Amount:</td>
