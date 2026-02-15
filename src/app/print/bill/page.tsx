@@ -63,7 +63,6 @@ function PrintPageContent() {
     date,
     customer,
     items,
-    itemsTotal,
     deliveryCharge,
     totalAmount,
     previousBalance,
@@ -134,7 +133,7 @@ function PrintPageContent() {
               {items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="col-product">{item.product}</TableCell>
-                  <TableCell className="col-qty text-center">
+                  <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                       <strong>{item.qty}</strong>
                       <span className="uom-text">{item.uom}</span>
@@ -158,38 +157,34 @@ function PrintPageContent() {
 
           <div className="flex justify-end mt-2">
             <table className="summary-table">
-                <tbody>
-                    <tr>
-                        <td className="summary-label">Total Items:</td>
-                        <td className="summary-value font-mono">{items.length}</td>
-                    </tr>
-                    <tr>
-                        <td className="summary-label">Items Total:</td>
-                        <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
-                    </tr>
-                    {deliveryCharge > 0 && (
-                        <tr>
-                            <td className="summary-label">Delivery Charge:</td>
-                            <td className="summary-value font-mono">₹{deliveryCharge.toFixed(2)}</td>
-                        </tr>
-                    )}
-                    <tr className="summary-total-row">
-                        <td className="summary-label">Bill Total:</td>
-                        <td className="summary-value font-mono">₹{totalAmount.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                        <td className="summary-label">Previous Balance:</td>
-                        <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
-                    </tr>
-                    <tr>
-                        <td className="summary-label">Paid Amount:</td>
-                        <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
-                    </tr>
-                    <tr className="summary-total-row summary-final-balance">
-                        <td className="summary-label">Final Balance:</td>
-                        <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
-                    </tr>
-                </tbody>
+              <tbody>
+                <tr>
+                  <td className="summary-label label-total-items">Total Items:</td>
+                  <td className="summary-value font-mono">{items.length}</td>
+                </tr>
+                {deliveryCharge > 0 && (
+                  <tr>
+                    <td className="summary-label">Delivery Charge:</td>
+                    <td className="summary-value font-mono">₹{deliveryCharge.toFixed(2)}</td>
+                  </tr>
+                )}
+                <tr className="summary-total-row">
+                  <td className="summary-label">Bill Total:</td>
+                  <td className="summary-value font-mono">₹{totalAmount.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="summary-label">Previous Balance:</td>
+                  <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td className="summary-label">Recieved Amount:</td>
+                  <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
+                </tr>
+                <tr className="summary-total-row summary-final-balance">
+                  <td className="summary-label">Final Balance:</td>
+                  <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
+                </tr>
+              </tbody>
             </table>
           </div>
           <footer className="print-footer">Developed by MC & SONS</footer>
@@ -287,7 +282,7 @@ function PrintPageContent() {
 
           .print-root.thermal .cust-name {
             font-weight: 700;
-            font-size: 15px;
+            font-size: 13px;
           }
 
           .print-root.thermal .bill-no, .print-root.thermal .bill-date {
@@ -316,23 +311,54 @@ function PrintPageContent() {
             font-weight: 800 !important;
             font-size: 14px !important;
             text-align: left;
+            padding-bottom: 1px; /* Tighter header spacing */
           }
+
+          .print-root.thermal .text-center {
+            text-align: center !important;
+          }
+
+            .print-root.thermal .print-table td.col-qty,
+            .print-root.thermal .print-table th.col-qty {
+              text-align: center !important;
+            }
+
+            .print-root.thermal .print-table td.col-rate,
+            .print-root.thermal .print-table th.col-rate,
+            .print-root.thermal .print-table td.col-amount,
+            .print-root.thermal .print-table th.col-amount {
+              text-align: right !important;
+            }
+
           .print-root.thermal .print-table .text-right {
             text-align: right;
           }
-          .print-root.thermal .print-table .text-center {
-            text-align: center;
-          }
-
+          
           .print-root.thermal .print-table tbody td {
             font-weight: 700 !important;
             font-size: 13px;
           }
 
-          .print-root.thermal .col-product { width: 58%; white-space: normal; word-break: keep-all; }
-          .print-root.thermal .col-qty { width: 14%; text-align: center; }
-          .print-root.thermal .col-rate { width: 12%; text-align: right; }
-          .print-root.thermal .col-amount { width: 16%; text-align: right; }
+          /* === COLUMN WIDTH DISTRIBUTION === */
+          .print-root.thermal .col-product { 
+            width: 58%; 
+            font-size: 12px;
+            line-height: 1.1;
+            white-space: normal; 
+            word-break: keep-all; 
+          }
+
+          .print-root.thermal .col-qty {
+            width: 14%;
+          }
+
+          .print-root.thermal .col-rate {
+            width: 12%;
+          }
+
+          .print-root.thermal .col-amount {
+            width: 16%;
+          }
 
           .print-root.thermal .uom-text {
             margin-left: 3px;
@@ -351,6 +377,9 @@ function PrintPageContent() {
           .print-root.thermal .summary-label {
             text-align: left;
             white-space: nowrap;
+          }
+          .print-root.thermal .label-total-items {
+            font-size: 13px; /* subtle label */
           }
           .print-root.thermal .summary-value {
             text-align: right;
