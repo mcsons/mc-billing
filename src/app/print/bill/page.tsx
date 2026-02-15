@@ -112,18 +112,18 @@ function PrintPageContent() {
 
           <Table className="print-table">
             <TableHeader>
-              <TableRow>
+              <TableRow className="header-row-divider">
                 <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
                 </TableCell>
               </TableRow>
-              <TableRow>
+              <TableRow className="header-content-row">
                 <TableHead className="col-product">Product</TableHead>
                 <TableHead className="col-qty text-center">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
-              <TableRow>
+              <TableRow className="header-row-divider">
                 <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
                 </TableCell>
@@ -156,8 +156,8 @@ function PrintPageContent() {
           </Table>
 
           <div className="flex justify-between items-start mt-2">
-            <div className="summary-label label-total-items text-left pt-1">
-              Total Items: <span className="font-mono font-bold">{items.length}</span>
+            <div className="label-total-items text-left pt-1">
+              Total Items: <span className="value-total-items font-mono font-bold">{items.length}</span>
             </div>
             <table className="summary-table">
               <tbody>
@@ -310,7 +310,12 @@ function PrintPageContent() {
             font-weight: 800 !important;
             font-size: 14px !important;
             text-align: left;
+            padding-top: 0px !important;
             padding-bottom: 0px !important;
+          }
+          
+          .print-root.thermal .header-row-divider td {
+            padding: 0 !important;
           }
 
           .print-root.thermal .text-center {
@@ -380,16 +385,21 @@ function PrintPageContent() {
           .print-root.thermal .label-total-items {
             font-size: 13px;
             font-weight: 700;
+            white-space: nowrap;
+          }
+          .print-root.thermal .value-total-items {
+            font-size: 12px;
+            margin-left: 2px;
           }
           .print-root.thermal .summary-value {
             text-align: right;
             white-space: nowrap;
           }
           .print-root.thermal .summary-total-row td {
-            border-top: 2px solid black;
             font-weight: bold;
           }
            .print-root.thermal .summary-final-balance td {
+            border-top: 2px solid black;
             font-size: 16px;
             font-weight: 800;
           }
