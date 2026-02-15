@@ -767,13 +767,13 @@ export default function BillingPage() {
       <div className="grid auto-rows-max items-start gap-4 pb-24 md:pb-4 lg:grid-cols-2 lg:gap-8">
         <div className="grid auto-rows-max gap-4">
           <Card>
-            <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between pb-2">
               <div>
                 <CardTitle className="font-headline">
                   {activeBillNo ? `Editing Bill ${activeBillNo}` : 'Create Bill'}
                 </CardTitle>
                 <CardDescription>
-                  Select customer, add products, and generate a bill.
+                  Manage active transaction.
                 </CardDescription>
               </div>
               <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
@@ -806,51 +806,49 @@ export default function BillingPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="customer">Customer</Label>
-                  <ReactSelect
-                    ref={customerSelectRef}
-                    instanceId="customer-select"
-                    placeholder="Select customer or leave blank for walk-in..."
-                    isClearable
-                    tabSelectsValue={true}
-                    onInputChange={(val) => setCustomerSearchText(val)}
-                    options={customers.map((c) => ({
-                      value: c.id,
-                      label: `${c.name_en} (${c.name_ta})`,
-                    }))}
-                    value={
-                      selectedCustomerData
-                        ? {
-                            value: selectedCustomerData.id,
-                            label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
-                          }
-                        : null
+              <div className="grid gap-2">
+                <Label htmlFor="customer">Customer</Label>
+                <ReactSelect
+                  ref={customerSelectRef}
+                  instanceId="customer-select"
+                  placeholder="Select customer or leave blank for walk-in..."
+                  isClearable
+                  tabSelectsValue={true}
+                  onInputChange={(val) => setCustomerSearchText(val)}
+                  options={customers.map((c) => ({
+                    value: c.id,
+                    label: `${c.name_en} (${c.name_ta})`,
+                  }))}
+                  value={
+                    selectedCustomerData
+                      ? {
+                          value: selectedCustomerData.id,
+                          label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
+                        }
+                      : null
+                  }
+                  onChange={(option) => {
+                    const customerId = option ? option.value : '';
+                    handleCustomerSelect(customerId);
+                    if (!customerId) {
+                      setWalkInConfirmed(false);
                     }
-                    onChange={(option) => {
-                      const customerId = option ? option.value : '';
-                      handleCustomerSelect(customerId);
-                      if (!customerId) {
-                        setWalkInConfirmed(false);
-                      }
-                    }}
-                    onKeyDown={handleCustomerKeyDown}
-                    styles={reactSelectStyles}
-                  />
-                </div>
+                  }}
+                  onKeyDown={handleCustomerKeyDown}
+                  styles={reactSelectStyles}
+                />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">Add Item</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-headline text-lg">Add Item</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="grid flex-grow-[3] basis-72 gap-2">
-                  <Label htmlFor="product">Product</Label>
+              <div className="flex flex-nowrap items-end gap-3">
+                <div className="grid flex-[4] min-w-0 gap-1.5">
+                  <Label htmlFor="product" className="text-xs">Product</Label>
                   <div className="relative">
                     <ReactSelect
                       instanceId="product-select"
@@ -916,8 +914,8 @@ export default function BillingPage() {
                     </Button>
                   </div>
                 </div>
-                <div className="grid flex-grow-[1] basis-28 gap-2">
-                  <Label htmlFor="uom">UOM</Label>
+                <div className="grid w-24 shrink-0 gap-1.5">
+                  <Label htmlFor="uom" className="text-xs">UOM</Label>
                   <Select
                     value={uom}
                     onValueChange={setUom}
@@ -935,8 +933,8 @@ export default function BillingPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid flex-grow-[1] basis-28 gap-2">
-                  <Label htmlFor="qty">Qty</Label>
+                <div className="grid w-24 shrink-0 gap-1.5">
+                  <Label htmlFor="qty" className="text-xs">Qty</Label>
                   <Input
                     id="qty"
                     type="number"
@@ -947,8 +945,8 @@ export default function BillingPage() {
                     onKeyDown={handleQtyKeyDown}
                   />
                 </div>
-                <div className="grid flex-grow-[1] basis-28 gap-2">
-                  <Label htmlFor="rate">Rate (₹)</Label>
+                <div className="grid w-24 shrink-0 gap-1.5">
+                  <Label htmlFor="rate" className="text-xs">Rate</Label>
                   <Input
                     id="rate"
                     type="number"
@@ -959,14 +957,14 @@ export default function BillingPage() {
                     onKeyDown={handleRateKeyDown}
                   />
                 </div>
-                <div className="hidden flex-grow-[1] basis-16 md:block">
+                <div className="shrink-0">
                   <Button
                     onClick={handleAddItem}
-                    className="w-full"
-                    size="sm"
+                    className="h-10 w-10 p-0"
+                    size="icon"
                   >
-                    <PlusCircle className="h-4 w-4 md:mr-2" />
-                    <span className="sr-only md:not-sr-only">Add</span>
+                    <PlusCircle className="h-5 w-5" />
+                    <span className="sr-only">Add Item</span>
                   </Button>
                 </div>
               </div>
