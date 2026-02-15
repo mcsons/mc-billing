@@ -119,7 +119,7 @@ function PrintPageContent() {
               </TableRow>
               <TableRow className="header-content-row">
                 <TableHead className="col-product">Product</TableHead>
-                <TableHead className="col-qty text-center">Qty</TableHead>
+                <TableHead className="col-qty text-right">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
@@ -326,7 +326,7 @@ function PrintPageContent() {
 
             .print-root.thermal .print-table td.col-qty,
             .print-root.thermal .print-table th.col-qty {
-              text-align: center !important;
+              text-align: right !important;
             }
 
             .print-root.thermal .print-table td.col-rate,
