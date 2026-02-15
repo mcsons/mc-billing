@@ -974,7 +974,7 @@ export default function BillingPage() {
 
         <div className="lg:sticky lg:top-20">
           <Card>
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription>
                 {selectedCustomerId
@@ -982,20 +982,18 @@ export default function BillingPage() {
                   : 'No customer selected. Add items for a walk-in bill.'}
               </CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[22rem] overflow-auto">
-              <div className="overflow-x-auto">
-                <Table>
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[22rem] overflow-auto p-0 border-t">
+              <div className="">
+                <Table className="w-full table-fixed border-collapse">
                   <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[40px] font-bold text-base">S/N</TableHead>
-                      <TableHead className="font-bold text-base">Product (பெயர்)</TableHead>
-                      <TableHead className="font-bold text-base">UOM</TableHead>
-                      <TableHead className="text-right font-bold text-base">Qty</TableHead>
-                      <TableHead className="w-40 text-right font-bold text-base">
-                        Rate (₹)
-                      </TableHead>
-                      <TableHead className="text-right font-bold text-base">Amount (₹)</TableHead>
-                      <TableHead className="text-right font-bold text-base">Actions</TableHead>
+                    <TableRow className="hover:bg-transparent border-b">
+                      <TableHead className="w-[35px] px-1 text-center font-bold text-xs uppercase text-muted-foreground">S/N</TableHead>
+                      <TableHead className="px-1 text-left font-bold text-xs uppercase text-muted-foreground">Product (பெயர்)</TableHead>
+                      <TableHead className="w-[50px] px-1 text-center font-bold text-xs uppercase text-muted-foreground">UOM</TableHead>
+                      <TableHead className="w-[75px] px-1 text-center font-bold text-xs uppercase text-muted-foreground text-center">Qty</TableHead>
+                      <TableHead className="w-[95px] px-1 text-right font-bold text-xs uppercase text-muted-foreground">Rate</TableHead>
+                      <TableHead className="w-[105px] px-1 text-right font-bold text-xs uppercase text-muted-foreground">Amount</TableHead>
+                      <TableHead className="w-[45px] px-1 text-right font-bold text-xs uppercase text-muted-foreground"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1007,13 +1005,13 @@ export default function BillingPage() {
                       </TableRow>
                     ) : billItems && billItems.length > 0 ? (
                       billItems.map((item, index) => (
-                        <TableRow key={item.id}>
-                          <TableCell>{index + 1}</TableCell>
-                          <TableCell className="font-medium">
+                        <TableRow key={item.id} className="h-10 hover:bg-muted/50 border-b last:border-0">
+                          <TableCell className="px-1 text-center text-sm text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="px-1 font-medium text-sm truncate" title={item.product}>
                             {item.product}
                           </TableCell>
-                          <TableCell>{item.uom}</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="px-1 text-center text-sm">{item.uom}</TableCell>
+                          <TableCell className="px-1">
                             <Input
                               type="number"
                               defaultValue={item.qty}
@@ -1021,10 +1019,10 @@ export default function BillingPage() {
                                 persistItemUpdate(item.id, 'qty', e.target.value)
                               }
                               onFocus={(e) => e.target.select()}
-                              className="ml-auto h-8 w-24 text-right font-mono text-base"
+                              className="mx-auto h-7 w-[65px] text-center font-mono text-sm px-1"
                             />
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="px-1 text-right">
                             <Input
                               type="number"
                               defaultValue={item.rate}
@@ -1032,19 +1030,20 @@ export default function BillingPage() {
                                 persistItemUpdate(item.id, 'rate', e.target.value)
                               }
                               onFocus={(e) => e.target.select()}
-                              className="ml-auto h-8 w-24 text-right font-mono text-base"
+                              className="ml-auto h-7 w-[85px] text-right font-mono text-sm px-1"
                             />
                           </TableCell>
-                          <TableCell className="text-right font-mono text-base">
+                          <TableCell className="px-1 text-right font-mono text-sm font-semibold">
                             {item.amount.toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="px-1 text-right">
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                               onClick={() => handleRemoveItem(item.id)}
                             >
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                              <Trash2 className="h-4 w-4" />
                               <span className="sr-only">Delete item</span>
                             </Button>
                           </TableCell>
@@ -1052,7 +1051,7 @@ export default function BillingPage() {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center">
+                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                             No items added yet.
                         </TableCell>
                       </TableRow>
