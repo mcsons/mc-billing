@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -63,6 +64,7 @@ function PrintPageContent() {
     date,
     customer,
     items,
+    itemsTotal,
     deliveryCharge,
     totalAmount,
     previousBalance,
@@ -158,25 +160,23 @@ function PrintPageContent() {
           <div className="flex justify-end mt-2">
             <table className="summary-table">
               <tbody>
-                {deliveryCharge > 0 && (
-                  <tr>
-                    <td className="summary-label">Delivery Charge:</td>
-                    <td className="summary-value font-mono">₹{deliveryCharge.toFixed(2)}</td>
-                  </tr>
-                )}
-                <tr className="summary-total-row">
-                  <td className="summary-label">Bill Total:</td>
-                  <td className="summary-value font-mono">₹{totalAmount.toFixed(2)}</td>
+                <tr>
+                  <td className="summary-label">Items Total:</td>
+                  <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
                 </tr>
                 <tr>
                   <td className="summary-label">Previous Balance:</td>
                   <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
                 </tr>
+                <tr className="summary-divider-row summary-total-row">
+                  <td className="summary-label">Bill Total:</td>
+                  <td className="summary-value font-mono">₹{(itemsTotal + previousBalance).toFixed(2)}</td>
+                </tr>
                 <tr>
                   <td className="summary-label">Received Amount:</td>
                   <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
                 </tr>
-                <tr className="summary-total-row summary-final-balance">
+                <tr className="summary-divider-row summary-total-row summary-final-balance">
                   <td className="summary-label">Final Balance:</td>
                   <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
                 </tr>
@@ -337,7 +337,7 @@ function PrintPageContent() {
 
           /* === COLUMN WIDTH DISTRIBUTION === */
           .print-root.thermal .col-product { 
-            width: 64%; /* Increased for lengthier text */
+            width: 64%; 
             font-size: 12px;
             line-height: 1.1;
             white-space: normal; 
@@ -390,8 +390,10 @@ function PrintPageContent() {
           .print-root.thermal .summary-total-row td {
             font-weight: bold;
           }
-           .print-root.thermal .summary-final-balance td {
+          .print-root.thermal .summary-divider-row td {
             border-top: 2px solid black;
+          }
+           .print-root.thermal .summary-final-balance td {
             font-size: 16px;
             font-weight: 800;
           }
