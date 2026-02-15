@@ -118,7 +118,7 @@ function PrintPageContent() {
                 </TableCell>
               </TableRow>
               <TableRow className="header-content-row">
-                <TableHead className="col-product">Product</TableHead>
+                <TableHead className="col-product text-left">Product</TableHead>
                 <TableHead className="col-qty text-right">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
@@ -132,7 +132,7 @@ function PrintPageContent() {
             <TableBody>
               {items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="col-product">{item.product}</TableCell>
+                  <TableCell className="col-product text-left">{item.product}</TableCell>
                   <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                       <strong>{item.qty}</strong>
@@ -304,14 +304,13 @@ function PrintPageContent() {
           .print-root.thermal .print-table th,
           .print-root.thermal .print-table td {
             border: none;
-            padding: 2px;
+            padding: 0px 2px;
             vertical-align: middle !important;
           }
 
           .print-root.thermal .print-table thead th {
             font-weight: 800 !important;
             font-size: 14px !important;
-            text-align: left;
             padding-top: 0px !important;
             padding-bottom: 0px !important;
           }
@@ -323,23 +322,13 @@ function PrintPageContent() {
           .print-root.thermal .text-center {
             text-align: center !important;
           }
-
-            .print-root.thermal .print-table td.col-qty,
-            .print-root.thermal .print-table th.col-qty {
-              text-align: right !important;
-            }
-
-            .print-root.thermal .print-table td.col-rate,
-            .print-root.thermal .print-table th.col-rate,
-            .print-root.thermal .print-table td.col-amount,
-            .print-root.thermal .print-table th.col-amount {
-              text-align: right !important;
-            }
-
-          .print-root.thermal .print-table .text-right {
-            text-align: right;
+          .print-root.thermal .text-left {
+            text-align: left !important;
           }
-          
+          .print-root.thermal .text-right {
+            text-align: right !important;
+          }
+
           .print-root.thermal .print-table tbody td {
             font-weight: 700 !important;
             font-size: 13px;
@@ -348,7 +337,7 @@ function PrintPageContent() {
 
           /* === COLUMN WIDTH DISTRIBUTION === */
           .print-root.thermal .col-product { 
-            width: 58%; 
+            width: 64%; /* Increased for lengthier text */
             font-size: 12px;
             line-height: 1.1;
             white-space: normal; 
@@ -356,15 +345,15 @@ function PrintPageContent() {
           }
 
           .print-root.thermal .col-qty {
-            width: 14%;
-          }
-
-          .print-root.thermal .col-rate {
             width: 12%;
           }
 
+          .print-root.thermal .col-rate {
+            width: 10%;
+          }
+
           .print-root.thermal .col-amount {
-            width: 16%;
+            width: 14%;
           }
 
           .print-root.thermal .uom-text {
