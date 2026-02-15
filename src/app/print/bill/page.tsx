@@ -155,10 +155,7 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-between items-start mt-2">
-            <div className="label-total-items text-left pt-1">
-              Total Items: <span className="value-total-items font-mono font-bold">{items.length}</span>
-            </div>
+          <div className="flex justify-end mt-2">
             <table className="summary-table">
               <tbody>
                 {deliveryCharge > 0 && (
@@ -176,7 +173,7 @@ function PrintPageContent() {
                   <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
                 </tr>
                 <tr>
-                  <td className="summary-label">Recieved Amount:</td>
+                  <td className="summary-label">Received Amount:</td>
                   <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
                 </tr>
                 <tr className="summary-total-row summary-final-balance">
@@ -186,7 +183,12 @@ function PrintPageContent() {
               </tbody>
             </table>
           </div>
-          <footer className="print-footer">Developed by MC & SONS</footer>
+          
+          <div className="label-total-items text-right mt-3 px-1">
+            Total Items: <span className="value-total-items font-mono">{items.length}</span>
+          </div>
+
+          <footer className="print-footer mt-4">Developed by MC & SONS</footer>
         </div>
       </div>
       <style jsx global>{`
@@ -303,7 +305,7 @@ function PrintPageContent() {
           .print-root.thermal .print-table td {
             border: none;
             padding: 2px;
-            vertical-align: top;
+            vertical-align: middle !important;
           }
 
           .print-root.thermal .print-table thead th {
@@ -341,6 +343,7 @@ function PrintPageContent() {
           .print-root.thermal .print-table tbody td {
             font-weight: 700 !important;
             font-size: 13px;
+            line-height: 1.4;
           }
 
           /* === COLUMN WIDTH DISTRIBUTION === */
@@ -388,8 +391,8 @@ function PrintPageContent() {
             white-space: nowrap;
           }
           .print-root.thermal .value-total-items {
-            font-size: 12px;
-            margin-left: 2px;
+            font-size: 13px;
+            font-weight: 700;
           }
           .print-root.thermal .summary-value {
             text-align: right;
