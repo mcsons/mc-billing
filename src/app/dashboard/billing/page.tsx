@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -201,6 +202,11 @@ export default function BillingPage() {
 
   // Centralized Effect for State Initialization and Customer Changes
   useEffect(() => {
+    // If a reset was just triggered, we ignore the initialization logic until state settles.
+    if (initializationPathRef.current === "RESETTING") {
+        return;
+    }
+
     const billNoFromParams = searchParams.get('billNo');
     const pathKey = `${selectedCustomerId}-${billNoFromParams}`;
     
@@ -459,8 +465,12 @@ export default function BillingPage() {
    * This is a silent reset used after successful save or when confirmed by user.
    */
   const performReset = useCallback(() => {
-    initializationPathRef.current = null;
+    // 1. Mark as resetting to stop initialization effects from picking up stale URL params
+    initializationPathRef.current = "RESETTING";
+    
+    // 2. Clear all local state variables to their default values
     setSelectedCustomerId('');
+    setCustomerSearchText('');
     setActiveBillNo(null);
     setDate(new Date());
     setSelectedProductId('');
@@ -471,16 +481,23 @@ export default function BillingPage() {
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
     
-    // Clear product selection UI
+    // 3. Explicitly clear controlled UI components
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
     }
+    if (customerSelectRef.current) {
+      customerSelectRef.current.clearValue();
+    }
     
-    // Reset routing and focus
+    // 4. Update the URL to remove any billNo parameters
     router.replace('/dashboard/billing');
+    
+    // 5. After a short delay to allow React state and Router to settle, 
+    // re-enable initialization and focus the customer field.
     setTimeout(() => {
+      initializationPathRef.current = `-${null}`; // Matches the pathKey for a clean state
       customerSelectRef.current?.focus();
-    }, 50);
+    }, 100);
   }, [router]);
 
   /**
