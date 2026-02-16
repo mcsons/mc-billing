@@ -140,6 +140,7 @@ export default function BillingPage() {
   const productSelectRef = useRef<any>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
+  const uomTriggerRef = useRef<HTMLButtonElement>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
   const initializationPathRef = useRef<string | null>(null);
 
@@ -854,6 +855,8 @@ export default function BillingPage() {
                       instanceId="product-select"
                       placeholder="Select product..."
                       isClearable
+                      tabSelectsValue={true}
+                      openMenuOnFocus={true}
                       options={products.map((p) => ({
                         value: p.id,
                         label: `${p.name_en} (${p.name_ta})`,
@@ -884,6 +887,11 @@ export default function BillingPage() {
                           } else {
                             setUom(product.uom_allowed[0]);
                           }
+                        }
+                        
+                        // Advance focus to UOM
+                        if (option) {
+                          setTimeout(() => uomTriggerRef.current?.focus(), 0);
                         }
                       }}
                       styles={reactSelectStyles}
@@ -918,10 +926,14 @@ export default function BillingPage() {
                   <Label htmlFor="uom" className="text-xs">UOM</Label>
                   <Select
                     value={uom}
-                    onValueChange={setUom}
+                    onValueChange={(val) => {
+                      setUom(val);
+                      // Confirm and move to Qty
+                      setTimeout(() => qtyInputRef.current?.focus(), 50);
+                    }}
                     disabled={!selectedProductData}
                   >
-                    <SelectTrigger id="uom">
+                    <SelectTrigger id="uom" ref={uomTriggerRef}>
                       <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
