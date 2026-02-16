@@ -454,7 +454,11 @@ export default function BillingPage() {
     });
   };
 
-  const handleNewBill = () => {
+  /**
+   * Resets the entire billing form to its initial fresh state.
+   * This is a silent reset used after successful save or when confirmed by user.
+   */
+  const performReset = useCallback(() => {
     initializationPathRef.current = null;
     setSelectedCustomerId('');
     setActiveBillNo(null);
@@ -466,9 +470,45 @@ export default function BillingPage() {
     setDeliveryCharge('');
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
+    
+    // Clear product selection UI
+    if (productSelectRef.current) {
+      productSelectRef.current.clearValue();
+    }
+    
+    // Reset routing and focus
     router.replace('/dashboard/billing');
-    customerSelectRef.current?.focus();
-  };
+    setTimeout(() => {
+      customerSelectRef.current?.focus();
+    }, 50);
+  }, [router]);
+
+  /**
+   * Handles the "New Bill" button click with unsaved changes protection.
+   */
+  const handleNewBill = useCallback(() => {
+    // Detect if any data has been entered or a bill is active
+    const hasChanges = 
+      selectedCustomerId !== '' || 
+      (billItems && billItems.length > 0) || 
+      qty !== '' || 
+      rate !== '' || 
+      paidAmount !== '' || 
+      deliveryCharge !== '' ||
+      activeBillNo !== null;
+
+    if (hasChanges) {
+      showAlertDialog({
+        title: 'Unsaved Changes',
+        description: 'You have unsaved changes. Are you sure you want to create a new bill?',
+        confirmText: 'Yes, Discard and Start New',
+        cancelText: 'Cancel',
+        onConfirm: performReset,
+      });
+    } else {
+      performReset();
+    }
+  }, [selectedCustomerId, billItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, showAlertDialog, performReset]);
 
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
@@ -595,7 +635,7 @@ export default function BillingPage() {
     }
     const savedData = await handleSaveAndGetData();
     if (savedData) {
-      handleNewBill();
+      performReset();
     }
   };
 
@@ -613,7 +653,10 @@ export default function BillingPage() {
           return;
       }
       const savedData = await handleSaveAndGetData();
-      proceedToPrint(savedData);
+      if (savedData) {
+        proceedToPrint(savedData);
+        performReset();
+      }
       setShowPrintConfirm(false);
   };
   
