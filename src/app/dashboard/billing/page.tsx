@@ -205,24 +205,20 @@ export default function BillingPage() {
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
     
-    // If we are currently transitioning away from a bill (New Bill click), 
-    // ignore the stale URL parameter until it is cleared.
     if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) {
         return;
     }
 
-    // Once the URL is clean (params are gone), clear the ignore ref
     if (!billNoFromParams && ignoreUrlBillNoRef.current) {
         ignoreUrlBillNoRef.current = null;
     }
 
-    // Case 1: Load a specific bill from the URL
     if (billNoFromParams) {
-      if (activeBillNo === billNoFromParams) return; // Already loaded
+      if (activeBillNo === billNoFromParams) return; 
 
       const billToEdit = getBill(billNoFromParams);
       if (billToEdit) {
-        setSelectedCustomerId(billToEdit.customerId === 'WALK-IN' ? '' : billToEdit.customerId);
+        setSelectedCustomerId(billToEdit.customerId);
         setActiveBillNo(billToEdit.billNo);
         setInitialBillTotal(billToEdit.amount);
         setDeliveryCharge(billToEdit.deliveryCharge?.toString() || '');
@@ -235,7 +231,6 @@ export default function BillingPage() {
       }
     }
 
-    // Case 2: Selected a customer manually (Find today's existing bill if any)
     if (selectedCustomerId && !billNoFromParams) {
       const existingBill = findBillForCustomerToday(selectedCustomerId);
       if (existingBill) {
@@ -245,8 +240,6 @@ export default function BillingPage() {
             setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
         }
       } else if (activeBillNo) {
-          // If a new customer was picked and they don't have a bill today, 
-          // clear any previously active bill context.
           setActiveBillNo(null);
           setInitialBillTotal(0);
           setDeliveryCharge('');
@@ -254,7 +247,6 @@ export default function BillingPage() {
       return;
     }
 
-    // Case 3: Standard clean slate (No URL params, no customer)
     if (!billNoFromParams && !selectedCustomerId && activeBillNo) {
         setActiveBillNo(null);
         setInitialBillTotal(0);
@@ -312,7 +304,7 @@ export default function BillingPage() {
 
     const customer = customers.find((c) => c.id === selectedCustomerId);
     
-    const summaryCustomerId = customer ? customer.id : 'WALK-IN';
+    const summaryCustomerId = customer ? customer.id : (selectedCustomerId || 'WALK-IN');
     const summaryCustomerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
 
     const currentItems = billItems || [];
@@ -342,11 +334,9 @@ export default function BillingPage() {
     setQty('');
     setRate('');
     
-    // Clear the selection in ReactSelect
     if (productSelectRef.current) {
         productSelectRef.current.clearValue();
     }
-    // Explicitly set productId to empty and focus
     setSelectedProductId('');
     productSelectRef.current?.focus();
 
@@ -436,7 +426,6 @@ export default function BillingPage() {
                 <ToastAction altText="Undo" onClick={() => {
                   const undoBatch = writeBatch(firestore);
                   undoBatch.set(itemRef, itemToDelete);
-                  // Recalculate bill total with restored item
                   const restoredItemsTotal = remainingItems.reduce((sum, item) => sum + item.amount, 0) + itemToDelete.amount;
                   const restoredBillTotal = restoredItemsTotal + (parseFloat(deliveryCharge) || 0);
                   undoBatch.update(billRef, { amount: restoredBillTotal });
@@ -459,14 +448,9 @@ export default function BillingPage() {
     });
   };
 
-  /**
-   * Resets the entire billing form to its initial fresh state.
-   */
   const performReset = useCallback(() => {
-    // 1. Capture the bill ID we are navigating away from to prevent synchronization logic from re-populating it
     ignoreUrlBillNoRef.current = searchParams.get('billNo');
     
-    // 2. Clear all local state variables immediately
     setSelectedCustomerId('');
     setCustomerSearchText('');
     setActiveBillNo(null);
@@ -479,7 +463,6 @@ export default function BillingPage() {
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
     
-    // 3. Explicitly clear controlled UI components
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
     }
@@ -487,18 +470,13 @@ export default function BillingPage() {
       customerSelectRef.current.clearValue();
     }
     
-    // 4. Update the URL to remove any parameters
     router.replace('/dashboard/billing');
     
-    // 5. Focus the customer field for the next entry
     setTimeout(() => {
       customerSelectRef.current?.focus();
     }, 100);
   }, [router, searchParams]);
 
-  /**
-   * Handles the "New Bill" button click with unsaved changes protection.
-   */
   const handleNewBill = useCallback(() => {
     const hasChanges = 
       selectedCustomerId !== '' || 
@@ -535,7 +513,7 @@ export default function BillingPage() {
       return null;
     }
     
-    if (!customer && selectedCustomerId) {
+    if (!customer && selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
         toast({
             variant: 'destructive',
             title: 'Customer Not Found',
@@ -613,7 +591,7 @@ export default function BillingPage() {
     const finalFinalBalance =
         finalPreviousBalance + finalTotalAmount - paidAmountNum;
 
-    const printCustomer = customer || { id: 'WALK-IN', name_en: '-', name_ta: '-', phone: '-' };
+    const printCustomer = customer || { id: 'WALK-IN', name_en: 'Walk-in Customer', name_ta: 'வாடிக்கையாளர்', phone: '-' };
 
     const billNo = activeBillNo || (() => {
         const maxBillNo = (liveBillSummaries || [])
@@ -641,7 +619,7 @@ export default function BillingPage() {
 
   const handleSaveBill = async () => {
     if (!selectedCustomerId) {
-        toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer to save the bill.' });
+        toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer or confirm as walk-in to save.' });
         return;
     }
     const savedData = await handleSaveAndGetData();
@@ -802,6 +780,7 @@ export default function BillingPage() {
         cancelText: 'No, Select Customer',
         onConfirm: () => {
           setWalkInConfirmed(true);
+          setSelectedCustomerId('WALK-IN');
           setTimeout(() => productSelectRef.current?.focus(), 50);
         },
         onCancel: () => {
@@ -874,6 +853,8 @@ export default function BillingPage() {
                           value: selectedCustomerData.id,
                           label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})`,
                         }
+                      : selectedCustomerId === 'WALK-IN'
+                      ? { value: 'WALK-IN', label: 'Walk-in Customer' }
                       : null
                   }
                   onChange={(option) => {
@@ -937,7 +918,6 @@ export default function BillingPage() {
                           }
                         }
                         
-                        // Advance focus to UOM
                         if (option) {
                           setTimeout(() => uomTriggerRef.current?.focus(), 0);
                         }
@@ -976,7 +956,6 @@ export default function BillingPage() {
                     value={uom}
                     onValueChange={(val) => {
                       setUom(val);
-                      // Confirm and move to Qty
                       setTimeout(() => qtyInputRef.current?.focus(), 50);
                     }}
                     disabled={!selectedProductData}
@@ -1037,7 +1016,9 @@ export default function BillingPage() {
             <CardHeader className="pb-2">
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription>
-                {selectedCustomerId
+                {selectedCustomerId === 'WALK-IN'
+                  ? 'Items added for Walk-in Customer.'
+                  : selectedCustomerId
                   ? `Items added for ${selectedCustomerData?.name_en}.`
                   : 'No customer selected. Add items for a walk-in bill.'}
               </CardDescription>
