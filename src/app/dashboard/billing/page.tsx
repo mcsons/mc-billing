@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -136,14 +135,16 @@ export default function BillingPage() {
   const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
 
-  // Refs for keyboard navigation
+  // Refs for keyboard navigation and state management
   const customerSelectRef = useRef<any>(null);
   const productSelectRef = useRef<any>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
   const uomTriggerRef = useRef<HTMLButtonElement>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
-  const initializationPathRef = useRef<string | null>(null);
+  
+  // Guard ref to prevent the URL from re-populating state immediately after a reset
+  const ignoreUrlBillNoRef = useRef<string | null>(null);
 
 
   // --- Reactive Bill Items from Firestore ---
@@ -200,30 +201,28 @@ export default function BillingPage() {
     customerSelectRef.current?.focus();
   }, []);
 
-  // Centralized Effect for State Initialization and Customer Changes
+  // Centralized Effect for State Initialization and URL Synchronization
   useEffect(() => {
-    // If a reset was just triggered, we ignore the initialization logic until state settles.
-    if (initializationPathRef.current === "RESETTING") {
+    const billNoFromParams = searchParams.get('billNo');
+    
+    // If we are currently transitioning away from a bill (New Bill click), 
+    // ignore the stale URL parameter until it is cleared.
+    if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) {
         return;
     }
 
-    const billNoFromParams = searchParams.get('billNo');
-    const pathKey = `${selectedCustomerId}-${billNoFromParams}`;
-    
-    // Safety check: If we've already initialized for this path, or if we have an active bill 
-    // that matches the current selection, don't reset. This protects ongoing billing (adding items).
-    if (initializationPathRef.current === pathKey) {
-        return;
+    // Once the URL is clean (params are gone), clear the ignore ref
+    if (!billNoFromParams && ignoreUrlBillNoRef.current) {
+        ignoreUrlBillNoRef.current = null;
     }
-    
-    // Case 1: Editing a specific bill via URL parameter
+
+    // Case 1: Load a specific bill from the URL
     if (billNoFromParams) {
+      if (activeBillNo === billNoFromParams) return; // Already loaded
+
       const billToEdit = getBill(billNoFromParams);
       if (billToEdit) {
-        initializationPathRef.current = pathKey;
-        if (billToEdit.customerId !== selectedCustomerId) {
-          setSelectedCustomerId(billToEdit.customerId === 'WALK-IN' ? '' : billToEdit.customerId);
-        }
+        setSelectedCustomerId(billToEdit.customerId === 'WALK-IN' ? '' : billToEdit.customerId);
         setActiveBillNo(billToEdit.billNo);
         setInitialBillTotal(billToEdit.amount);
         setDeliveryCharge(billToEdit.deliveryCharge?.toString() || '');
@@ -236,27 +235,27 @@ export default function BillingPage() {
       }
     }
 
-    // Case 2: Selected a specific customer (not in edit mode from URL)
-    if (selectedCustomerId) {
+    // Case 2: Selected a customer manually (Find today's existing bill if any)
+    if (selectedCustomerId && !billNoFromParams) {
       const existingBill = findBillForCustomerToday(selectedCustomerId);
-      initializationPathRef.current = pathKey;
       if (existingBill) {
-        setActiveBillNo(existingBill.billNo);
-        setInitialBillTotal(existingBill.amount);
-        setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
-      } else {
-        setActiveBillNo(null);
-        setInitialBillTotal(0);
-        setDeliveryCharge('');
+        if (activeBillNo !== existingBill.billNo) {
+            setActiveBillNo(existingBill.billNo);
+            setInitialBillTotal(existingBill.amount);
+            setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
+        }
+      } else if (activeBillNo) {
+          // If a new customer was picked and they don't have a bill today, 
+          // clear any previously active bill context.
+          setActiveBillNo(null);
+          setInitialBillTotal(0);
+          setDeliveryCharge('');
       }
-      setPaidAmount('');
       return;
     }
 
-    // Case 3: Walk-in Customer (selectedCustomerId is empty)
-    // Only clear if we don't already have an active bill number we are working on
-    if (!activeBillNo) {
-        initializationPathRef.current = pathKey;
+    // Case 3: Standard clean slate (No URL params, no customer)
+    if (!billNoFromParams && !selectedCustomerId && activeBillNo) {
         setActiveBillNo(null);
         setInitialBillTotal(0);
         setDeliveryCharge('');
@@ -462,13 +461,12 @@ export default function BillingPage() {
 
   /**
    * Resets the entire billing form to its initial fresh state.
-   * This is a silent reset used after successful save or when confirmed by user.
    */
   const performReset = useCallback(() => {
-    // 1. Mark as resetting to stop initialization effects from picking up stale URL params
-    initializationPathRef.current = "RESETTING";
+    // 1. Capture the bill ID we are navigating away from to prevent synchronization logic from re-populating it
+    ignoreUrlBillNoRef.current = searchParams.get('billNo');
     
-    // 2. Clear all local state variables to their default values
+    // 2. Clear all local state variables immediately
     setSelectedCustomerId('');
     setCustomerSearchText('');
     setActiveBillNo(null);
@@ -489,22 +487,19 @@ export default function BillingPage() {
       customerSelectRef.current.clearValue();
     }
     
-    // 4. Update the URL to remove any billNo parameters
+    // 4. Update the URL to remove any parameters
     router.replace('/dashboard/billing');
     
-    // 5. After a short delay to allow React state and Router to settle, 
-    // re-enable initialization and focus the customer field.
+    // 5. Focus the customer field for the next entry
     setTimeout(() => {
-      initializationPathRef.current = `-${null}`; // Matches the pathKey for a clean state
       customerSelectRef.current?.focus();
     }, 100);
-  }, [router]);
+  }, [router, searchParams]);
 
   /**
    * Handles the "New Bill" button click with unsaved changes protection.
    */
   const handleNewBill = useCallback(() => {
-    // Detect if any data has been entered or a bill is active
     const hasChanges = 
       selectedCustomerId !== '' || 
       (billItems && billItems.length > 0) || 
@@ -645,7 +640,6 @@ export default function BillingPage() {
 
 
   const handleSaveBill = async () => {
-    // Only allow saving if a customer is selected
     if (!selectedCustomerId) {
         toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer to save the bill.' });
         return;
@@ -664,7 +658,6 @@ export default function BillingPage() {
   };
 
   const handleSaveAndPrintConfirm = async () => {
-      // "Save & Print" should only work if a customer is selected.
       if (!selectedCustomerId) {
           toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer to save and print.' });
           return;
@@ -707,8 +700,6 @@ export default function BillingPage() {
         });
         return;
     }
-    
-    // Logic updated: Only show confirmation dialog, don't auto-open preview tab
     setShowWhatsAppShareConfirm(true);
   };
 
@@ -782,7 +773,6 @@ export default function BillingPage() {
   );
 
   const handleCustomerSelect = (customerId: string) => {
-    initializationPathRef.current = null;
     router.replace('/dashboard/billing');
     setSelectedCustomerId(customerId);
   };
@@ -802,8 +792,6 @@ export default function BillingPage() {
   };
 
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
-    // Only trigger walk-in confirmation if TAB is pressed, no customer is selected, 
-    // AND the search box is entirely empty.
     if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !customerSearchText && !walkInConfirmed) {
       e.preventDefault(); 
       showAlertDialog({
