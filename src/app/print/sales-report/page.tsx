@@ -61,7 +61,13 @@ function PrintPageContent() {
   } = printData;
 
   const totalQtyString = Object.entries(totalQty)
-    .map(([uom, qty]) => `${qty.toFixed(2)}${uom}`)
+    .map(([uom, qty]) => {
+        // Apply unit-specific formatting: BOX as whole numbers, others with decimals
+        if (uom.toUpperCase() === 'BOX') {
+            return `${Math.round(qty)}${uom}`;
+        }
+        return `${qty.toFixed(2)}${uom}`;
+    })
     .join(', ');
 
   return (
@@ -253,7 +259,9 @@ function PrintPageContent() {
           .col-itemname { 
             width: 40%; 
             white-space: normal;
-            font-size: 12px !important; /* Reduced for more space */
+            font-size: 11px !important; 
+            padding-right: 3mm; /* Spacing between ItemName and Qty */
+            word-break: keep-all; /* Wrap only at whitespace, do not split characters */
           }
           .col-qty { 
             width: 15%; 
