@@ -102,7 +102,12 @@ function PrintPageContent() {
             </div>
             
             <div className="text-sm">
-                <p><span className="font-semibold">Customer Name:</span> {customer?.name_ta || customer?.name_en || '-'}</p>
+                <p>
+                  <span className="font-semibold">Customer Name:</span>{" "}
+                  <strong className="cust-name-highlight">
+                    {customer?.name_ta || customer?.name_en || '-'}
+                  </strong>
+                </p>
             </div>
             
             {/* Blank line for spacing */}
@@ -135,8 +140,8 @@ function PrintPageContent() {
                             <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
                             <TableCell className="col-itemname">{item.product}</TableCell>
                             <TableCell className="col-qty text-center">{item.qty.toFixed(1)} {item.uom}</TableCell>
-                            <TableCell className="col-rate text-right">{item.rate.toFixed(2)}</TableCell>
-                            <TableCell className="col-amount text-right">{item.amount.toFixed(2)}</TableCell>
+                            <TableCell className="col-rate text-right">{Math.round(item.rate)}</TableCell>
+                            <TableCell className="col-amount text-right">{Math.round(item.amount)}</TableCell>
                         </TableRow>
                     ))
                 ))}
@@ -152,16 +157,16 @@ function PrintPageContent() {
                 <div className="flex">
                     <span className="w-[40%] font-bold">Total ==&gt;</span>
                     <span className="w-[30%] text-center">{totalQtyString}</span>
-                    <span className="w-[30%] text-right font-bold">{totalAmount.toFixed(2)}</span>
+                    <span className="w-[30%] text-right font-bold">{Math.round(totalAmount)}</span>
                 </div>
                 <div className="hr-line"></div>
                 <div className="flex justify-between mt-2">
                     <span className="font-bold">PREVIOUS BALANCE</span>
-                    <span className="font-bold">{previousBalance.toFixed(2)}</span>
+                    <span className="font-bold">{Math.round(previousBalance)}</span>
                 </div>
                 <div className="flex justify-between mt-1 final-balance">
                     <span className="font-bold">NETT AMT</span>
-                    <span className="font-bold">{netAmount.toFixed(2)}</span>
+                    <span className="font-bold">{Math.round(netAmount)}</span>
                 </div>
                 <div className="hr-line"></div>
             </div>
@@ -206,6 +211,12 @@ function PrintPageContent() {
           .hr-line { border-top: 2px solid #000; margin: 6px 0; }
           .table-header-line { border-top: 2px solid #000; margin: 0; }
 
+          /* --- Customer Name Highlight --- */
+          .cust-name-highlight {
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
+
           /* --- Sales Report Table Layout --- */
           .print-table { 
             width: 100%; 
@@ -242,6 +253,7 @@ function PrintPageContent() {
           .col-itemname { 
             width: 40%; 
             white-space: normal;
+            font-size: 12px !important; /* Reduced for more space */
           }
           .col-qty { 
             width: 15%; 
