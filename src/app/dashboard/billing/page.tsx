@@ -38,6 +38,8 @@ import {
   Trash2,
   MoreVertical,
   Share,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { BillItem, Customer } from '@/lib/data';
 import {
@@ -154,6 +156,36 @@ export default function BillingPage() {
     return collection(firestore, 'bills', activeBillNo, 'billItems');
   }, [firestore, activeBillNo]);
   const { data: billItems, isLoading: isBillItemsLoading } = useCollection<BillItem>(billItemsQuery);
+
+  // --- Bill Navigation Logic ---
+  const sortedBills = useMemo(() => {
+    return [...liveBillSummaries]
+      .filter(b => b.amount > 0)
+      .sort((a, b) => {
+        const dateA = a.date ? ((a.date as any).toDate ? (a.date as any).toDate() : new Date(a.date as any)) : new Date(0);
+        const dateB = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date as any)) : new Date(0);
+        return dateB.getTime() - dateA.getTime();
+      });
+  }, [liveBillSummaries]);
+
+  const currentBillIndex = useMemo(() => {
+    if (!activeBillNo) return -1;
+    return sortedBills.findIndex(b => b.billNo === activeBillNo);
+  }, [activeBillNo, sortedBills]);
+
+  const handlePrevBill = () => {
+    if (currentBillIndex > 0) {
+      const prevBill = sortedBills[currentBillIndex - 1];
+      router.push(`/dashboard/billing?billNo=${prevBill.billNo}`);
+    }
+  };
+
+  const handleNextBill = () => {
+    if (currentBillIndex < sortedBills.length - 1 && currentBillIndex !== -1) {
+      const nextBill = sortedBills[currentBillIndex + 1];
+      router.push(`/dashboard/billing?billNo=${nextBill.billNo}`);
+    }
+  };
 
   const reactSelectStyles = {
     control: (baseStyles: any, state: any) => ({
@@ -1144,6 +1176,16 @@ export default function BillingPage() {
                   </span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={handlePrevBill}
+                    disabled={currentBillIndex <= 0}
+                    title="Previous Bill"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
                   <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId}>
                     <Save className="mr-2 h-4 w-4" />
                     Save Bill
@@ -1158,6 +1200,17 @@ export default function BillingPage() {
                   >
                     Print A4
                   </Button>
+
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={handleNextBill}
+                    disabled={currentBillIndex === -1 || currentBillIndex >= sortedBills.length - 1}
+                    title="Next Bill"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+
                   <Button
                     variant="outline"
                     onClick={handleShareWhatsApp}
