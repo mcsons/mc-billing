@@ -251,20 +251,20 @@ function PrintPageContent() {
             font-weight: 700 !important;
           }
           
-          /* --- Column Specific Styles --- */
+          /* --- Column Specific Styles (Adjusted for Alignment) --- */
           .col-billdate { 
             width: 15%; 
             white-space: nowrap;
           }
           .col-itemname { 
-            width: 40%; 
+            width: 48%; 
             white-space: normal;
             font-size: 11px !important; 
-            padding-right: 3mm; /* Spacing between ItemName and Qty */
-            word-break: keep-all; /* Wrap only at whitespace, do not split characters */
+            padding-right: 3mm;
+            word-break: keep-all;
           }
           .col-qty { 
-            width: 15%; 
+            width: 7%; 
             text-align: center;
             white-space: nowrap;
             font-size: 14px !important;
