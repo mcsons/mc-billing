@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -53,7 +54,6 @@ const coreOperations = [
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
-  { href: '/dashboard/history', label: 'Bill History', icon: History },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
 ];
 
@@ -138,7 +138,6 @@ export function DashboardSidebar() {
     if (exact) {
       return pathname === href;
     }
-    // For group items, we check if the path starts with any of the sub-items' paths
     if (href === '/dashboard/balances') {
         return balancesSubItems.some(item => pathname.startsWith(item.href));
     }
