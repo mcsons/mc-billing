@@ -81,7 +81,7 @@ import {
   Timestamp,
   getDocs,
 } from 'firebase/firestore';
-import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useFirestore } from '@/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 
@@ -124,11 +124,15 @@ export default function BillingPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [customerSearchText, setCustomerSearchText] = useState('');
-  const [isProductLocked, setIsProductLocked] = useState(false);
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
 
-  // Form state for new item
+  // SESSION STATE: Local items and static balance
+  const [localBillItems, setLocalBillItems] = useState<BillItem[]>([]);
+  const [isItemsLoading, setIsItemsLoading] = useState(false);
+  const [staticPrevBalance, setStaticPrevBalance] = useState(0);
+
+  // Form state for new item entry
   const [qty, setQty] = useState('');
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
@@ -159,13 +163,7 @@ export default function BillingPage() {
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
   const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
-
-  // Reactive Bill Items
-  const billItemsQuery = useMemoFirebase(() => {
-    if (!firestore || !activeBillNo) return null;
-    return collection(firestore, 'bills', activeBillNo, 'billItems');
-  }, [firestore, activeBillNo]);
-  const { data: billItems, isLoading: isBillItemsLoading } = useCollection<BillItem>(billItemsQuery);
+  const lastSessionKeyRef = useRef('');
 
   // Bill Navigation and History Sorting
   const sortBills = useCallback((bills: LiveBillSummary[]): LiveBillSummary[] => {
@@ -246,61 +244,64 @@ export default function BillingPage() {
     customerSelectRef.current?.focus();
   }, []);
 
-  // Sync state with URL params
+  // SESSION INITIALIZATION: Capture items and static balance when customer/bill changes
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
+    const sessionKey = `${selectedCustomerId}-${billNoFromParams || 'new'}`;
     
-    if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) {
+    if (sessionKey === lastSessionKeyRef.current) return;
+    if (!selectedCustomerId && !billNoFromParams) {
+        lastSessionKeyRef.current = sessionKey;
         return;
     }
 
-    if (!billNoFromParams && ignoreUrlBillNoRef.current) {
-        ignoreUrlBillNoRef.current = null;
-    }
+    if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) return;
 
-    if (billNoFromParams) {
-      if (activeBillNo === billNoFromParams) return; 
-
-      const billToEdit = getBill(billNoFromParams);
-      if (billToEdit) {
-        setSelectedCustomerId(billToEdit.customerId);
-        setActiveBillNo(billToEdit.billNo);
-        setInitialBillTotal(billToEdit.amount);
-        setDeliveryCharge(billToEdit.deliveryCharge?.toString() || '');
-        setPaidAmount('');
-
-        if (billToEdit.date) {
-          setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
+    const initializeSession = async () => {
+        let billToLoad = null;
+        if (billNoFromParams) {
+            billToLoad = getBill(billNoFromParams);
+        } else if (selectedCustomerId) {
+            billToLoad = findBillForCustomerToday(selectedCustomerId);
         }
-        return; 
-      }
-    }
 
-    if (selectedCustomerId && !billNoFromParams) {
-      const existingBill = findBillForCustomerToday(selectedCustomerId);
-      if (existingBill) {
-        if (activeBillNo !== existingBill.billNo) {
-            setActiveBillNo(existingBill.billNo);
-            setInitialBillTotal(existingBill.amount);
-            setDeliveryCharge(existingBill.deliveryCharge?.toString() || '');
+        if (billToLoad) {
+            setSelectedCustomerId(billToLoad.customerId);
+            setActiveBillNo(billToLoad.billNo);
+            setInitialBillTotal(billToLoad.amount);
+            setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
+            setPaidAmount('');
+
+            // Fetch items from Firestore once
+            setIsItemsLoading(true);
+            try {
+                const snap = await getDocs(collection(firestore!, 'bills', billToLoad.billNo, 'billItems'));
+                const items = snap.docs.map(d => ({ ...d.data(), id: d.id } as BillItem));
+                setLocalBillItems(items);
+            } catch (e) { console.error("Failed to load items", e); }
+            setIsItemsLoading(false);
+
+            // Calculate Static Previous Balance: Current DB Total minus this bill's saved contribution
+            const dbBal = customerBalances[billToLoad.customerId] || 0;
+            setStaticPrevBalance(dbBal - billToLoad.amount);
+
+            if (billToLoad.date) {
+                setDate(billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date));
+            }
+        } else if (selectedCustomerId) {
+            // New Bill for selected customer
+            setActiveBillNo(null);
+            setInitialBillTotal(0);
+            setDeliveryCharge('');
+            setLocalBillItems([]);
+            setStaticPrevBalance(customerBalances[selectedCustomerId] || 0);
         }
-      } else if (activeBillNo) {
-          setActiveBillNo(null);
-          setInitialBillTotal(0);
-          setDeliveryCharge('');
-      }
-      return;
-    }
+        
+        lastSessionKeyRef.current = sessionKey;
+    };
 
-    if (!billNoFromParams && !selectedCustomerId && activeBillNo) {
-        setActiveBillNo(null);
-        setInitialBillTotal(0);
-        setDeliveryCharge('');
-        setPaidAmount('');
-        setDate(new Date());
-    }
-
-  }, [selectedCustomerId, searchParams, getBill, findBillForCustomerToday, activeBillNo]);
+    initializeSession();
+  }, [selectedCustomerId, searchParams, customerBalances, getBill, findBillForCustomerToday, firestore]);
 
   useEffect(() => {
     if (selectedProductId && uom) {
@@ -320,7 +321,7 @@ export default function BillingPage() {
         const { scrollHeight } = billItemsContainerRef.current;
         billItemsContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
     }
-  }, [billItems]);
+  }, [localBillItems]);
 
   // History filtering effect
   useEffect(() => {
@@ -338,21 +339,19 @@ export default function BillingPage() {
     setFilteredHistoryBills(sortBills(results));
   }, [liveBillSummaries, historySelectedCustomer, historyDate, sortBills]);
 
+  // LOCAL INTERACTIONS: operate on localBillItems without DB writes
   const handleAddItem = useCallback(() => {
     const productInfo = products.find((p) => p.id === selectedProductId);
     if (!productInfo || !qty || !rate) {
-      toast({
-        variant: 'destructive',
-        title: 'Missing Information',
-        description: 'Please select a product and enter quantity and rate.',
-      });
+      toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select a product and enter quantity and rate.' });
       return;
     }
 
     const qtyNum = parseFloat(qty);
     const rateNum = parseFloat(rate);
 
-    const newItem: Omit<BillItem, 'id' | 'billId'> = {
+    const newItem: BillItem = {
+      id: Date.now().toString(),
       product: productInfo.name_ta,
       productId: productInfo.id,
       uom: uom,
@@ -361,123 +360,54 @@ export default function BillingPage() {
       amount: qtyNum * rateNum,
       addedBy: currentUser?.id || 'unknown-user',
       stall: '1',
+      billId: activeBillNo || undefined
     };
 
-    const customer = customers.find((c) => c.id === selectedCustomerId);
-    const summaryCustomerId = customer ? customer.id : (selectedCustomerId || 'WALK-IN');
-    const summaryCustomerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
-
-    const currentItems = billItems || [];
-    const newBillItems = [
-        ...currentItems,
-        { ...newItem, id: Date.now().toString() },
-    ];
-    const billSummary = {
-        customerName: summaryCustomerName,
-        customerId: summaryCustomerId,
-        stall: '1',
-    };
-
-    const { billNo, commitPromise } = createOrUpdateLiveBill(
-        billSummary,
-        newBillItems,
-        parseFloat(paidAmount) || 0,
-        parseFloat(deliveryCharge) || 0,
-        date || new Date(),
-        activeBillNo
-    );
-
-    if (!activeBillNo) {
-        setActiveBillNo(billNo);
-    }
-
+    setLocalBillItems(prev => [...prev, newItem]);
+    
+    // Clear inputs
     setQty('');
     setRate('');
-    
-    if (productSelectRef.current) {
-        productSelectRef.current.clearValue();
-    }
+    if (productSelectRef.current) productSelectRef.current.clearValue();
     setSelectedProductId('');
     productSelectRef.current?.focus();
-
-  }, [selectedCustomerId, selectedProductId, qty, rate, uom, currentUser, customers, billItems, date, activeBillNo, products, createOrUpdateLiveBill, paidAmount, deliveryCharge, toast]);
+  }, [selectedProductId, qty, rate, uom, currentUser, products, activeBillNo, toast]);
 
   const persistItemUpdate = (itemId: string, field: 'rate' | 'qty', value: string) => {
-    const itemToUpdate = billItems?.find((item) => item.id === itemId);
-    if (!itemToUpdate || !activeBillNo || !firestore) return;
-
     const parsedValue = parseFloat(value) || 0;
-    const newQty = field === 'qty' ? parsedValue : itemToUpdate.qty;
-    const newRate = field === 'rate' ? parsedValue : itemToUpdate.rate;
-    const newAmount = newQty * newRate;
-
-    const updateData = { [field]: parsedValue, amount: newAmount };
-    const batch = writeBatch(firestore);
-    const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
-    batch.update(itemRef, updateData);
-
-    const newItemsTotal = (billItems || []).reduce((sum, item) => {
-      if (item.id === itemId) return sum + newAmount;
-      return sum + item.amount;
-    }, 0);
-    const newBillTotal = newItemsTotal + (parseFloat(deliveryCharge) || 0);
-
-    const billRef = doc(firestore, 'bills', activeBillNo);
-    batch.update(billRef, { amount: newBillTotal });
-
-    batch.commit().catch((error) => {
-      console.error('Failed to update item:', error);
-      toast({ variant: 'destructive', title: 'Update Failed', description: 'Could not save item changes.' });
-    });
+    setLocalBillItems(prev => prev.map(item => {
+        if (item.id === itemId) {
+            const newQty = field === 'qty' ? parsedValue : item.qty;
+            const newRate = field === 'rate' ? parsedValue : item.rate;
+            return { ...item, [field]: parsedValue, amount: newQty * newRate };
+        }
+        return item;
+    }));
   };
 
   const handleRemoveItem = (itemId: string) => {
-    const itemToDelete = billItems?.find((i) => i.id === itemId);
-    if (!itemToDelete || !activeBillNo || !firestore) return;
+    const itemToDelete = localBillItems.find(i => i.id === itemId);
+    if (!itemToDelete) return;
 
     showAlertDialog({
       title: 'Delete Item?',
-      description: 'Are you sure you want to remove this item from the bill? This cannot be undone.',
+      description: 'Are you sure you want to remove this item from the bill?',
       onConfirm: () => {
-        const batch = writeBatch(firestore);
-        const itemRef = doc(firestore, 'bills', activeBillNo, 'billItems', itemId);
-        batch.delete(itemRef);
-
-        const remainingItems = billItems?.filter((i) => i.id !== itemId) || [];
-        const newItemsTotal = remainingItems.reduce((sum, item) => sum + item.amount, 0);
-        const newBillTotal = newItemsTotal + (parseFloat(deliveryCharge) || 0);
-
-        const billRef = doc(firestore, 'bills', activeBillNo);
-        batch.update(billRef, { amount: newBillTotal });
-
-        batch.commit().then(() => {
-            toast({
-              title: 'Item Removed',
-              description: 'The item has been removed.',
-              duration: 10000,
-              action: (
-                <ToastAction altText="Undo" onClick={() => {
-                  const undoBatch = writeBatch(firestore);
-                  undoBatch.set(itemRef, itemToDelete);
-                  const restoredItemsTotal = remainingItems.reduce((sum, item) => sum + item.amount, 0) + itemToDelete.amount;
-                  const restoredBillTotal = restoredItemsTotal + (parseFloat(deliveryCharge) || 0);
-                  undoBatch.update(billRef, { amount: restoredBillTotal });
-                  undoBatch.commit().then(() => {
-                    toast({ title: 'Item restored' });
-                  });
-                }}>Undo</ToastAction>
-              )
-            });
-          }).catch((error) => {
-            console.error('Failed to delete item:', error);
-            toast({ variant: 'destructive', title: 'Delete Failed', description: 'Could not remove the item.' });
-          });
+        setLocalBillItems(prev => prev.filter(i => i.id !== itemId));
+        toast({
+          title: 'Item Removed',
+          duration: 5000,
+          action: (
+            <ToastAction altText="Undo" onClick={() => setLocalBillItems(prev => [...prev, itemToDelete])}>Undo</ToastAction>
+          )
+        });
       },
     });
   };
 
   const performReset = useCallback(() => {
     ignoreUrlBillNoRef.current = searchParams.get('billNo');
+    lastSessionKeyRef.current = '';
     
     setSelectedCustomerId('');
     setCustomerSearchText('');
@@ -490,6 +420,8 @@ export default function BillingPage() {
     setDeliveryCharge('');
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
+    setLocalBillItems([]);
+    setStaticPrevBalance(0);
     
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
@@ -499,16 +431,13 @@ export default function BillingPage() {
     }
     
     router.replace('/dashboard/billing');
-    
-    setTimeout(() => {
-      customerSelectRef.current?.focus();
-    }, 100);
+    setTimeout(() => customerSelectRef.current?.focus(), 100);
   }, [router, searchParams]);
 
   const handleNewBill = useCallback(() => {
     const hasChanges = 
       selectedCustomerId !== '' || 
-      (billItems && billItems.length > 0) || 
+      (localBillItems && localBillItems.length > 0) || 
       qty !== '' || 
       rate !== '' || 
       paidAmount !== '' || 
@@ -526,13 +455,12 @@ export default function BillingPage() {
     } else {
       performReset();
     }
-  }, [selectedCustomerId, billItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, showAlertDialog, performReset]);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, showAlertDialog, performReset]);
 
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
-    const currentItems = billItems || [];
-
-    if (currentItems.length === 0 && !activeBillNo) {
+    
+    if (localBillItems.length === 0 && !activeBillNo) {
       toast({ variant: 'destructive', title: 'Cannot Save Bill', description: 'Please add at least one item for a new bill.' });
       return null;
     }
@@ -542,51 +470,50 @@ export default function BillingPage() {
         return null;
     }
 
+    // Purge old items from DB if editing to ensure local state becomes the single source of truth
+    if (activeBillNo && firestore) {
+        try {
+            const itemsSnap = await getDocs(collection(firestore, 'bills', activeBillNo, 'billItems'));
+            const purgeBatch = writeBatch(firestore);
+            itemsSnap.forEach(d => purgeBatch.delete(d.ref));
+            await purgeBatch.commit();
+        } catch (e) { console.error("Item purge failed", e); }
+    }
+
     const billSummary = {
       customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
     };
     
-    const paidAmountNum = parseFloat(paidAmount) || 0;
-    const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
-
     const { billNo, commitPromise } = createOrUpdateLiveBill(
       billSummary,
-      currentItems,
-      paidAmountNum,
-      deliveryChargeNum,
+      localBillItems,
+      parseFloat(paidAmount) || 0,
+      parseFloat(deliveryCharge) || 0,
       date || new Date(),
       activeBillNo
     );
 
     try {
       await commitPromise;
-      toast({ title: activeBillNo ? 'Bill Updated' : 'Bill Saved', description: `Bill ${billNo} has been successfully saved.` });
+      toast({ title: activeBillNo ? 'Bill Updated' : 'Bill Saved', description: `Bill ${billNo} saved.` });
       if (!activeBillNo) setActiveBillNo(billNo);
       return getBillPrintData();
     } catch (error) {
       console.error('Save failed:', error);
-      toast({ variant: 'destructive', title: 'Save failed', description: 'There was an issue saving the bill.' });
+      toast({ variant: 'destructive', title: 'Save failed' });
       return null;
     }
   };
 
   const getBillPrintData = useCallback((): BillPrintData | null => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
-    const currentItems = billItems || [];
-
-    if (currentItems.length === 0 && !activeBillNo) {
-      toast({ variant: 'destructive', title: 'Cannot Get Bill Data', description: 'Please add at least one item.' });
-      return null;
-    }
-
     const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
     const paidAmountNum = parseFloat(paidAmount) || 0;
-    const finalItemsTotal = currentItems.reduce((sum, item) => sum + item.amount, 0);
+    const finalItemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
     const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
-    const finalPreviousBalance = (customerBalances[selectedCustomerId] || 0) - (activeBillNo ? initialBillTotal : 0);
-    const finalFinalBalance = finalPreviousBalance + finalTotalAmount - paidAmountNum;
+    const finalFinalBalance = staticPrevBalance + finalTotalAmount - paidAmountNum;
 
     const printCustomer = customer || { id: 'WALK-IN', name_en: 'Walk-in Customer', name_ta: 'வாடிக்கையாளர்', phone: '-' };
 
@@ -594,16 +521,16 @@ export default function BillingPage() {
         billNo: activeBillNo || 'New Bill',
         date: date?.toISOString() || new Date().toISOString(),
         customer: printCustomer as Customer,
-        items: currentItems,
+        items: localBillItems,
         itemsTotal: finalItemsTotal,
         deliveryCharge: deliveryChargeNum,
         totalAmount: finalTotalAmount,
-        previousBalance: finalPreviousBalance,
+        previousBalance: staticPrevBalance,
         paidAmount: paidAmountNum,
         finalBalance: finalFinalBalance,
         stall: '1'
     };
-  }, [customers, selectedCustomerId, billItems, activeBillNo, deliveryCharge, paidAmount, customerBalances, initialBillTotal, date]);
+  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date]);
 
   const handleSaveBill = async () => {
     if (!selectedCustomerId) {
@@ -615,9 +542,8 @@ export default function BillingPage() {
   };
 
   const handlePrintBill = async (paper: 'thermal' | 'a4') => {
-    const currentItems = billItems || [];
-    if (currentItems.length === 0 && !activeBillNo) {
-        toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please add at least one item to the bill.' });
+    if (localBillItems.length === 0 && !activeBillNo) {
+        toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please add at least one item.' });
         return;
     }
     setPrintPaperType(paper);
@@ -625,61 +551,23 @@ export default function BillingPage() {
   };
 
   const handleShareWhatsApp = async () => {
-    const currentItems = billItems || [];
-    if (currentItems.length === 0 && !activeBillNo) {
-        toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please add at least one item to the bill.' });
+    if (localBillItems.length === 0 && !activeBillNo) {
+        toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please add at least one item.' });
         return;
     }
     setShowWhatsAppShareConfirm(true);
   };
 
-  // History Actions
-  const handleSelectBill = (billNo: string, checked: boolean) => {
-    setSelectedBills((prev) => {
-      const newSelection = new Set(prev);
-      if (checked) newSelection.add(billNo);
-      else newSelection.delete(billNo);
-      return newSelection;
-    });
-  };
-
   const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) return;
-
-    const billsToRestore: { summary: LiveBillSummary, items: BillItem[] }[] = [];
-    try {
-      for (const billNo of selectedBills) {
-        const summary = liveBillSummaries.find(b => b.billNo === billNo);
-        if (summary && firestore) {
-          const itemsSnap = await getDocs(collection(firestore, 'bills', billNo, 'billItems'));
-          const items = itemsSnap.docs.map(d => d.data() as BillItem);
-          billsToRestore.push({ summary, items });
-        }
-      }
-    } catch (err) { console.error("Capture failed", err); }
-
     showAlertDialog({
       title: 'Are you sure?',
       description: `Permanently delete ${selectedBills.size} bill(s)?`,
       onConfirm: async () => {
-        let undoClicked = false;
         const billNosToDelete = Array.from(selectedBills);
         await deleteBills(billNosToDelete);
         setSelectedBills(new Set());
-
-        toast({
-          title: "Bills removed",
-          duration: 10000,
-          action: (
-            <ToastAction altText="Undo" onClick={() => {
-              undoClicked = true;
-              billsToRestore.forEach(data => {
-                createOrUpdateLiveBill(data.summary, data.items, data.summary.paidAmount || 0, data.summary.deliveryCharge || 0, data.summary.date instanceof Timestamp ? data.summary.date.toDate() : new Date(data.summary.date), data.summary.billNo);
-              });
-              toast({ title: "Bills restored" });
-            }}>Undo</ToastAction>
-          ),
-        });
+        toast({ title: "Bills removed" });
       },
     });
   };
@@ -689,8 +577,6 @@ export default function BillingPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleHistorySearch = () => { /* Logic integrated into useEffect */ };
-  
   const handleClearHistorySearch = () => {
     setHistoryDate(undefined);
     setHistorySelectedCustomer('');
@@ -719,13 +605,9 @@ export default function BillingPage() {
     }
   };
 
-  const itemsTotal = useMemo(() => (billItems || []).reduce((sum, item) => sum + item.amount, 0), [billItems]);
+  const itemsTotal = useMemo(() => localBillItems.reduce((sum, item) => sum + item.amount, 0), [localBillItems]);
   const totalAmount = itemsTotal + (parseFloat(deliveryCharge) || 0);
-  const previousBalance = useMemo(() => {
-    if (!selectedCustomerId) return 0;
-    return (customerBalances[selectedCustomerId] || 0) - initialBillTotal;
-  }, [selectedCustomerId, customerBalances, initialBillTotal]);
-  const finalBalance = previousBalance + totalAmount - (parseFloat(paidAmount) || 0);
+  const finalBalance = staticPrevBalance + totalAmount - (parseFloat(paidAmount) || 0);
 
   const customerOptions = useMemo(() => {
     const opts = customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }));
@@ -791,26 +673,24 @@ export default function BillingPage() {
               <div className="flex flex-nowrap items-end gap-3">
                 <div className="grid flex-[4] min-w-0 gap-1.5">
                   <Label htmlFor="product" className="text-xs">Product</Label>
-                  <div className="relative">
-                    <ReactSelect
-                      instanceId="product-select"
-                      placeholder="Select product..."
-                      isClearable
-                      tabSelectsValue={true}
-                      openMenuOnFocus={true}
-                      options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
-                      value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
-                      onChange={(option) => {
-                        if (!option) { setSelectedProductId(''); setRate(''); return; }
-                        setSelectedProductId(option.value);
-                        const product = products.find(p => p.id === option.value);
-                        if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
-                        setTimeout(() => qtyInputRef.current?.focus(), 0);
-                      }}
-                      styles={reactSelectStyles}
-                      ref={productSelectRef}
-                    />
-                  </div>
+                  <ReactSelect
+                    instanceId="product-select"
+                    placeholder="Select product..."
+                    isClearable
+                    tabSelectsValue={true}
+                    openMenuOnFocus={true}
+                    options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
+                    value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
+                    onChange={(option) => {
+                      if (!option) { setSelectedProductId(''); setRate(''); return; }
+                      setSelectedProductId(option.value);
+                      const product = products.find(p => p.id === option.value);
+                      if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
+                      setTimeout(() => qtyInputRef.current?.focus(), 0);
+                    }}
+                    styles={reactSelectStyles}
+                    ref={productSelectRef}
+                  />
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="qty" className="text-xs">Qty</Label>
@@ -853,8 +733,8 @@ export default function BillingPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isBillItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : billItems && billItems.length > 0 ? (
-                    billItems.map((item, index) => (
+                  {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
+                    localBillItems.map((item, index) => (
                       <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
                         <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
                         <TableCell className="px-1 truncate">{item.product}</TableCell>
@@ -869,13 +749,13 @@ export default function BillingPage() {
                 </TableBody>
               </Table>
             </CardContent>
-            {(billItems && billItems.length > 0) && (
+            {(localBillItems.length > 0) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{itemsTotal.toFixed(2)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{totalAmount.toFixed(2)}</span>
-                  <span className="font-semibold">Prev Bal:</span><span className="font-mono">₹{previousBalance.toFixed(2)}</span>
+                  <span className="font-semibold">Prev Bal:</span><span className="font-mono">₹{staticPrevBalance.toFixed(2)}</span>
                   <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} />
                   <span className="font-semibold">Balance:</span><span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
                 </div>
@@ -1017,7 +897,7 @@ export default function BillingPage() {
                   const phone = customer?.phone || '';
                   const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
                   let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n-------------------------\n`;
-                  (billItems || []).forEach((item, index) => { message += `${index + 1}. ${item.product} (${item.qty} ${item.uom}) = ₹${item.amount.toFixed(2)}\n`; });
+                  localBillItems.forEach((item, index) => { message += `${index + 1}. ${item.product} (${item.qty} ${item.uom}) = ₹${item.amount.toFixed(2)}\n`; });
                   message += `-------------------------\n*Final Bal: ₹${finalBalance.toFixed(2)}*\nThank you!`;
                   window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
                   setShowWhatsAppShareConfirm(false);
