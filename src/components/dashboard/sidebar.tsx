@@ -1,4 +1,3 @@
-
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -89,12 +88,12 @@ const MenuItemGroup = ({ items }) => {
     const pathname = usePathname();
     const { currentUser } = useData();
     const currentUserRole = currentUser?.role;
-    const { isMobile, setOpenMobile } = useSidebar();
+    const { setOpenMobile, setOpen } = useSidebar();
 
     const handleLinkClick = () => {
-        if (isMobile) {
-            setOpenMobile(false);
-        }
+        // Automatically close/hide sidebar after menu item selection
+        setOpen(false);
+        setOpenMobile(false);
     };
 
     const isMenuItemActive = (href: string, exact = false) => {
@@ -108,7 +107,7 @@ const MenuItemGroup = ({ items }) => {
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
             <SidebarMenuItem key={item.label}>
                 <Link href={item.href} onClick={handleLinkClick}>
-                    <SidebarMenuButton as="a" isActive={isMenuItemActive(item.href, !!item.exact)}>
+                    <SidebarMenuButton as="div" isActive={isMenuItemActive(item.href, !!item.exact)}>
                         <item.icon />
                         <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -122,16 +121,15 @@ export function DashboardSidebar() {
   const pathname = usePathname();
   const { currentUser } = useData();
   const currentUserRole = currentUser?.role;
-  const { isMobile, setOpenMobile } = useSidebar();
+  const { setOpenMobile, setOpen } = useSidebar();
 
   const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
   const handleLinkClick = () => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
+    setOpen(false);
+    setOpenMobile(false);
   };
 
   const isMenuItemActive = (href: string, exact = false) => {
@@ -154,7 +152,11 @@ export function DashboardSidebar() {
     setIsBalancesOpen(isMenuItemActive('/dashboard/balances'));
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
-  }, [pathname]);
+    
+    // Automatically collapse sidebar on ANY navigation (handles external triggers like "New Bill" button)
+    setOpen(false);
+    setOpenMobile(false);
+  }, [pathname, setOpen, setOpenMobile]);
 
   const canShowBalances = balancesSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
   const canShowManage = manageSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));

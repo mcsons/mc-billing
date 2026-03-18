@@ -145,7 +145,12 @@ function PrintPageContent() {
                         <TableRow key={`${date}-${item.id}`}>
                             <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
                             <TableCell className="col-itemname">{item.product}</TableCell>
-                            <TableCell className="col-qty text-center">{item.qty.toFixed(1)} {item.uom}</TableCell>
+                            <TableCell className="col-qty">
+                              <span className="qty-uom">
+                                <strong>{item.qty.toFixed(1)}</strong>
+                                <span className="uom-text">{item.uom}</span>
+                              </span>
+                            </TableCell>
                             <TableCell className="col-rate text-right">{Math.round(item.rate)}</TableCell>
                             <TableCell className="col-amount text-right">{Math.round(item.amount)}</TableCell>
                         </TableRow>
@@ -216,6 +221,15 @@ function PrintPageContent() {
           .header-phone { margin-top: 4px; }
           .hr-line { border-top: 2px solid #000; margin: 6px 0; }
           .table-header-line { border-top: 2px solid #000; margin: 0; }
+          .qty-uom {
+            display: inline-flex;
+            justify-content: flex-end;
+            align-items: center;
+          }
+
+          .uom-text {
+            margin-left: 3px;
+          }
 
           /* --- Customer Name Highlight --- */
           .cust-name-highlight {
@@ -250,34 +264,38 @@ function PrintPageContent() {
             font-size: 13px;
             font-weight: 700 !important;
           }
+          .print-table td.col-qty,
+          .print-table th.col-qty {
+            text-align: right !important;
+            padding-right: 4px;
+          }
           
           /* --- Column Specific Styles (Adjusted for Alignment) --- */
           .col-billdate { 
-            width: 15%; 
+            width: 12%; 
             white-space: nowrap;
           }
           .col-itemname { 
-            width: 48%; 
+            width: 52%; 
             white-space: normal;
             font-size: 11px !important; 
-            padding-right: 3mm;
+            padding-right: 4px;
             word-break: keep-all;
           }
           .col-qty { 
-            width: 7%; 
-            text-align: center;
+            width: 12%; 
             white-space: nowrap;
             font-size: 14px !important;
           }
           .col-rate { 
-            width: 15%; 
+            width: 10%; 
             text-align: right; 
             white-space: nowrap;
             font-size: 14px !important;
             font-family: "Courier New", monospace;
           }
           .col-amount { 
-            width: 15%; 
+            width: 14%; 
             text-align: right; 
             white-space: nowrap;
             font-size: 14px !important;
