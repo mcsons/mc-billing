@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -115,12 +116,15 @@ export function DashboardSidebar() {
   const { currentUser } = useData();
   const currentUserRole = currentUser?.role;
   const { setOpenMobile, setOpen } = useSidebar();
+  
+  // Track the last pathname to only trigger auto-close on actual navigation
+  const lastPathnameRef = React.useRef(pathname);
 
   const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
 
-  const isMenuItemActive = (href: string, exact = false) => {
+  const isMenuItemActive = React.useCallback((href: string, exact = false) => {
     if (exact) {
       return pathname === href;
     }
@@ -134,21 +138,26 @@ export function DashboardSidebar() {
         return settingsSubItems.some(item => pathname.startsWith(item.href));
     }
     return pathname.startsWith(href);
-  };
+  }, [pathname]);
   
   React.useEffect(() => {
+    // Only apply automatic show/hide rules if the navigation path has changed
+    // This allows manual toggle clicks to stay in their chosen state while on one page
+    if (lastPathnameRef.current !== pathname) {
+        if (pathname === '/dashboard') {
+            setOpen(true);
+        } else {
+            setOpen(false);
+            setOpenMobile(false);
+        }
+        lastPathnameRef.current = pathname;
+    }
+
+    // Always keep sub-menus synced with active section
     setIsBalancesOpen(isMenuItemActive('/dashboard/balances'));
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
-    
-    // Auto-open on dashboard landing, auto-hide on sub-pages
-    if (pathname === '/dashboard') {
-        setOpen(true);
-    } else {
-        setOpen(false);
-        setOpenMobile(false);
-    }
-  }, [pathname, setOpen, setOpenMobile]);
+  }, [pathname, isMenuItemActive, setOpen, setOpenMobile]);
 
   const canShowBalances = balancesSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
   const canShowManage = manageSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
