@@ -698,7 +698,7 @@ export default function BillingPage() {
 
   // Keyboard navigation
   const handleQtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); rateInputRef.current?.focus(); }
+    if (e.key === 'Enter') { e.preventDefault(); uomTriggerRef.current?.focus(); }
   };
   
   const handleRateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -805,7 +805,7 @@ export default function BillingPage() {
                         setSelectedProductId(option.value);
                         const product = products.find(p => p.id === option.value);
                         if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
-                        setTimeout(() => uomTriggerRef.current?.focus(), 0);
+                        setTimeout(() => qtyInputRef.current?.focus(), 0);
                       }}
                       styles={reactSelectStyles}
                       ref={productSelectRef}
@@ -813,15 +813,15 @@ export default function BillingPage() {
                   </div>
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
+                  <Label htmlFor="qty" className="text-xs">Qty</Label>
+                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} />
+                </div>
+                <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="uom" className="text-xs">UOM</Label>
-                  <Select value={uom} onValueChange={(val) => { setUom(val); setTimeout(() => qtyInputRef.current?.focus(), 50); }} disabled={!selectedProductId}>
+                  <Select value={uom} onValueChange={(val) => { setUom(val); setTimeout(() => rateInputRef.current?.focus(), 50); }} disabled={!selectedProductId}>
                     <SelectTrigger id="uom" ref={uomTriggerRef}><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>{products.find(p => p.id === selectedProductId)?.uom_allowed.map((uom) => (<SelectItem key={uom} value={uom}>{uom}</SelectItem>))}</SelectContent>
                   </Select>
-                </div>
-                <div className="grid w-24 shrink-0 gap-1.5">
-                  <Label htmlFor="qty" className="text-xs">Qty</Label>
-                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} />
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="rate" className="text-xs">Rate</Label>
