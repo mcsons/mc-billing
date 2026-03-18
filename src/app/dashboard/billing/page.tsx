@@ -558,6 +558,18 @@ export default function BillingPage() {
     setShowWhatsAppShareConfirm(true);
   };
 
+  const handleSelectBill = (billNo: string, checked: boolean) => {
+    setSelectedBills((prev) => {
+      const newSelection = new Set(prev);
+      if (checked) {
+        newSelection.add(billNo);
+      } else {
+        newSelection.delete(billNo);
+      }
+      return newSelection;
+    });
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) return;
     showAlertDialog({
@@ -699,7 +711,7 @@ export default function BillingPage() {
                 <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="uom" className="text-xs">UOM</Label>
                   <Select value={uom} onValueChange={(val) => { setUom(val); setTimeout(() => rateInputRef.current?.focus(), 50); }} disabled={!selectedProductId}>
-                    <SelectTrigger id="uom" ref={uomTriggerRef}><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectTrigger id="uom" ref={uomTriggerRef}><SelectValue placeholder="Select" /></SelectValue></SelectTrigger>
                     <SelectContent>{products.find(p => p.id === selectedProductId)?.uom_allowed.map((uom) => (<SelectItem key={uom} value={uom}>{uom}</SelectItem>))}</SelectContent>
                   </Select>
                 </div>
