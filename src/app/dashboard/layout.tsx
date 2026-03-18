@@ -1,6 +1,6 @@
-'use client';
+ 'use client';
 import React from 'react';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
@@ -33,22 +33,20 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <AlertDialogProvider>
-        <div className="flex min-h-screen w-full flex-col">
-          <div className="flex min-h-screen">
-            <div className="print:hidden">
-              <DashboardSidebar />
-            </div>
-
-            <div className="flex flex-1 flex-col sm:gap-4 sm:py-4 sm:pl-14">
-              <div className="print:hidden">
-                <DashboardHeader />
-              </div>
-
-              <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8 print:hidden">
-                {children}
-              </main>
-            </div>
+        <div className="flex min-h-screen w-full">
+          <div className="print:hidden">
+            <DashboardSidebar />
           </div>
+
+          <SidebarInset className="flex flex-1 flex-col transition-all duration-200">
+            <div className="print:hidden">
+              <DashboardHeader />
+            </div>
+
+            <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8 print:hidden">
+              {children}
+            </main>
+          </SidebarInset>
         </div>
 
         <AlertDialogComponent />

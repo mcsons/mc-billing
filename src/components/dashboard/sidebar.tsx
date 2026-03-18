@@ -88,13 +88,6 @@ const MenuItemGroup = ({ items }) => {
     const pathname = usePathname();
     const { currentUser } = useData();
     const currentUserRole = currentUser?.role;
-    const { setOpenMobile, setOpen } = useSidebar();
-
-    const handleLinkClick = () => {
-        // Automatically close/hide sidebar after menu item selection
-        setOpen(false);
-        setOpenMobile(false);
-    };
 
     const isMenuItemActive = (href: string, exact = false) => {
         if (exact) {
@@ -106,7 +99,7 @@ const MenuItemGroup = ({ items }) => {
     return items.map((item) => 
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
             <SidebarMenuItem key={item.label}>
-                <Link href={item.href} onClick={handleLinkClick}>
+                <Link href={item.href}>
                     <SidebarMenuButton as="div" isActive={isMenuItemActive(item.href, !!item.exact)}>
                         <item.icon />
                         <span>{item.label}</span>
@@ -126,11 +119,6 @@ export function DashboardSidebar() {
   const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
-
-  const handleLinkClick = () => {
-    setOpen(false);
-    setOpenMobile(false);
-  };
 
   const isMenuItemActive = (href: string, exact = false) => {
     if (exact) {
@@ -153,9 +141,13 @@ export function DashboardSidebar() {
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
     
-    // Automatically collapse sidebar on ANY navigation (handles external triggers like "New Bill" button)
-    setOpen(false);
-    setOpenMobile(false);
+    // Auto-open on dashboard landing, auto-hide on sub-pages
+    if (pathname === '/dashboard') {
+        setOpen(true);
+    } else {
+        setOpen(false);
+        setOpenMobile(false);
+    }
   }, [pathname, setOpen, setOpenMobile]);
 
   const canShowBalances = balancesSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
@@ -167,7 +159,7 @@ export function DashboardSidebar() {
       <Sidebar>
         <SidebarHeader className="flex items-center justify-between p-2">
             <Button asChild variant="ghost" className="h-8 w-full justify-start gap-2 px-2">
-                <Link href="/dashboard" onClick={handleLinkClick}>
+                <Link href="/dashboard">
                     <Fish className="size-5 text-primary" />
                     <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
                 </Link>
@@ -188,7 +180,7 @@ export function DashboardSidebar() {
                     {balancesSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={handleLinkClick}>
+                                <Link href={subItem.href}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -215,7 +207,7 @@ export function DashboardSidebar() {
                       {manageSubItems.map(subItem => (
                           (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={handleLinkClick}>
+                                <Link href={subItem.href}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -242,7 +234,7 @@ export function DashboardSidebar() {
                     {settingsSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={handleLinkClick}>
+                                <Link href={subItem.href}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
