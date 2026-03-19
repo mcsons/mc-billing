@@ -1,3 +1,4 @@
+
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -696,7 +697,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = useCallback((
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall'>,
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
@@ -721,8 +722,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billRef = doc(firestore, 'bills', billNo);
     const batch = writeBatch(firestore);
 
+    // Strip internal fields that shouldn't be written back to Firestore
+    const { id, ...sanitizedSummary } = summary as any;
+
     let summaryPayload: any = { 
-        ...summary, 
+        ...sanitizedSummary, 
         billNo, 
         amount: totalAmount, 
         deliveryCharge: deliveryCharge,
@@ -732,7 +736,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
 
     if (existingBillNo) {
-      batch.update(billRef, summaryPayload); 
+      // Use set with merge instead of update to support "Restore" (Undo) scenarios
+      // where the document might have been previously deleted from the server.
+      batch.set(billRef, summaryPayload, { merge: true }); 
     } else {
        summaryPayload.createdBy = currentUser.id;
        summaryPayload.createdAt = serverTimestamp();
@@ -1103,11 +1109,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (existingBillId) {
           billRef = doc(firestore, 'vehicleBills', existingBillId);
+          // Strip internal fields like 'id' from spread summary objects
+          const { id, ...sanitizedBill } = bill as any;
           billPayload = {
-            ...bill,
+            ...sanitizedBill,
             updatedAt: serverTimestamp(),
           };
-          await updateDoc(billRef, billPayload);
+          // Use setDoc with merge instead of updateDoc to support "Restore" (Undo)
+          await setDoc(billRef, billPayload, { merge: true });
           const originalBill = vehicleBills.find(b => b.id === existingBillId);
           return { ...originalBill, ...billPayload, id: existingBillId } as VehicleBill;
 
@@ -1147,18 +1156,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     let billId = existingBillId;
     let billRef;
     let originalBillState: PartyBill | undefined;
+    
+    // Strip internal fields like 'id' from spread summary objects
+    const { id, ...sanitizedBillData } = billData as any;
     let billPayload: any;
 
     if (billId) { // UPDATE
       billRef = doc(firestore, 'partyBills', billId);
       originalBillState = (partyBills || []).find(b => b.id === billId);
       billPayload = {
-        ...billData,
+        ...sanitizedBillData,
         updatedAt: serverTimestamp(),
       };
     } else { // CREATE
       billPayload = {
-        ...billData,
+        ...sanitizedBillData,
         createdBy: currentUser.id,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
