@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -572,14 +571,63 @@ export default function BillingPage() {
 
   const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) return;
+
+    // Capture data for undo
+    const billsToRestore: { summary: LiveBillSummary, items: BillItem[] }[] = [];
+    try {
+      for (const billNo of selectedBills) {
+        const summary = liveBillSummaries.find(b => b.billNo === billNo);
+        if (summary && firestore) {
+          const itemsSnap = await getDocs(collection(firestore, 'bills', billNo, 'billItems'));
+          const items = itemsSnap.docs.map(d => d.data() as BillItem);
+          billsToRestore.push({ summary, items });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to capture bill data for undo", err);
+    }
+
     showAlertDialog({
       title: 'Are you sure?',
-      description: `Permanently delete ${selectedBills.size} bill(s)?`,
+      description: `This will permanently delete ${selectedBills.size} bill(s). This action cannot be undone.`,
       onConfirm: async () => {
+        let undoClicked = false;
         const billNosToDelete = Array.from(selectedBills);
+        
         await deleteBills(billNosToDelete);
         setSelectedBills(new Set());
-        toast({ title: "Bills removed" });
+
+        toast({
+          title: "Bill deleted — Undo?",
+          description: "Undo is available for 10 seconds.",
+          duration: 10000,
+          action: (
+            <ToastAction altText="Undo" onClick={() => {
+              undoClicked = true;
+              billsToRestore.forEach(data => {
+                createOrUpdateLiveBill(
+                  data.summary,
+                  data.items,
+                  data.summary.paidAmount || 0,
+                  data.summary.deliveryCharge || 0,
+                  data.summary.date instanceof Timestamp ? data.summary.date.toDate() : new Date(data.summary.date),
+                  data.summary.billNo
+                );
+              });
+              toast({ title: "Bills restored" });
+            }}>Undo</ToastAction>
+          ),
+        });
+
+        // After 10 seconds, show the "permanently deleted" message if not undone
+        setTimeout(() => {
+          if (!undoClicked) {
+            toast({
+              title: "Bills Deleted",
+              description: `${billNosToDelete.length} bill(s) and their items have been permanently deleted.`
+            });
+          }
+        }, 10500);
       },
     });
   };
@@ -774,7 +822,7 @@ export default function BillingPage() {
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{totalAmount.toFixed(2)}</span>
                   <span className="font-semibold">Prev Bal:</span><span className="font-mono">₹{staticPrevBalance.toFixed(2)}</span>
-                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value)} />
+                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} />
                   <span className="font-semibold">Balance:</span><span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
