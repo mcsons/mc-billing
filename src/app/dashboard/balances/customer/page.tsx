@@ -22,30 +22,31 @@ export default function CustomerBalancePage() {
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
   
-  // Logical Fix: Show/Edit the "Opening Balance" record, not the calculated total.
+  // openingBalanceValue is the base stored in DB
   const openingBalanceValue = selectedCustomerId ? openingBalances[selectedCustomerId] || 0 : 0;
+  // currentTotalBalance is the calculated result (Opening + Activity)
   const currentTotalBalance = selectedCustomerId ? customerBalances[selectedCustomerId] || 0 : 0;
 
-  // Initialize input when customer changes
+  // Initialize input when customer changes or calculated total changes
   useEffect(() => {
     if (selectedCustomer) {
-      setBalance(openingBalanceValue.toFixed(2));
+      setBalance(currentTotalBalance.toFixed(2));
     } else {
       setBalance('');
     }
     setIsEditing(false);
-  }, [selectedCustomerId]);
+  }, [selectedCustomerId, currentTotalBalance, selectedCustomer]);
 
   // Update input only if background data changes AND we aren't currently typing
   useEffect(() => {
     if (selectedCustomer && !isEditing) {
-      setBalance(openingBalanceValue.toFixed(2));
+      setBalance(currentTotalBalance.toFixed(2));
     }
-  }, [openingBalanceValue, isEditing, selectedCustomer]);
+  }, [currentTotalBalance, isEditing, selectedCustomer]);
 
   const handleSave = () => {
-    const newBalanceValue = parseFloat(balance);
-    if (!selectedCustomerId || isNaN(newBalanceValue)) {
+    const newTotalValue = parseFloat(balance);
+    if (!selectedCustomerId || isNaN(newTotalValue)) {
       toast({
         variant: 'destructive',
         title: 'Invalid Input',
@@ -54,15 +55,19 @@ export default function CustomerBalancePage() {
       return;
     }
 
+    // Calculation: To reach NewTotal, we must adjust the Opening Balance by the difference
+    const delta = newTotalValue - currentTotalBalance;
+    const adjustedOpeningValue = openingBalanceValue + delta;
+
     showAlertDialog({
       title: 'Confirm Balance Update',
-      description: `Are you sure you want to set ${selectedCustomer?.name_en}'s Opening Balance to ₹${newBalanceValue.toFixed(2)}? This will update the starting point for their account.`,
+      description: `Are you sure you want to set ${selectedCustomer?.name_en}'s Current Total Balance to ₹${newTotalValue.toFixed(2)}? This will reconcile their account by adjusting the base balance.`,
       onConfirm: () => {
-        setOpeningBalance(selectedCustomerId, newBalanceValue);
+        setOpeningBalance(selectedCustomerId, adjustedOpeningValue);
         setIsEditing(false);
         toast({
-          title: 'Opening Balance Updated',
-          description: `${selectedCustomer?.name_en}'s opening balance has been updated.`,
+          title: 'Current Balance Updated',
+          description: `${selectedCustomer?.name_en}'s total balance has been updated.`,
         });
       },
     });
@@ -115,7 +120,7 @@ export default function CustomerBalancePage() {
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle className="font-headline">Customer Balance</CardTitle>
-        <CardDescription>Search for a customer to view and edit their opening balance.</CardDescription>
+        <CardDescription>Search for a customer to view and manage their current outstanding balance.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-2">
@@ -137,24 +142,25 @@ export default function CustomerBalancePage() {
             
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Opening Balance</Label>
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Opening Balance (Base)</Label>
+                    <p className="text-2xl font-bold font-mono opacity-70">₹{openingBalanceValue.toFixed(2)}</p>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Current Total Balance</Label>
                     <div className="flex items-center gap-2">
                         {isEditing ? (
                             <Input
                             type="number"
                             value={balance}
                             onChange={e => setBalance(e.target.value)}
-                            className="w-full text-2xl font-mono"
+                            className="w-full text-2xl font-mono text-primary font-bold"
                             autoFocus
+                            onFocus={(e) => e.target.select()}
                             />
                         ) : (
-                            <p className="text-2xl font-bold font-mono">₹{openingBalanceValue.toFixed(2)}</p>
+                            <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
                         )}
                     </div>
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Current Total Balance</Label>
-                    <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
                 </div>
             </div>
 
@@ -162,7 +168,7 @@ export default function CustomerBalancePage() {
               <div className="flex gap-2 pt-2">
                 {!isEditing ? (
                   <Button onClick={() => setIsEditing(true)}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit Opening Balance
+                    <Edit className="mr-2 h-4 w-4" /> Edit Current Balance
                   </Button>
                 ) : (
                   <>
