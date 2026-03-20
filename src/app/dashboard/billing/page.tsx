@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -117,6 +118,8 @@ export default function BillingPage() {
     liveBillSummaries,
     users,
     deleteBills,
+    openingBalances,
+    setOpeningBalance,
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -129,7 +132,12 @@ export default function BillingPage() {
   // SESSION STATE: Local items and static balance
   const [localBillItems, setLocalBillItems] = useState<BillItem[]>([]);
   const [isItemsLoading, setIsItemsLoading] = useState(false);
-  const [staticPrevBalance, setStaticPrevBalance] = useState(0);
+  const [prevBalInput, setPrevBalInput] = useState('0');
+  const [originalPrevBalance, setOriginalPrevBalance] = useState(0);
+  const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+
+  // Derived numeric value from input
+  const staticPrevBalance = useMemo(() => parseFloat(prevBalInput) || 0, [prevBalInput]);
 
   // Form state for new item entry
   const [qty, setQty] = useState('');
@@ -294,7 +302,10 @@ export default function BillingPage() {
 
             // Calculate Static Previous Balance: Current DB Total minus this bill's saved contribution
             const dbBal = customerBalances[billToLoad.customerId] || 0;
-            setStaticPrevBalance(dbBal - billToLoad.amount);
+            const prev = dbBal - billToLoad.amount;
+            setPrevBalInput(prev.toString());
+            setOriginalPrevBalance(prev);
+            setIsPrevBalModified(false);
 
             if (billToLoad.date) {
                 setDate(billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date));
@@ -305,7 +316,10 @@ export default function BillingPage() {
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setLocalBillItems([]);
-            setStaticPrevBalance(customerBalances[selectedCustomerId] || 0);
+            const prev = customerBalances[selectedCustomerId] || 0;
+            setPrevBalInput(prev.toString());
+            setOriginalPrevBalance(prev);
+            setIsPrevBalModified(false);
         }
         
         lastSessionKeyRef.current = sessionKey;
@@ -432,7 +446,9 @@ export default function BillingPage() {
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
     setLocalBillItems([]);
-    setStaticPrevBalance(0);
+    setPrevBalInput('0');
+    setOriginalPrevBalance(0);
+    setIsPrevBalModified(false);
     
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
@@ -453,7 +469,8 @@ export default function BillingPage() {
       rate !== '' || 
       paidAmount !== '' || 
       deliveryCharge !== '' ||
-      activeBillNo !== null;
+      activeBillNo !== null ||
+      isPrevBalModified;
 
     if (hasChanges) {
       showAlertDialog({
@@ -466,7 +483,7 @@ export default function BillingPage() {
     } else {
       performReset();
     }
-  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, showAlertDialog, performReset]);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, showAlertDialog, performReset]);
 
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
@@ -479,6 +496,15 @@ export default function BillingPage() {
     if (!customer && selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
         toast({ variant: 'destructive', title: 'Customer Not Found', description: 'The selected customer ID is invalid.' });
         return null;
+    }
+
+    // Persist Manual Balance Override if active
+    if (isPrevBalModified && selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
+        const delta = staticPrevBalance - originalPrevBalance;
+        if (delta !== 0) {
+            const currentOpening = openingBalances[selectedCustomerId] || 0;
+            setOpeningBalance(selectedCustomerId, currentOpening + delta);
+        }
     }
 
     // Purge old items from DB if editing to ensure local state becomes the single source of truth
@@ -815,13 +841,25 @@ export default function BillingPage() {
                 </TableBody>
               </Table>
             </CardContent>
-            {(localBillItems.length > 0) && (
+            {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{itemsTotal.toFixed(2)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{totalAmount.toFixed(2)}</span>
-                  <span className="font-semibold">Prev Bal:</span><span className="font-mono">₹{staticPrevBalance.toFixed(2)}</span>
+                  <span className="font-semibold">Prev Bal:</span>
+                  <Input 
+                    className={cn(
+                      "ml-auto max-w-32 text-right font-mono",
+                      isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
+                    )} 
+                    value={prevBalInput} 
+                    onChange={(e) => {
+                      setPrevBalInput(e.target.value);
+                      setIsPrevBalModified(true);
+                    }} 
+                    onFocus={(e) => e.target.select()}
+                  />
                   <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} />
                   <span className="font-semibold">Balance:</span><span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
                 </div>
