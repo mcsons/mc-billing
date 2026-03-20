@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,15 +23,22 @@ export default function PartyBalancePage() {
   const selectedParty = parties.find(p => p.id === selectedPartyId);
   const currentBalance = selectedPartyId ? partyBalances[selectedPartyId] || 0 : 0;
 
+  // Initialize input when party changes
   useEffect(() => {
     if (selectedParty) {
       setBalance(currentBalance.toFixed(2));
-      setIsEditing(false);
     } else {
       setBalance('');
-      setIsEditing(false);
     }
-  }, [selectedPartyId, currentBalance, selectedParty]);
+    setIsEditing(false);
+  }, [selectedPartyId]);
+
+  // Update input only if background data changes AND we aren't currently typing
+  useEffect(() => {
+    if (selectedParty && !isEditing) {
+      setBalance(currentBalance.toFixed(2));
+    }
+  }, [currentBalance, isEditing, selectedParty]);
 
   const handleSave = () => {
     const newBalanceValue = parseFloat(balance);
@@ -141,12 +149,12 @@ export default function PartyBalancePage() {
               <div className="flex gap-2">
                 {!isEditing ? (
                   <Button onClick={() => setIsEditing(true)}>
-                    <Edit className="mr-2" /> Edit Balance
+                    <Edit className="mr-2 h-4 w-4" /> Edit Balance
                   </Button>
                 ) : (
                   <>
                     <Button onClick={handleSave}>
-                      <Save className="mr-2" /> Save
+                      <Save className="mr-2 h-4 w-4" /> Save
                     </Button>
                     <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
                   </>

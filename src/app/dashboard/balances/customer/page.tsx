@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,7 +12,7 @@ import { Edit, Save } from 'lucide-react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 
 export default function CustomerBalancePage() {
-  const { customers, customerBalances, setOpeningBalance, currentUser } = useData();
+  const { customers, openingBalances, customerBalances, setOpeningBalance, currentUser } = useData();
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
 
@@ -20,17 +21,27 @@ export default function CustomerBalancePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-  const currentBalance = selectedCustomerId ? customerBalances[selectedCustomerId] || 0 : 0;
+  
+  // Logical Fix: Show/Edit the "Opening Balance" record, not the calculated total.
+  const openingBalanceValue = selectedCustomerId ? openingBalances[selectedCustomerId] || 0 : 0;
+  const currentTotalBalance = selectedCustomerId ? customerBalances[selectedCustomerId] || 0 : 0;
 
+  // Initialize input when customer changes
   useEffect(() => {
     if (selectedCustomer) {
-      setBalance(currentBalance.toFixed(2));
-      setIsEditing(false);
+      setBalance(openingBalanceValue.toFixed(2));
     } else {
       setBalance('');
-      setIsEditing(false);
     }
-  }, [selectedCustomerId, currentBalance, selectedCustomer]);
+    setIsEditing(false);
+  }, [selectedCustomerId]);
+
+  // Update input only if background data changes AND we aren't currently typing
+  useEffect(() => {
+    if (selectedCustomer && !isEditing) {
+      setBalance(openingBalanceValue.toFixed(2));
+    }
+  }, [openingBalanceValue, isEditing, selectedCustomer]);
 
   const handleSave = () => {
     const newBalanceValue = parseFloat(balance);
@@ -45,13 +56,13 @@ export default function CustomerBalancePage() {
 
     showAlertDialog({
       title: 'Confirm Balance Update',
-      description: `Are you sure you want to set ${selectedCustomer?.name_en}'s balance to ₹${newBalanceValue.toFixed(2)}? This will be set as the new opening balance, affecting all future calculations.`,
+      description: `Are you sure you want to set ${selectedCustomer?.name_en}'s Opening Balance to ₹${newBalanceValue.toFixed(2)}? This will update the starting point for their account.`,
       onConfirm: () => {
         setOpeningBalance(selectedCustomerId, newBalanceValue);
         setIsEditing(false);
         toast({
-          title: 'Balance Updated',
-          description: `${selectedCustomer?.name_en}'s balance has been updated.`,
+          title: 'Opening Balance Updated',
+          description: `${selectedCustomer?.name_en}'s opening balance has been updated.`,
         });
       },
     });
@@ -123,30 +134,40 @@ export default function CustomerBalancePage() {
         {selectedCustomerId && (
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-medium text-lg">{selectedCustomer?.name_en}</h3>
-            <div className="flex items-center gap-4">
-              <Label className="text-lg">Current Balance:</Label>
-              {isEditing ? (
-                <Input
-                  type="number"
-                  value={balance}
-                  onChange={e => setBalance(e.target.value)}
-                  className="w-48 text-2xl font-mono"
-                  autoFocus
-                />
-              ) : (
-                <p className="text-2xl font-bold font-mono">₹{currentBalance.toFixed(2)}</p>
-              )}
+            
+            <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Opening Balance</Label>
+                    <div className="flex items-center gap-2">
+                        {isEditing ? (
+                            <Input
+                            type="number"
+                            value={balance}
+                            onChange={e => setBalance(e.target.value)}
+                            className="w-full text-2xl font-mono"
+                            autoFocus
+                            />
+                        ) : (
+                            <p className="text-2xl font-bold font-mono">₹{openingBalanceValue.toFixed(2)}</p>
+                        )}
+                    </div>
+                </div>
+                <div className="space-y-1">
+                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Current Total Balance</Label>
+                    <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
+                </div>
             </div>
+
             {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR') && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 {!isEditing ? (
                   <Button onClick={() => setIsEditing(true)}>
-                    <Edit className="mr-2" /> Edit Balance
+                    <Edit className="mr-2 h-4 w-4" /> Edit Opening Balance
                   </Button>
                 ) : (
                   <>
                     <Button onClick={handleSave}>
-                      <Save className="mr-2" /> Save
+                      <Save className="mr-2 h-4 w-4" /> Save
                     </Button>
                     <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
                   </>

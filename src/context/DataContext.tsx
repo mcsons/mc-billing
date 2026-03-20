@@ -246,7 +246,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const openingBalances = useMemo(() => {
     if (!customerBalancesData) return {};
     return customerBalancesData.reduce((acc, cb) => {
-        acc[cb.customerId] = cb.balanceAmount;
+        // Use document ID as the key for robustness
+        acc[cb.id] = cb.balanceAmount;
         return acc;
     }, {} as CustomerBalances);
   }, [customerBalancesData]);
@@ -295,7 +296,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const partyBalances = useMemo(() => {
     if (!partyBalancesData) return {};
     return partyBalancesData.reduce((acc, cb) => {
-        acc[cb.partyId] = cb.balanceAmount;
+        // Use document ID as the key for robustness
+        acc[cb.id] = cb.balanceAmount;
         return acc;
     }, {} as Record<string, number>);
   }, [partyBalancesData]);
