@@ -79,6 +79,7 @@ import {
   writeBatch,
   Timestamp,
   getDocs,
+  getDoc,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -265,21 +266,37 @@ export default function BillingPage() {
   // SESSION INITIALIZATION: Capture items and static balance when customer/bill changes
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
-    const sessionKey = `${selectedCustomerId}-${billNoFromParams || 'new'}`;
     
-    if (sessionKey === lastSessionKeyRef.current) return;
-    if (!selectedCustomerId && !billNoFromParams) {
-        lastSessionKeyRef.current = sessionKey;
-        return;
+    // Safety: Reset the ignore ref if we are explicitly navigating to a specific bill (e.g. from History)
+    if (billNoFromParams && billNoFromParams !== ignoreUrlBillNoRef.current) {
+        ignoreUrlBillNoRef.current = null;
     }
-
+    
+    // Skip if we are mid-reset
     if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) return;
+
+    // Use a unique work ID to avoid redundant re-initialization loops during state sync
+    const workId = billNoFromParams ? `load-${billNoFromParams}` : (selectedCustomerId ? `new-${selectedCustomerId}` : 'reset');
+    if (workId === lastSessionKeyRef.current) return;
+    lastSessionKeyRef.current = workId;
+
+    if (!selectedCustomerId && !billNoFromParams) return;
 
     const initializeSession = async () => {
         let billToLoad = null;
         if (billNoFromParams) {
             billToLoad = getBill(billNoFromParams);
-        } else if (selectedCustomerId) {
+            
+            // Fallback: If not in local summaries (likely just saved or snapshot lag), try a direct Firestore fetch
+            if (!billToLoad && firestore) {
+                try {
+                    const snap = await getDoc(doc(firestore, 'bills', billNoFromParams));
+                    if (snap.exists()) {
+                        billToLoad = { ...snap.data(), billNo: snap.id } as LiveBillSummary;
+                    }
+                } catch (e) { console.error("Summary fallback fetch failed", e); }
+            }
+        } else if (selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
             billToLoad = findBillForCustomerToday(selectedCustomerId);
         }
 
@@ -320,8 +337,6 @@ export default function BillingPage() {
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
         }
-        
-        lastSessionKeyRef.current = sessionKey;
     };
 
     initializeSession();
