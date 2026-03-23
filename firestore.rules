@@ -194,8 +194,7 @@ service cloud.firestore {
 
     /**
      * @description Manages active billing documents. Any authenticated user can read
-     *   all bills and create new ones. Only the original creator, an Admin, or a
-     *   Creator can modify or delete a bill.
+     *   all bills and create new ones. Managers, Admins, and Creators can modify/restore bills.
      * @path /bills/{billId}
      * @allow An admin updates a bill. (isCreatorOrAdmin(), update)
      * @deny A user attempts to delete a bill created by someone else if they are not an admin. (auth.uid != resource.data.createdBy && !isCreatorOrAdmin(), delete)
@@ -203,13 +202,13 @@ service cloud.firestore {
      */
     match /bills/{billId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
       allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
+      allow delete: if isExistingOwner(resource.data.createdBy) || canEditBills();
 
       /**
        * @description Manages items within a bill. Any signed-in user can read items and
-       *   add new ones. Only the user who added an item, an admin, or a creator can modify or delete it.
+       *   add new ones. Managers, Admins, and Creators can modify or delete items.
        * @path /bills/{billId}/billItems/{billItemId}
        * @allow A user adds an item to an existing bill. (auth != null, create)
        * @allow An admin deletes an item they did not add. (isCreatorOrAdmin(), delete)
@@ -218,9 +217,9 @@ service cloud.firestore {
        */
       match /billItems/{billItemId} {
         allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.addedBy == request.auth.uid && request.resource.data.billId == billId;
+        allow create: if isSignedIn() && (request.resource.data.addedBy == request.auth.uid || canEditBills()) && request.resource.data.billId == billId;
         allow update: if (isExistingOwner(resource.data.addedBy) || canEditBills()) && isImmutable('addedBy') && isImmutable('billId');
-        allow delete: if isExistingOwner(resource.data.addedBy) || isCreatorOrAdmin();
+        allow delete: if isExistingOwner(resource.data.addedBy) || canEditBills();
       }
     }
 
@@ -244,8 +243,8 @@ service cloud.firestore {
      *   write to this collection, allowing them to grant or revoke admin privileges.
      * @path /roles_admin/{userId}
      * @allow An admin adds another user as an admin. (isCreatorOrAdmin(), create)
-     * @deny A non-admin user attempts to make themselves an admin. (!isCreatorOrAdmin(), create)
-     * @deny A non-admin user attempts to list all admins. (!isCreatorOrAdmin(), list)
+     * @deny a non-admin user attempts to make themselves an admin. (!isCreatorOrAdmin(), create)
+     * @deny a non-admin user attempts to list all admins. (!isCreatorOrAdmin(), list)
      * @principle Secures the role management system itself, preventing unauthorized privilege escalation.
      */
     match /roles_admin/{userId} {

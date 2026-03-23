@@ -1,4 +1,3 @@
-
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -699,7 +698,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = useCallback((
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall'>,
+    summary: Partial<LiveBillSummary> & { customerId: string; customerName: string; stall: string },
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
@@ -735,6 +734,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         paidAmount: paidAmount,
         date: Timestamp.fromDate(date),
         updatedAt: serverTimestamp(),
+        // Preserve original creator if provided (e.g. during Undo/Restore)
+        createdBy: sanitizedSummary.createdBy || currentUser.id,
     };
 
     if (existingBillNo) {
@@ -742,7 +743,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       // where the document might have been previously deleted from the server.
       batch.set(billRef, summaryPayload, { merge: true }); 
     } else {
-       summaryPayload.createdBy = currentUser.id;
        summaryPayload.createdAt = serverTimestamp();
        batch.set(billRef, summaryPayload);
       
@@ -772,7 +772,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const deleteBills = async (billNos: string[]) => {
       if (!firestore) return;
-      if (!isCurrentUserAdmin) {
+      if (!canEditBills) {
           toast({ variant: "destructive", title: "Permission Denied" });
           return;
       }

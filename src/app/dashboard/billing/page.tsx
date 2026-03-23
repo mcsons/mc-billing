@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -521,6 +520,7 @@ export default function BillingPage() {
       customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
+      createdBy: activeBillNo ? getBill(activeBillNo)?.createdBy : undefined,
     };
     
     const { billNo, commitPromise } = createOrUpdateLiveBill(
@@ -911,7 +911,7 @@ export default function BillingPage() {
                 <PopoverTrigger asChild>
                   <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
+                    {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
@@ -924,7 +924,7 @@ export default function BillingPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && <TableHead className="w-[40px]"></TableHead>}
+                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
                   <TableHead>Bill No</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
@@ -939,7 +939,7 @@ export default function BillingPage() {
                     const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
                     return (
                       <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
-                        {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
+                        {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
                           <TableCell className="w-[40px]"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
                         )}
                         <TableCell className="font-medium">{bill.billNo}</TableCell>
@@ -1000,9 +1000,19 @@ export default function BillingPage() {
                   const customer = customers.find((c) => c.id === selectedCustomerId);
                   const phone = customer?.phone || '';
                   const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
-                  let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n-------------------------\n`;
-                  localBillItems.forEach((item, index) => { message += `${index + 1}. ${item.product} (${item.qty} ${item.uom}) = ₹${item.amount.toFixed(2)}\n`; });
-                  message += `-------------------------\n*Final Bal: ₹${finalBalance.toFixed(2)}*\nThank you!`;
+                  
+                  let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\n\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n\n-------------------------\n\n`;
+                  
+                  localBillItems.forEach((item, index) => { 
+                    message += `${index + 1}. ${item.product} (${Math.round(item.qty)} ${item.uom}) = ₹${Math.round(item.amount)}\n`; 
+                  });
+                  
+                  message += `\n-------------------------\n\n`;
+                  message += `Bill Total: ₹${Math.round(totalAmount)}\n`;
+                  message += `Previous Balance: ₹${Math.round(staticPrevBalance)}\n`;
+                  message += `*Final Balance: ₹${Math.round(finalBalance)}*\n\n`;
+                  message += `Thank you!`;
+                  
                   window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
                   setShowWhatsAppShareConfirm(false);
                 }}>Open WhatsApp</AlertDialogAction>
