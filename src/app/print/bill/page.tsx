@@ -338,7 +338,7 @@ function PrintPageContent() {
 
           .print-root.thermal #print-area {
             /* 1.5cm padding-top instead of margin to prevent page breaks while keeping the gap */
-            padding: 1.5cm 4mm 10mm 4mm;
+            padding: 2cm 4mm 10mm 4mm;
             margin: 0 !important;
           }
 

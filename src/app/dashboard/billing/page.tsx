@@ -792,7 +792,8 @@ export default function BillingPage() {
                   </PopoverContent>
                 </Popover>
                 <Button variant="outline" onClick={handleNewBill}>
-                  <FilePlus className="mr-2 h-4 w-4" /> New Bill
+                  <FilePlus className="mr-2 h-4 w-4" />
+                  New Bill
                 </Button>
               </div>
             </CardHeader>
@@ -802,7 +803,7 @@ export default function BillingPage() {
                 <ReactSelect
                   ref={customerSelectRef}
                   instanceId="customer-select"
-                  placeholder="Select customer or leave blank for walk-in..."
+                  placeholder="Select customer..."
                   isClearable
                   tabSelectsValue={true}
                   options={customerOptions}
@@ -950,11 +951,27 @@ export default function BillingPage() {
                   <span className="font-semibold">Balance:</span><span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
-                  <Button size="icon" variant="outline" onClick={handlePrevBill} disabled={currentBillIndex <= 0}><ChevronLeft className="h-4 w-4" /></Button>
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="bg-[#1a222e] text-white hover:bg-[#252f3f] hover:text-white border-none shadow-sm disabled:opacity-50"
+                    onClick={handlePrevBill} 
+                    disabled={currentBillIndex <= 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
                   <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId}><Save className="mr-2 h-4 w-4" /> Save Bill</Button>
                   <Button onClick={() => handlePrintBill('thermal')}>Print Receipt</Button>
                   <Button variant="outline" onClick={() => handlePrintBill('a4')}>Print A4</Button>
-                  <Button size="icon" variant="outline" onClick={handleNextBill} disabled={currentBillIndex === -1 || currentBillIndex >= sortedBills.length - 1}><ChevronRight className="h-4 w-4" /></Button>
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="bg-[#1a222e] text-white hover:bg-[#252f3f] hover:text-white border-none shadow-sm disabled:opacity-50"
+                    onClick={handleNextBill} 
+                    disabled={currentBillIndex === -1 || currentBillIndex >= sortedBills.length - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                   <Button variant="outline" onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /> Share</Button>
                 </div>
               </CardFooter>
