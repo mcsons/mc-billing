@@ -156,6 +156,7 @@ export default function PartyBillPage() {
     const [isMounted, setIsMounted] = useState(false);
     const rateInputRef = useRef<HTMLInputElement>(null);
     const partySelectRef = useRef<any>(null);
+    const productItemSelectRef = useRef<any>(null);
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -294,7 +295,11 @@ export default function PartyBillPage() {
         setRate('');
         setBox('');
         setKgs('');
-        rateInputRef.current?.focus();
+        
+        // Return focus to product search for fast continuous entry
+        setTimeout(() => {
+            productItemSelectRef.current?.focus();
+        }, 50);
     };
 
     const handleItemUpdate = useCallback((itemId: string, field: 'rate' | 'box' | 'kgs', value: string) => {
@@ -719,6 +724,7 @@ export default function PartyBillPage() {
                          <TableRow>
                             <TableCell>
                                 <ReactSelect
+                                    ref={productItemSelectRef}
                                     instanceId="product-select"
                                     options={products.map(p => ({ value: p.id, label: p.name_en }))}
                                     value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
@@ -755,6 +761,12 @@ export default function PartyBillPage() {
                                     value={rate} 
                                     onChange={e => setRate(e.target.value)}
                                     className="w-full text-center text-base font-mono"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            handleAddItem();
+                                        }
+                                    }}
                                 />
                             </TableCell>
                             <TableCell></TableCell>
