@@ -49,7 +49,15 @@ import { cn } from '@/lib/utils';
 import { useLoading } from '@/context/LoadingContext';
 import { useNavigationGuard } from '@/context/NavigationGuardContext';
 
-const coreOperations = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  exact?: boolean;
+  roles?: string[];
+};
+
+const coreOperations: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
@@ -63,20 +71,20 @@ const balancesSubItems: NavItem[] = [
     { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
 ];
 
-const mastersSetup = [
+const mastersSetup: NavItem[] = [
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
 ];
 
-const manageSubItems = [
+const manageSubItems: NavItem[] = [
     { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
     { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
     { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
     { href: '/dashboard/parties', label: 'Manage Parties', icon: Briefcase, roles: ['CREATOR', 'ADMIN'] },
 ];
 
-const systemItems = [
+const systemItems: NavItem[] = [
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
   { href: '/dashboard/profile', label: 'Profile', icon: User, exact: true },
 ];
@@ -85,14 +93,6 @@ const settingsSubItems: NavItem[] = [
     { href: '/dashboard/settings/printer', label: 'Printer', icon: Printer },
     { href: '/dashboard/settings/uom', label: 'UOM', icon: Cuboid },
 ];
-
-type NavItem = {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-  exact?: boolean;
-  roles?: string[];
-};
 
 const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
     const pathname = usePathname();
@@ -117,6 +117,8 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
         e.preventDefault();
         confirmNavigation(href);
     };
+
+    if (!items) return null;
 
     return items.map((item) => 
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
@@ -207,7 +209,7 @@ export function DashboardSidebar() {
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            <MenuItemGroup coreOperations={coreOperations} />
+            <MenuItemGroup items={coreOperations} />
             {canShowBalances && (
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => setIsBalancesOpen(!isBalancesOpen)} isActive={isBalancesOpen} data-state={isBalancesOpen ? 'open' : 'closed'}>
@@ -235,7 +237,7 @@ export function DashboardSidebar() {
               </SidebarMenuItem>
             )}
             <SidebarSeparator className="my-2" />
-            <MenuItemGroup mastersSetup={mastersSetup} />
+            <MenuItemGroup items={mastersSetup} />
             <SidebarSeparator className="my-2" />
             
             {canShowManage && (
@@ -266,7 +268,7 @@ export function DashboardSidebar() {
             )}
 
             <SidebarSeparator className="my-2" />
-            <MenuItemGroup systemItems={systemItems} />
+            <MenuItemGroup items={systemItems} />
 
             {canShowSettings && (
             <SidebarMenuItem>
