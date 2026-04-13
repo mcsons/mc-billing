@@ -20,17 +20,26 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { useData } from '@/context/DataContext';
 import { useRouter } from 'next/navigation';
+import { useNavigationGuard } from '@/context/NavigationGuardContext';
 
 
 export function UserNav() {
   const router = useRouter();
+  const { confirmNavigation } = useNavigationGuard();
   const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
   const { currentUser, logout } = useData();
 
   const handleLogout = () => {
-    logout();
-    router.push('/');
+    confirmNavigation(() => {
+        logout();
+        router.push('/');
+    });
   }
+
+  const handleProfileClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    confirmNavigation('/dashboard/profile');
+  };
 
   return (
     <DropdownMenu>
@@ -61,15 +70,13 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link href="/dashboard/profile">
+          <DropdownMenuItem onClick={handleProfileClick} className="cursor-pointer">
                 <User className="mr-2 h-4 w-4" />
                 <span>Profile</span>
-            </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleLogout}>
+        <DropdownMenuItem onClick={handleLogout} className="cursor-pointer">
             <LogOut className="mr-2 h-4 w-4" />
             <span>Log out</span>
         </DropdownMenuItem>

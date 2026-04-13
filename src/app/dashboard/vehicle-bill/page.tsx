@@ -54,6 +54,7 @@ import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import ReactSelect from 'react-select';
 import { VehicleBill, VehicleStatementTransaction } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
@@ -63,6 +64,7 @@ export default function VehicleBillingPage() {
   const router = useRouter();
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
+  const { setIsDirty } = useNavigationGuard();
 
   const {
     vehicles,
@@ -84,6 +86,19 @@ export default function VehicleBillingPage() {
   const [expenses, setExpenses] = useState('');
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
   
+  // Track unsaved changes
+  useEffect(() => {
+    const hasChanges = 
+        vehicleId !== '' || 
+        driverIds.some(id => id !== '') || 
+        partyId !== '' || 
+        destination !== '' || 
+        advance !== '' || 
+        expenses !== '';
+    
+    setIsDirty(hasChanges, handleSaveBill);
+  }, [vehicleId, driverIds, partyId, destination, advance, expenses, setIsDirty]);
+
   // History state
   const [historyDate, setHistoryDate] = useState<Date | undefined>();
   const [historyVehicleId, setHistoryVehicleId] = useState('');
@@ -180,6 +195,7 @@ export default function VehicleBillingPage() {
     setDestination('');
     setAdvance('');
     setExpenses('');
+    setIsDirty(false);
     router.replace('/dashboard/vehicle-bill');
     vehicleSelectRef.current?.focus();
   };
@@ -215,6 +231,7 @@ export default function VehicleBillingPage() {
         const savedBill = await addOrUpdateVehicleBill(billData, editingBillId || undefined);
         if (savedBill) {
             toast({ title: editingBillId ? 'Bill Updated' : 'Bill Saved', description: `Vehicle bill for ${vehicleId} has been saved.`});
+            setIsDirty(false); // Mark as clean
             if (!editingBillId) {
                 setEditingBillId(savedBill.id);
                 router.replace(`/dashboard/vehicle-bill?billId=${savedBill.id}`, { scroll: false });

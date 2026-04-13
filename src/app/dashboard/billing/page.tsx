@@ -72,6 +72,7 @@ import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import ReactSelect from 'react-select';
 import {
   collection,
@@ -105,6 +106,7 @@ export default function BillingPage() {
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
   const firestore = useFirestore();
+  const { setIsDirty } = useNavigationGuard();
 
   const {
     customers,
@@ -146,6 +148,21 @@ export default function BillingPage() {
   const [paidAmount, setPaidAmount] = useState('');
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
+
+  // Track unsaved changes
+  useEffect(() => {
+    const hasChanges = 
+      selectedCustomerId !== '' || 
+      (localBillItems && localBillItems.length > 0) || 
+      qty !== '' || 
+      rate !== '' || 
+      paidAmount !== '' || 
+      deliveryCharge !== '' ||
+      activeBillNo !== null ||
+      isPrevBalModified;
+    
+    setIsDirty(hasChanges, handleSaveBill);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, setIsDirty]);
 
   // Clear manual name if a non-walk-in customer is selected
   useEffect(() => {
@@ -276,7 +293,7 @@ export default function BillingPage() {
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
     
-    // Safety: Reset the ignore ref if we are explicitly navigating to a specific bill (e.g. from History)
+    // Safety: Reset the ignore ref if we are explicitly navigating to a specific bill
     if (billNoFromParams && billNoFromParams !== ignoreUrlBillNoRef.current) {
         ignoreUrlBillNoRef.current = null;
     }
@@ -567,6 +584,10 @@ export default function BillingPage() {
       await commitPromise;
       toast({ title: activeBillNo ? 'Bill Updated' : 'Bill Saved', description: `Bill ${billNo} saved.` });
       if (!activeBillNo) setActiveBillNo(billNo);
+      
+      // Explicitly mark as clean after successful save
+      setIsDirty(false);
+      
       return getBillPrintData();
     } catch (error) {
       console.error('Save failed:', error);
@@ -751,7 +772,7 @@ export default function BillingPage() {
                 </CardTitle>
                 <CardDescription>Manage active transaction.</CardDescription>
               </div>
-              <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+              <div className="flex flex-col items-stretch gap-2 sm:w-auto sm:items-end">
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px]', !date && 'text-muted-foreground')}>

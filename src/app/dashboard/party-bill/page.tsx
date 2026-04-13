@@ -52,6 +52,7 @@ import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
+import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import ReactSelect from 'react-select';
 import { PartyBill, PartyBillItem } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
@@ -106,6 +107,7 @@ export default function PartyBillPage() {
     const searchParams = useSearchParams();
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
+    const { setIsDirty } = useNavigationGuard();
 
     const {
         products,
@@ -154,6 +156,20 @@ export default function PartyBillPage() {
 
     const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
+    // Track unsaved changes
+    useEffect(() => {
+        const hasChanges = 
+            partyId !== '' || 
+            items.length > 0 || 
+            totalBox !== '' || 
+            totalKgs !== '' || 
+            expenses !== '' || 
+            rent !== '' || 
+            cashReceived !== '' || 
+            bankReceived !== '';
+        
+        setIsDirty(hasChanges, handleSave);
+    }, [partyId, items, totalBox, totalKgs, expenses, rent, cashReceived, bankReceived, setIsDirty]);
 
     useEffect(() => {
         setIsMounted(true);
@@ -181,9 +197,10 @@ export default function PartyBillPage() {
         setBankReceived('');
         setEditingBillId(null);
         setBillOriginalState(null);
+        setIsDirty(false);
         router.replace('/dashboard/party-bill');
         partySelectRef.current?.focus();
-    }, [router]);
+    }, [router, setIsDirty]);
 
     // Load bill for editing from URL param
     useEffect(() => {
@@ -333,6 +350,11 @@ export default function PartyBillPage() {
         };
         
         const savedBill = await addOrUpdatePartyBill(billData, editingBillId);
+        
+        if (savedBill) {
+            setIsDirty(false); // Mark as clean after successful save
+        }
+        
         return savedBill;
     };
     
@@ -548,10 +570,6 @@ export default function PartyBillPage() {
         if (e.key === 'Enter') {
             e.preventDefault();
             router.push(`/dashboard/party-bill?partyBillId=${billId}`);
-        } else if (e.key === 'ArrowDown') {
-            // No default behavior change needed
-        } else if (e.key === 'ArrowUp') {
-            // No default behavior change needed
         }
     };
 
