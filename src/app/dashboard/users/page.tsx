@@ -42,23 +42,28 @@ import { useToast } from '@/hooks/use-toast';
     const canManageUsers = isCurrentUserAdmin;
 
     const handleDeleteUser = (userId: string, username: string) => {
-      showAlertDialog({
-        title: 'Are you sure?',
-        description: `This will permanently delete the user "${username}" from the database. To fully remove their login access, you must also delete them from the Firebase Authentication console.`,
-        onConfirm: async () => {
-          await deleteUser(userId);
-          toast({ title: 'User Data Removed', description: `Data for "${username}" has been removed.` });
-        },
-      });
+      // Delay to prevent Radix UI pointer-events conflict when closing DropdownMenu and opening AlertDialog
+      setTimeout(() => {
+        showAlertDialog({
+          title: 'Are you sure?',
+          description: `This will permanently delete the user "${username}" from the database. To fully remove their login access, you must also delete them from the Firebase Authentication console.`,
+          onConfirm: async () => {
+            await deleteUser(userId);
+            toast({ title: 'User Data Removed', description: `Data for "${username}" has been removed.` });
+          },
+        });
+      }, 100);
     };
 
     const handlePromote = (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
-      showAlertDialog({
-        title: `Promote ${username} to ${role}?`,
-        description: `This will grant them ${role}-level privileges. This action is significant and should be done with caution.`,
-        confirmText: 'Promote',
-        onConfirm: () => promoteUser(userId, username, role),
-      });
+      setTimeout(() => {
+        showAlertDialog({
+          title: `Promote ${username} to ${role}?`,
+          description: `This will grant them ${role}-level privileges. This action is significant and should be done with caution.`,
+          confirmText: 'Promote',
+          onConfirm: () => promoteUser(userId, username, role),
+        });
+      }, 100);
     };
 
     return (

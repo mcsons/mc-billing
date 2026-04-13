@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
-import ReactSelect from 'react-select';
+import ReactSelect, { type StylesConfig } from 'react-select';
 import { Edit, Save } from 'lucide-react';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 
@@ -21,7 +21,7 @@ export default function CustomerBalancePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
-  
+
   // openingBalanceValue is the base stored in DB
   const openingBalanceValue = selectedCustomerId ? openingBalances[selectedCustomerId] || 0 : 0;
   // currentTotalBalance is the calculated result (Opening + Activity)
@@ -72,8 +72,10 @@ export default function CustomerBalancePage() {
       },
     });
   };
-  
-  const reactSelectStyles = {
+
+  type OptionType = { value: string; label: string };
+
+  const reactSelectStyles: StylesConfig<OptionType, false> = {
     control: (baseStyles, state) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
@@ -83,7 +85,7 @@ export default function CustomerBalancePage() {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles, _state) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
@@ -93,8 +95,8 @@ export default function CustomerBalancePage() {
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
         : state.isFocused
-        ? 'hsl(var(--muted))'
-        : 'transparent',
+          ? 'hsl(var(--muted))'
+          : 'transparent',
       color: state.isSelected
         ? 'hsl(var(--accent-foreground))'
         : 'hsl(var(--foreground))',
@@ -110,7 +112,7 @@ export default function CustomerBalancePage() {
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-     placeholder: (baseStyles) => ({
+    placeholder: (baseStyles) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -139,29 +141,29 @@ export default function CustomerBalancePage() {
         {selectedCustomerId && (
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-medium text-lg">{selectedCustomer?.name_en}</h3>
-            
+
             <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Opening Balance (Base)</Label>
-                    <p className="text-2xl font-bold font-mono opacity-70">₹{openingBalanceValue.toFixed(2)}</p>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wider">Opening Balance (Base)</Label>
+                <p className="text-2xl font-bold font-mono opacity-70">₹{openingBalanceValue.toFixed(2)}</p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs uppercase tracking-wider">Current Total Balance</Label>
+                <div className="flex items-center gap-2">
+                  {isEditing ? (
+                    <Input
+                      type="number"
+                      value={balance}
+                      onChange={e => setBalance(e.target.value)}
+                      className="w-full text-2xl font-mono text-primary font-bold"
+                      autoFocus
+                      onFocus={(e) => e.target.select()}
+                    />
+                  ) : (
+                    <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
+                  )}
                 </div>
-                <div className="space-y-1">
-                    <Label className="text-muted-foreground text-xs uppercase tracking-wider">Current Total Balance</Label>
-                    <div className="flex items-center gap-2">
-                        {isEditing ? (
-                            <Input
-                            type="number"
-                            value={balance}
-                            onChange={e => setBalance(e.target.value)}
-                            className="w-full text-2xl font-mono text-primary font-bold"
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            />
-                        ) : (
-                            <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
-                        )}
-                    </div>
-                </div>
+              </div>
             </div>
 
             {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR') && (

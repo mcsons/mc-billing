@@ -1,3 +1,4 @@
+
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -92,12 +93,13 @@ interface DataContextType {
   setOpeningBalance: (customerId: string, balance: number) => void;
   setPartyBalance: (partyId: string, balance: number) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance'>,
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
     date: Date,
-    existingBillNo?: string | null
+    existingBillNo?: string | null,
+    finalBalance?: number
   ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
@@ -245,8 +247,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const openingBalances = useMemo(() => {
     if (!customerBalancesData) return {};
     return customerBalancesData.reduce((acc, cb) => {
-        // Use document ID as the key for robustness
-        acc[cb.id] = cb.balanceAmount;
+        acc[cb.customerId] = cb.balanceAmount;
         return acc;
     }, {} as CustomerBalances);
   }, [customerBalancesData]);
@@ -295,8 +296,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const partyBalances = useMemo(() => {
     if (!partyBalancesData) return {};
     return partyBalancesData.reduce((acc, cb) => {
-        // Use document ID as the key for robustness
-        acc[cb.id] = cb.balanceAmount;
+        acc[cb.partyId] = cb.balanceAmount;
         return acc;
     }, {} as Record<string, number>);
   }, [partyBalancesData]);
@@ -631,9 +631,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const adminRoleRef = doc(firestore, 'roles_admin', userId);
     batch.delete(adminRoleRef);
 
-    batch.commit().catch(error => {
+    try {
+      await batch.commit();
+    } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: `users/${userId}` }));
-    });
+      throw error;
+    }
   };
   
   const promoteUser = async (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
@@ -698,12 +701,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = useCallback((
-    summary: Partial<LiveBillSummary> & { customerId: string; customerName: string; stall: string },
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance'>,
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
     date: Date,
-    existingBillNo?: string | null
+    existingBillNo?: string | null,
+    finalBalance?: number
   ): { billNo: string; commitPromise: Promise<void> } => {
     if (!firestore || !currentUser) {
         return { billNo: "error", commitPromise: Promise.reject(new Error("Firestore not available")) };
@@ -732,17 +736,24 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         amount: totalAmount, 
         deliveryCharge: deliveryCharge,
         paidAmount: paidAmount,
+        finalBalance: finalBalance || 0,
         date: Timestamp.fromDate(date),
         updatedAt: serverTimestamp(),
-        // Preserve original creator if provided (e.g. during Undo/Restore)
-        createdBy: sanitizedSummary.createdBy || currentUser.id,
     };
 
     if (existingBillNo) {
-      // Use set with merge instead of update to support "Restore" (Undo) scenarios
-      // where the document might have been previously deleted from the server.
+      // Explicitly preserve original createdBy for both update and restore (undo) scenarios.
+      // For updates: ensures immutability rule is met even on set+merge.
+      // For restores (doc was deleted): ensures createdBy is present in the create payload.
+      const originalBill = (liveBillSummaries || []).find(b => b.billNo === existingBillNo);
+      if (originalBill?.createdBy && !summaryPayload.createdBy) {
+        summaryPayload.createdBy = originalBill.createdBy;
+      }
+      // Use set with merge to support "Restore" (Undo) scenarios where the document
+      // might have been previously deleted from the server.
       batch.set(billRef, summaryPayload, { merge: true }); 
     } else {
+       summaryPayload.createdBy = currentUser.id;
        summaryPayload.createdAt = serverTimestamp();
        batch.set(billRef, summaryPayload);
       
@@ -772,7 +783,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const deleteBills = async (billNos: string[]) => {
       if (!firestore) return;
-      if (!canEditBills) {
+      if (!isCurrentUserAdmin) {
           toast({ variant: "destructive", title: "Permission Denied" });
           return;
       }

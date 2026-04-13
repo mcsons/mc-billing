@@ -107,7 +107,7 @@ export default function VehicleBillingPage() {
 
 
   const reactSelectStyles = {
-    control: (baseStyles, state) => ({
+    control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -116,12 +116,12 @@ export default function VehicleBillingPage() {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
-    option: (baseStyles, state) => ({
+    option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
@@ -135,15 +135,15 @@ export default function VehicleBillingPage() {
         backgroundColor: 'hsl(var(--accent))',
       },
     }),
-    singleValue: (baseStyles) => ({
+    singleValue: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    input: (baseStyles) => ({
+    input: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-     placeholder: (baseStyles) => ({
+     placeholder: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -222,6 +222,7 @@ export default function VehicleBillingPage() {
         }
         return savedBill;
     } catch(e) {
+        console.error('Vehicle bill save error:', e);
         toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not save the vehicle bill.' });
         return null;
     }
@@ -277,7 +278,7 @@ export default function VehicleBillingPage() {
     message += `*VEHICLE BILL SUMMARY*\n`;
     message += `Date: ${formattedDate}\n`;
     message += `Vehicle No: ${vehicleId}\n`;
-    message += `Party: ${party?.name || partyName}\n`;
+    message += `Party: ${party?.name || ''}\n`;
     message += `Driver: ${driverNames}\n`;
     message += `Destination: ${destination}\n`;
     message += `-------------------------\n`;

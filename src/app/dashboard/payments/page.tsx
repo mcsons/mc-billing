@@ -56,7 +56,7 @@ export default function PaymentsPage() {
     const isManager = currentUser?.role === 'MANAGER';
 
     const reactSelectStyles = {
-      control: (baseStyles, state) => ({
+      control: (baseStyles: any, state: any) => ({
         ...baseStyles,
         backgroundColor: 'hsl(var(--background))',
         borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -65,12 +65,12 @@ export default function PaymentsPage() {
           borderColor: 'hsl(var(--ring))',
         },
       }),
-      menu: (baseStyles) => ({
+      menu: (baseStyles: any) => ({
         ...baseStyles,
         backgroundColor: 'hsl(var(--card))',
         zIndex: 50,
       }),
-      option: (baseStyles, state) => ({
+      option: (baseStyles: any, state: any) => ({
         ...baseStyles,
         backgroundColor: state.isSelected
           ? 'hsl(var(--accent))'
@@ -84,15 +84,15 @@ export default function PaymentsPage() {
           backgroundColor: 'hsl(var(--accent))',
         },
       }),
-      singleValue: (baseStyles) => ({
+      singleValue: (baseStyles: any) => ({
         ...baseStyles,
         color: 'hsl(var(--foreground))',
       }),
-      input: (baseStyles) => ({
+      input: (baseStyles: any) => ({
         ...baseStyles,
         color: 'hsl(var(--foreground))',
       }),
-       placeholder: (baseStyles) => ({
+       placeholder: (baseStyles: any) => ({
         ...baseStyles,
         color: 'hsl(var(--muted-foreground))',
       }),

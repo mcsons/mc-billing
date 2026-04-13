@@ -47,6 +47,7 @@ import { Button } from '@/components/ui/button';
 import { useData } from '@/context/DataContext';
 import { ThemeToggle } from '../ui/theme-toggle';
 import { cn } from '@/lib/utils';
+import { useLoading } from '@/context/LoadingContext';
 
 const coreOperations = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -57,7 +58,7 @@ const coreOperations = [
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
 ];
 
-const balancesSubItems = [
+const balancesSubItems: NavItem[] = [
     { href: '/dashboard/balances/customer', label: 'Customer Balance', icon: Users },
     { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
 ];
@@ -80,14 +81,23 @@ const systemItems = [
   { href: '/dashboard/profile', label: 'Profile', icon: User, exact: true },
 ];
 
-const settingsSubItems = [
+const settingsSubItems: NavItem[] = [
     { href: '/dashboard/settings/printer', label: 'Printer', icon: Printer },
     { href: '/dashboard/settings/uom', label: 'UOM', icon: Cuboid },
 ];
 
-const MenuItemGroup = ({ items }) => {
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  exact?: boolean;
+  roles?: string[];
+};
+
+const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
     const pathname = usePathname();
     const { currentUser } = useData();
+    const { setLoading } = useLoading();
     const currentUserRole = currentUser?.role;
 
     const isMenuItemActive = (href: string, exact = false) => {
@@ -97,15 +107,20 @@ const MenuItemGroup = ({ items }) => {
         return pathname.startsWith(href);
     };
 
+    // Clear the loader as soon as navigation completes (pathname changes)
+    React.useEffect(() => {
+        setLoading(false);
+    }, [pathname, setLoading]);
+
     return items.map((item) => 
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
             <SidebarMenuItem key={item.label}>
-                <Link href={item.href}>
-                    <SidebarMenuButton as="div" isActive={isMenuItemActive(item.href, !!item.exact)}>
+                <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, !!item.exact)}>
+                    <Link href={item.href} onClick={() => setLoading(true, 'Loading...')}>
                         <item.icon />
                         <span>{item.label}</span>
-                    </SidebarMenuButton>
-                </Link>
+                    </Link>
+                </SidebarMenuButton>
             </SidebarMenuItem>
         )
     );

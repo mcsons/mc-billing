@@ -10,7 +10,7 @@ export default function PrintLayout({
 }) {
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <div className="min-h-screen bg-background text-foreground">
       {/* This style block ensures the print preview has a dark background, matching the app shell, without affecting the printed output. */}
       <style jsx global>{`
         @media screen {
@@ -19,11 +19,9 @@ export default function PrintLayout({
           }
         }
       `}</style>
-      <body suppressHydrationWarning>
-        <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-white">Loading Print Preview...</div>}>
-          {children}
-        </Suspense>
-      </body>
-    </html>
+      <Suspense fallback={<div className="flex h-screen w-full items-center justify-center text-white">Loading Print Preview...</div>}>
+        {children}
+      </Suspense>
+    </div>
   );
 }

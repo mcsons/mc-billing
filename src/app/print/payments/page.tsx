@@ -98,10 +98,10 @@ function PrintPaymentsContent() {
             <header className="text-center">
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,
-                <span className="city">Tiruppur - 641604</span>
+                No. 1, Fish Market, Palladam Road,<br />
+                Tiruppur - 641604
               </p>
-              <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
+              <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
             </header>
             <div className="hr-line"></div>
             <h2 className="text-lg font-semibold my-1 text-center">Customer Statement</h2>

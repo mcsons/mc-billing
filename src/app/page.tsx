@@ -88,9 +88,10 @@ export default function LoginPage() {
         title: 'Login Successful',
         description: `Welcome back, ${username}!`,
       });
-      router.push('/dashboard');
+      router.replace('/dashboard');
     } catch (error: any) {
       // Handle all login errors, including not found, invalid credential, wrong password etc.
+      console.error('Login Error:', error.code, error.message);
       if (
         error.code === 'auth/user-not-found' ||
         error.code === 'auth/invalid-credential' ||

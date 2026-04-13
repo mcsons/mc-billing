@@ -23,9 +23,14 @@ export function AlertDialogComponent() {
     hideAlertDialog();
   };
 
-  const handleConfirm = () => {
-    options?.onConfirm?.();
-    hideAlertDialog();
+  const handleConfirm = async () => {
+    try {
+      await options?.onConfirm?.();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      hideAlertDialog();
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {

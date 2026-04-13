@@ -145,6 +145,14 @@ export default function BillingPage() {
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
   const [deliveryCharge, setDeliveryCharge] = useState('');
+  const [manualCustomerName, setManualCustomerName] = useState('');
+
+  // Clear manual name if a non-walk-in customer is selected
+  useEffect(() => {
+    if (selectedCustomerId !== 'WALK-IN') {
+      setManualCustomerName('');
+    }
+  }, [selectedCustomerId]);
   
   // Print confirmation dialog state
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
@@ -169,6 +177,7 @@ export default function BillingPage() {
   const uomTriggerRef = useRef<HTMLButtonElement>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
   const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
+  const manualCustomerNameRef = useRef<HTMLInputElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
   const lastSessionKeyRef = useRef('');
 
@@ -317,8 +326,8 @@ export default function BillingPage() {
             setIsItemsLoading(false);
 
             // Calculate Static Previous Balance: Current DB Total minus this bill's saved contribution
-            const dbBal = customerBalances[billToLoad.customerId] || 0;
-            const prev = dbBal - billToLoad.amount;
+            const dbBal = billToLoad.customerId === 'WALK-IN' ? 0 : (customerBalances[billToLoad.customerId] || 0);
+            const prev = billToLoad.customerId === 'WALK-IN' ? 0 : (dbBal - billToLoad.amount);
             setPrevBalInput(prev.toString());
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
@@ -326,13 +335,19 @@ export default function BillingPage() {
             if (billToLoad.date) {
                 setDate(billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date));
             }
+            
+            if (billToLoad.customerId === 'WALK-IN' && billToLoad.customerName && billToLoad.customerName !== 'Walk-in Customer' && billToLoad.customerName !== '--') {
+                setManualCustomerName(billToLoad.customerName);
+            } else {
+                setManualCustomerName('');
+            }
         } else if (selectedCustomerId) {
             // New Bill for selected customer
             setActiveBillNo(null);
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setLocalBillItems([]);
-            const prev = customerBalances[selectedCustomerId] || 0;
+            const prev = selectedCustomerId === 'WALK-IN' ? 0 : (customerBalances[selectedCustomerId] || 0);
             setPrevBalInput(prev.toString());
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
@@ -463,6 +478,7 @@ export default function BillingPage() {
     setPrevBalInput('0');
     setOriginalPrevBalance(0);
     setIsPrevBalModified(false);
+    setManualCustomerName('');
     
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
@@ -532,7 +548,7 @@ export default function BillingPage() {
     }
 
     const billSummary = {
-      customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer',
+      customerName: customer ? `${customer.name_en} (${customer.name_ta})` : (manualCustomerName || '--'),
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
       createdBy: activeBillNo ? getBill(activeBillNo)?.createdBy : undefined,
@@ -567,7 +583,7 @@ export default function BillingPage() {
     const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
     const finalFinalBalance = staticPrevBalance + finalTotalAmount - paidAmountNum;
 
-    const printCustomer = customer || { id: 'WALK-IN', name_en: 'Walk-in Customer', name_ta: 'வாடிக்கையாளர்', phone: '-' };
+    const printCustomer = customer || { id: 'WALK-IN', name_en: manualCustomerName || '--', name_ta: 'வாடிக்கையாளர்', phone: '-' };
 
     return {
         billNo: activeBillNo || 'New Bill',
@@ -700,9 +716,16 @@ export default function BillingPage() {
         description: 'Create this bill as a Walk-In customer?',
         confirmText: 'Yes, Walk-In',
         cancelText: 'No, Select',
-        onConfirm: () => { setWalkInConfirmed(true); setSelectedCustomerId('WALK-IN'); setTimeout(() => productSelectRef.current?.focus(), 50); },
+        onConfirm: () => { setWalkInConfirmed(true); setSelectedCustomerId('WALK-IN'); setTimeout(() => manualCustomerNameRef.current?.focus(), 50); },
         onCancel: () => setTimeout(() => customerSelectRef.current?.focus(), 50),
       });
+    }
+  };
+
+  const handleManualCustomerNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      productSelectRef.current?.focus();
     }
   };
 
@@ -759,11 +782,30 @@ export default function BillingPage() {
                   onChange={(option) => {
                     const id = option ? option.value : '';
                     setSelectedCustomerId(id);
-                    if (!id) setWalkInConfirmed(false);
+                    if (!id) {
+                      setWalkInConfirmed(false);
+                    } else if (id === 'WALK-IN') {
+                      setTimeout(() => manualCustomerNameRef.current?.focus(), 50);
+                    } else {
+                      setTimeout(() => productSelectRef.current?.focus(), 50);
+                    }
                   }}
                   onKeyDown={handleCustomerKeyDown}
                   styles={reactSelectStyles}
                 />
+                {selectedCustomerId === 'WALK-IN' && (
+                  <div className="mt-2 grid gap-1.5">
+                    <Label htmlFor="manualCustomerName" className="text-xs text-muted-foreground">Enter Customer Name (optional)</Label>
+                    <Input
+                      id="manualCustomerName"
+                      ref={manualCustomerNameRef}
+                      placeholder="Enter customer name (optional)"
+                      value={manualCustomerName}
+                      onChange={(e) => setManualCustomerName(e.target.value)}
+                      onKeyDown={handleManualCustomerNameKeyDown}
+                    />
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1000,7 +1042,7 @@ export default function BillingPage() {
             <AlertDialogHeader><AlertDialogTitle>Confirm Printing</AlertDialogTitle><AlertDialogDescription>Do you want to save this bill before printing?</AlertDialogDescription></AlertDialogHeader>
             <div className="flex flex-col gap-2 pt-2">
                 <Button onClick={async () => { const d = await handleSaveAndGetData(); if (d) { window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); performReset(); } setShowPrintConfirm(false); }} disabled={!selectedCustomerId}>Save & Print</Button>
-                <Button variant="outline" onClick={() => { const d = getBillPrintData(); if (d) window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); setShowPrintConfirm(false); }}>Print Without Saving</Button>
+                <Button variant="outline" onClick={() => { const d = getBillPrintData(); if (d) window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); setShowPrintConfirm(false); }}>Continue Without Saving</Button>
                 <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
             </div>
         </AlertDialogContent>
@@ -1014,7 +1056,7 @@ export default function BillingPage() {
                 <AlertDialogAction onClick={() => {
                   const customer = customers.find((c) => c.id === selectedCustomerId);
                   const phone = customer?.phone || '';
-                  const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
+                  const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : (manualCustomerName || '--');
                   
                   let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\n\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n\n-------------------------\n\n`;
                   
@@ -1022,10 +1064,22 @@ export default function BillingPage() {
                     message += `${index + 1}. ${item.product} (${Math.round(item.qty)} ${item.uom}) = ₹${Math.round(item.amount)}\n`; 
                   });
                   
+                  const billTotalVal = Math.round(itemsTotal);
+                  const deliveryChargeVal = Math.round(parseFloat(deliveryCharge) || 0);
+                  const previousBalanceVal = Math.round(staticPrevBalance);
+                  const netTotalVal = billTotalVal + previousBalanceVal;
+                  const amountPaidVal = Math.round(parseFloat(paidAmount) || 0);
+                  const finalBalanceVal = netTotalVal - amountPaidVal;
+
                   message += `\n-------------------------\n\n`;
-                  message += `Bill Total: ₹${Math.round(totalAmount)}\n`;
-                  message += `Previous Balance: ₹${Math.round(staticPrevBalance)}\n`;
-                  message += `*Final Balance: ₹${Math.round(finalBalance)}*\n\n`;
+                  message += `Bill Total: ₹${billTotalVal}\n`;
+                  if (deliveryChargeVal > 0) {
+                    message += `Delivery Charge: ₹${deliveryChargeVal}\n`;
+                  }
+                  message += `Previous Balance: ₹${previousBalanceVal}\n`;
+                  message += `Net Total: ₹${netTotalVal}\n`;
+                  message += `Amount Paid: ₹${amountPaidVal}\n`;
+                  message += `Final Balance: ₹${finalBalanceVal}\n\n`;
                   message += `Thank you!`;
                   
                   window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');

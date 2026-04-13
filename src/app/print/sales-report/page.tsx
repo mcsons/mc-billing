@@ -87,10 +87,10 @@ function PrintPageContent() {
             <header className="text-center">
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,
-                <span className="city">Tiruppur - 641604</span>
+                No. 1, Fish Market, Palladam Road,<br />
+                Tiruppur - 641604
               </p>
-              <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
+              <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
             </header>
             <div className="hr-line"></div>
             <h2 className="text-lg font-semibold mt-2 text-center">Sales Report</h2>
@@ -168,16 +168,16 @@ function PrintPageContent() {
                 <div className="flex">
                     <span className="w-[40%] font-bold">Total ==&gt;</span>
                     <span className="w-[30%] text-center">{totalQtyString}</span>
-                    <span className="w-[30%] text-right font-bold">{Math.round(totalAmount)}</span>
+                    <span className="w-[30%] text-right font-bold">{totalAmount.toFixed(2)}</span>
                 </div>
                 <div className="hr-line"></div>
                 <div className="flex justify-between mt-2">
                     <span className="font-bold">PREVIOUS BALANCE</span>
-                    <span className="font-bold">{Math.round(previousBalance)}</span>
+                    <span className="font-bold">{previousBalance.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between mt-1 final-balance">
                     <span className="font-bold">NETT AMT</span>
-                    <span className="font-bold">{Math.round(netAmount)}</span>
+                    <span className="font-bold">{netAmount.toFixed(2)}</span>
                 </div>
                 <div className="hr-line"></div>
             </div>
@@ -278,7 +278,7 @@ function PrintPageContent() {
           .col-itemname { 
             width: 52%; 
             white-space: normal;
-            font-size: 11px !important; 
+            font-size: 10px !important; 
             padding-right: 4px;
             word-break: keep-all;
           }

@@ -75,7 +75,10 @@ function PartyBillPrintContent() {
           <header className="invoice-header">
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
             <p className="sub-header">Dealer : SEA & TANK FOODS</p>
-            <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
+            <p className="sub-header-address">
+              No. 1, Fish Market, Palladam Road,<br />
+              Tiruppur - 641604
+            </p>
             <p className="sub-header-address">📞 9843223078, 9944444497</p>
           </header>
 
@@ -262,7 +265,7 @@ function PartyBillPrintContent() {
         .items-table thead th { font-weight: bold; text-align: center; font-size: 9pt; }
         
         .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
-        .items-table .col-item { width: auto; word-break: break-word; text-align: left; font-size: 10pt; }
+        .items-table .col-item { width: auto; word-break: break-word; text-align: left; font-size: 8pt; }
         .items-table .col-box { width: 15mm; text-align: center; white-space: nowrap; }
         .items-table .col-kgs { width: 15mm; text-align: center; white-space: nowrap; }
         .items-table .col-rate { width: 20mm; white-space: nowrap; text-align: center; }

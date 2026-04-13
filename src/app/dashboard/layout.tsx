@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 import React from 'react';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
@@ -6,6 +6,8 @@ import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
 import { DataProvider } from '@/context/DataContext';
+import { LoadingProvider } from '@/context/LoadingContext';
+import { FishLoader } from '@/components/ui/fish-loader';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -31,6 +33,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <LoadingProvider>
     <SidebarProvider>
       <AlertDialogProvider>
         <div className="flex min-h-screen w-full">
@@ -50,8 +53,10 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <AlertDialogComponent />
+        <FishLoader />
       </AlertDialogProvider>
     </SidebarProvider>
+    </LoadingProvider>
   );
 }
 

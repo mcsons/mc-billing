@@ -51,7 +51,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold font-headline">
+          <h1 className="text-3xl font-bold font-headline text-gray-900 dark:text-white">
             {getGreeting()}, {currentUser?.username || 'M.C.'}!
           </h1>
           <p className="text-muted-foreground">

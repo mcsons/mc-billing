@@ -54,6 +54,7 @@ export type LiveBillSummary = {
   createdBy: string;
   stall: string;
   date?: any;
+  finalBalance?: number;
 }
 
 export type Payment = {

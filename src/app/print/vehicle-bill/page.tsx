@@ -85,9 +85,10 @@ function PrintPageContent() {
               M.C & SONS FISH COMPANY
             </h1>
             <p className="text-sm text-muted-foreground">
-              No. 1, Fish Market, Palladam Road, Tiruppur-641604
+              No. 1, Fish Market, Palladam Road,<br />
+              Tiruppur - 641604
             </p>
-            <p className="text-sm text-muted-foreground">📞 9894089889</p>
+            <p className="text-sm text-muted-foreground">📞 9597833277, 9894089889</p>
              <h2 className="text-lg font-semibold mt-4">Vehicle Bill</h2>
           </header>
 
@@ -202,7 +203,7 @@ function PrintPageContent() {
 
   .print-root.thermal td {
     padding: 2px 0;
-    font-size: 11px;
+    font-size: 10px;
   }
 
   .print-root.thermal h1 {

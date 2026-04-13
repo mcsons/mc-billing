@@ -91,8 +91,10 @@ function PrintPageContent() {
                 M.C & SONS FISH COMPANY
               </h1>
               <p className="text-sm text-muted-foreground">
-                No. 1, Fish Market, Palladam Road, Tiruppur-641604
+                No. 1, Fish Market, Palladam Road,<br />
+                Tiruppur - 641604
               </p>
+              <p className="text-sm text-muted-foreground">📞 9597833277, 9894089889</p>
                <h2 className="text-lg font-semibold mt-2">{type} Statement</h2>
             </header>
 

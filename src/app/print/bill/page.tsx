@@ -70,6 +70,7 @@ function PrintPageContent() {
     previousBalance,
     paidAmount,
     finalBalance,
+    stall,
   } = billData;
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
@@ -91,27 +92,42 @@ function PrintPageContent() {
           <header className="text-center">
             <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
             <p className="header-sub">
-              No. 1, Fish Market, Palladam Road, Tiruppur - 641604
+              No. 1, Fish Market, Palladam Road,<br />
+              Tiruppur - 641604
             </p>
-            <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
+            <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
           </header>
           <div className="hr-line"></div>
 
-          <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
-            <div>
-              <p className="font-semibold">Cust Name:</p>
-              <p className="cust-name">{customer?.name_ta || '-'}</p>
-            </div>
-            <div className="text-right">
-              <p className="bill-no">
-                <span className="font-semibold">Bill No:</span>{' '}
-                <strong>{billNo}</strong>
-              </p>
-              <p className="bill-date">
-                <span className="font-semibold">Date:</span>{' '}
-                <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
-              </p>
-            </div>
+          <div className="mb-2 text-sm font-mono flex justify-between">
+            <table className="text-left table-fixed" style={{ width: '55%' }}>
+              <tbody>
+                <tr>
+                  <td className="w-12 py-0">ID</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 truncate pr-2"><strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong></td>
+                </tr>
+                <tr>
+                  <td className="py-0">Name</td>
+                  <td className="py-0 text-center">:</td>
+                  <td className="py-0 truncate pr-2"><strong>{customer?.id === 'WALK-IN' ? (customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--') : (customer?.name_en && customer.name_en !== '--' ? customer.name_en : (customer?.name_ta || '-'))}</strong></td>
+                </tr>
+              </tbody>
+            </table>
+            <table className="text-right">
+              <tbody>
+                <tr>
+                  <td className="py-0 text-left whitespace-nowrap">Bill No</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 text-right whitespace-nowrap"><strong>{billNo}</strong></td>
+                </tr>
+                <tr>
+                  <td className="py-0 text-left whitespace-nowrap">Date</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 text-right whitespace-nowrap"><strong>{format(new Date(date), 'dd-MM-yyyy')}</strong></td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <Table className="print-table">
@@ -162,32 +178,82 @@ function PrintPageContent() {
           <div className="flex justify-end mt-2">
             <table className="summary-table">
               <tbody>
-                <tr>
-                  <td className="summary-label">Items Total:</td>
-                  <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
-                </tr>
-                {displayDeliveryCharge > 0 && (
-                  <tr>
-                    <td className="summary-label">Delivery Charge:</td>
-                    <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
-                  </tr>
+                {paper === 'thermal' ? (
+                  <>
+                    <tr>
+                      <td className="summary-label">Items Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
+                    </tr>
+                    {displayDeliveryCharge > 0 && (
+                      <tr>
+                        <td className="summary-label">Delivery Charge</td>
+                        <td className="summary-colon">:</td>
+                        <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="summary-label">Previous Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row">
+                      <td className="summary-label">Bill Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Received Amount</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-final-balance">
+                      <td className="summary-label">Final Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                  </>
+                ) : (
+                  <>
+                    <tr>
+                      <td className="summary-label">Items Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
+                    </tr>
+                    {displayDeliveryCharge > 0 && (
+                      <tr>
+                        <td className="summary-label">Delivery Charge</td>
+                        <td className="summary-colon">:</td>
+                        <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="summary-label">Bill Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Old Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row">
+                      <td className="summary-label">Net Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Received Amount</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-final-balance">
+                      <td className="summary-label">Final Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                  </>
                 )}
-                <tr>
-                  <td className="summary-label">Previous Balance:</td>
-                  <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
-                </tr>
-                <tr className="summary-divider-row summary-total-row">
-                  <td className="summary-label">Bill Total:</td>
-                  <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
-                </tr>
-                <tr>
-                  <td className="summary-label">Received Amount:</td>
-                  <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
-                </tr>
-                <tr className="summary-divider-row summary-total-row summary-final-balance">
-                  <td className="summary-label">Final Balance:</td>
-                  <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -259,7 +325,7 @@ function PrintPageContent() {
 
           .print-root.thermal #print-area {
             padding: 2mm 4mm 18mm 4mm;
-            margin-top: 0;
+            margin-top: 1.5cm !important;
           }
 
           .print-root.thermal .header-title {
@@ -345,19 +411,19 @@ function PrintPageContent() {
 
           /* === COLUMN WIDTH DISTRIBUTION === */
           .print-root.thermal .col-product { 
-            width: 64%; 
-            font-size: 12px;
-            line-height: 1.1;
+            width: 60%; 
+            font-size: 11px !important;
+            line-height: 1.2;
             white-space: normal; 
             word-break: keep-all; 
           }
 
           .print-root.thermal .col-qty {
-            width: 12%;
+            width: 14%;
           }
 
           .print-root.thermal .col-rate {
-            width: 10%;
+            width: 12%;
           }
 
           .print-root.thermal .col-amount {
@@ -382,6 +448,10 @@ function PrintPageContent() {
             text-align: left;
             white-space: nowrap;
           }
+          .print-root.thermal .summary-colon {
+            width: 10px;
+            text-align: center;
+          }
           .print-root.thermal .label-total-items {
             font-size: 13px;
             font-weight: 700;
@@ -399,7 +469,7 @@ function PrintPageContent() {
             font-weight: bold;
           }
           .print-root.thermal .summary-divider-row td {
-            border-top: 2px solid black;
+            border-top: 1px solid black;
           }
            .print-root.thermal .summary-final-balance td {
             font-size: 16px;

@@ -59,7 +59,7 @@ function PrintPageContent() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4 p-4 print:hidden">
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="outline" onClick={() => window.close()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Vehicle Billing
         </Button>

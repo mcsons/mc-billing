@@ -58,7 +58,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 
 const reactSelectStyles = {
-    control: (baseStyles, state) => ({
+    control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -67,13 +67,13 @@ const reactSelectStyles = {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
-    menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-    option: (baseStyles, state) => ({
+    menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
+    option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
@@ -87,15 +87,15 @@ const reactSelectStyles = {
         backgroundColor: 'hsl(var(--accent))',
       },
     }),
-    singleValue: (baseStyles) => ({
+    singleValue: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    input: (baseStyles) => ({
+    input: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-     placeholder: (baseStyles) => ({
+     placeholder: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -536,9 +536,6 @@ export default function PartyBillPage() {
 
     const handleHistoryPartyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (e.key === 'Tab' && !e.shiftKey) {
-          getDocs(collection(firestore, 'partyBills')).then(snap => {
-              // placeholder
-          });
           e.preventDefault();
           const firstRow = historyTableBodyRef.current?.querySelector('tr');
           if (firstRow) {
