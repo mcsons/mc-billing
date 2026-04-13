@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -69,7 +70,6 @@ function PrintPageContent() {
     previousBalance,
     paidAmount,
     finalBalance,
-    stall,
   } = billData;
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
@@ -295,11 +295,19 @@ function PrintPageContent() {
             -moz-osx-font-smoothing: grayscale;
             text-rendering: optimizeLegibility;
           }
-          body {
-            margin: 0;
-            padding: 0;
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: 0 !important;
             background: white !important;
-            print-color-adjust: exact;
+            overflow: visible !important;
+          }
+          
+          /* Remove min-height from layout wrappers during print */
+          div.min-h-screen {
+            min-height: 0 !important;
+            height: auto !important;
           }
 
           #print-area {
@@ -307,7 +315,7 @@ function PrintPageContent() {
               padding: 0;
           }
 
-          .print\\:hidden {
+          .print\:hidden {
             display: none !important;
           }
 
@@ -324,12 +332,14 @@ function PrintPageContent() {
           .print-root.thermal {
             width: 106mm;
             margin: 0 auto;
+            display: block;
             font-family: 'Courier New', 'Lucida Console', monospace !important;
           }
 
           .print-root.thermal #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-            margin-top: 0 !important; /* Changed from 1.5cm to prevent page break waste */
+            /* 1.5cm padding-top instead of margin to prevent page breaks while keeping the gap */
+            padding: 1.5cm 4mm 10mm 4mm;
+            margin: 0 !important;
           }
 
           .print-root.thermal .header-title {
@@ -473,7 +483,7 @@ function PrintPageContent() {
             font-weight: bold;
           }
           .print-root.thermal .summary-divider-row td {
-            border-top: 1px solid black; /* Reduced bold strength from 2px */
+            border-top: 1px solid black;
           }
            .print-root.thermal .summary-final-balance td {
             font-size: 16px;
@@ -481,11 +491,12 @@ function PrintPageContent() {
           }
 
           .print-root.thermal .print-footer {
-            margin-top: 18px;
+            margin-top: 10mm;
             text-align: left;
             font-size: 10px;
             font-weight: 800;
             font-style: italic;
+            padding-bottom: 5mm;
           }
         }
         /* ===============================
