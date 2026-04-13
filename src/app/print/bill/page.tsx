@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -175,7 +174,7 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-end mt-2 summary-section-wrapper" style={{ breakInside: 'avoid' }}>
             <table className="summary-table">
               <tbody>
                 {paper === 'thermal' ? (
@@ -311,6 +310,11 @@ function PrintPageContent() {
           .print\\:hidden {
             display: none !important;
           }
+
+          @page {
+            size: ${paper === 'thermal' ? '106mm auto' : 'A4'};
+            margin: 0;
+          }
         }
 
         /* ===============================
@@ -325,7 +329,7 @@ function PrintPageContent() {
 
           .print-root.thermal #print-area {
             padding: 2mm 4mm 18mm 4mm;
-            margin-top: 1.5cm !important;
+            margin-top: 0 !important; /* Changed from 1.5cm to prevent page break waste */
           }
 
           .print-root.thermal .header-title {
@@ -469,7 +473,7 @@ function PrintPageContent() {
             font-weight: bold;
           }
           .print-root.thermal .summary-divider-row td {
-            border-top: 1px solid black;
+            border-top: 1px solid black; /* Reduced bold strength from 2px */
           }
            .print-root.thermal .summary-final-balance td {
             font-size: 16px;
@@ -558,11 +562,6 @@ function PrintPageContent() {
           .print-root.a4 .print-footer {
             margin-top: 20mm;
             font-size: 10px;
-          }
-
-          @page {
-            size: A4;
-            margin: 10mm;
           }
         }
       `}</style>
