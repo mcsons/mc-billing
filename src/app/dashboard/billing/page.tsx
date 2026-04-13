@@ -149,6 +149,9 @@ export default function BillingPage() {
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
 
+  // Walk-in mode state
+  const [showWalkInConfirm, setShowWalkInConfirm] = useState(false);
+
   // Track unsaved changes
   useEffect(() => {
     const hasChanges = 
@@ -441,7 +444,11 @@ export default function BillingPage() {
     setRate('');
     if (productSelectRef.current) productSelectRef.current.clearValue();
     setSelectedProductId('');
-    productSelectRef.current?.focus();
+    
+    // UX: Fast Entry - focus back to product search
+    setTimeout(() => {
+        productSelectRef.current?.focus();
+    }, 50);
   }, [selectedProductId, qty, rate, uom, currentUser, products, activeBillNo, toast]);
 
   const persistItemUpdate = (itemId: string, field: 'rate' | 'qty', value: string) => {
@@ -732,14 +739,7 @@ export default function BillingPage() {
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !customerSearchText && !walkInConfirmed) {
       e.preventDefault(); 
-      showAlertDialog({
-        title: 'Confirm Walk-In Customer',
-        description: 'Create this bill as a Walk-In customer?',
-        confirmText: 'Yes, Walk-In',
-        cancelText: 'No, Select',
-        onConfirm: () => { setWalkInConfirmed(true); setSelectedCustomerId('WALK-IN'); setTimeout(() => manualCustomerNameRef.current?.focus(), 50); },
-        onCancel: () => setTimeout(() => customerSelectRef.current?.focus(), 50),
-      });
+      setShowWalkInConfirm(true);
     }
   };
 
@@ -747,6 +747,13 @@ export default function BillingPage() {
     if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
       productSelectRef.current?.focus();
+    }
+  };
+
+  // UX: Walk-in detection on product select click
+  const handleProductSelectInteraction = () => {
+    if (!selectedCustomerId) {
+        setShowWalkInConfirm(true);
     }
   };
 
@@ -835,7 +842,7 @@ export default function BillingPage() {
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent>
               <div className="flex flex-nowrap items-end gap-3">
-                <div className="grid flex-[4] min-w-0 gap-1.5">
+                <div className="grid flex-[4] min-w-0 gap-1.5" onClick={handleProductSelectInteraction}>
                   <Label htmlFor="product" className="text-xs">Product</Label>
                   <ReactSelect
                     instanceId="product-select"
@@ -854,6 +861,7 @@ export default function BillingPage() {
                     }}
                     styles={reactSelectStyles}
                     ref={productSelectRef}
+                    onFocus={handleProductSelectInteraction}
                   />
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
@@ -1085,21 +1093,13 @@ export default function BillingPage() {
                     message += `${index + 1}. ${item.product} (${Math.round(item.qty)} ${item.uom}) = ₹${Math.round(item.amount)}\n`; 
                   });
                   
-                  const billTotalVal = Math.round(itemsTotal);
-                  const deliveryChargeVal = Math.round(parseFloat(deliveryCharge) || 0);
+                  const billTotalVal = Math.round(itemsTotal + (parseFloat(deliveryCharge) || 0));
                   const previousBalanceVal = Math.round(staticPrevBalance);
-                  const netTotalVal = billTotalVal + previousBalanceVal;
-                  const amountPaidVal = Math.round(parseFloat(paidAmount) || 0);
-                  const finalBalanceVal = netTotalVal - amountPaidVal;
+                  const finalBalanceVal = Math.round(finalBalance);
 
                   message += `\n-------------------------\n\n`;
                   message += `Bill Total: ₹${billTotalVal}\n`;
-                  if (deliveryChargeVal > 0) {
-                    message += `Delivery Charge: ₹${deliveryChargeVal}\n`;
-                  }
                   message += `Previous Balance: ₹${previousBalanceVal}\n`;
-                  message += `Net Total: ₹${netTotalVal}\n`;
-                  message += `Amount Paid: ₹${amountPaidVal}\n`;
                   message += `Final Balance: ₹${finalBalanceVal}\n\n`;
                   message += `Thank you!`;
                   
@@ -1107,6 +1107,30 @@ export default function BillingPage() {
                   setShowWhatsAppShareConfirm(false);
                 }}>Open WhatsApp</AlertDialogAction>
             </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showWalkInConfirm} onOpenChange={setShowWalkInConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Walk-in Customer Confirmation</AlertDialogTitle>
+                <AlertDialogDescription>
+                    You are about to continue in Walk-in Customer mode.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-2 pt-2">
+                <Button onClick={() => { 
+                    setWalkInConfirmed(true); 
+                    setSelectedCustomerId('WALK-IN'); 
+                    setShowWalkInConfirm(false); 
+                    setTimeout(() => manualCustomerNameRef.current?.focus(), 50); 
+                }}>Continue as Walk-in</Button>
+                <Button variant="outline" onClick={() => { 
+                    setShowWalkInConfirm(false); 
+                    setTimeout(() => customerSelectRef.current?.focus(), 50); 
+                }}>Select Customer</Button>
+                <Button variant="ghost" onClick={() => setShowWalkInConfirm(false)}>Cancel</Button>
+            </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>

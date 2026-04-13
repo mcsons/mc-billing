@@ -117,6 +117,7 @@ export default function PartyBillPage() {
         addOrUpdatePartyBill,
         deletePartyBill,
         currentUser,
+        setPartyBalance,
     } = useData();
 
     // Form State
@@ -148,6 +149,10 @@ export default function PartyBillPage() {
     const [historyDate, setHistoryDate] = useState<Date|undefined>();
     const [filteredHistory, setFilteredHistory] = useState<PartyBill[]>([]);
 
+    // Session Override State
+    const [prevBalInput, setPrevBalInput] = useState('');
+    const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+
     const [isMounted, setIsMounted] = useState(false);
     const rateInputRef = useRef<HTMLInputElement>(null);
     const partySelectRef = useRef<any>(null);
@@ -166,10 +171,11 @@ export default function PartyBillPage() {
             expenses !== '' || 
             rent !== '' || 
             cashReceived !== '' || 
-            bankReceived !== '';
+            bankReceived !== '' ||
+            isPrevBalModified;
         
         setIsDirty(hasChanges, handleSave);
-    }, [partyId, items, totalBox, totalKgs, expenses, rent, cashReceived, bankReceived, setIsDirty]);
+    }, [partyId, items, totalBox, totalKgs, expenses, rent, cashReceived, bankReceived, isPrevBalModified, setIsDirty]);
 
     useEffect(() => {
         setIsMounted(true);
@@ -197,6 +203,8 @@ export default function PartyBillPage() {
         setBankReceived('');
         setEditingBillId(null);
         setBillOriginalState(null);
+        setIsPrevBalModified(false);
+        setPrevBalInput('0');
         setIsDirty(false);
         router.replace('/dashboard/party-bill');
         partySelectRef.current?.focus();
@@ -233,18 +241,28 @@ export default function PartyBillPage() {
     const totalDeductions = useMemo(() => commissionAmount + (parseFloat(expenses) || 0) + (parseFloat(rent) || 0), [commissionAmount, expenses, rent]);
     const netAmount = useMemo(() => totalAmount - totalDeductions, [totalAmount, totalDeductions]);
     const totalReceived = useMemo(() => (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0), [cashReceived, bankReceived]);
-    const previousBalance = useMemo(() => {
+    
+    // Core Previous Balance Calculation
+    const actualPreviousBalance = useMemo(() => {
         if (!partyId) return 0;
         const currentBalance = partyBalances[partyId] || 0;
         if (editingBillId && billOriginalState) {
-            // Revert the effect of the original bill to get the balance *before* this bill was saved
             const originalNetAmount = billOriginalState.netAmount;
             const originalReceived = billOriginalState.totalReceived;
             return currentBalance - (originalNetAmount - originalReceived);
         }
         return currentBalance;
     }, [partyId, partyBalances, editingBillId, billOriginalState]);
-    const finalBalance = useMemo(() => previousBalance + netAmount - totalReceived, [previousBalance, netAmount, totalReceived]);
+
+    // Handle session state for editable balance
+    useEffect(() => {
+        if (!isPrevBalModified) {
+            setPrevBalInput(actualPreviousBalance.toString());
+        }
+    }, [actualPreviousBalance, isPrevBalModified]);
+
+    const staticPrevBalance = parseFloat(prevBalInput) || 0;
+    const finalBalance = useMemo(() => staticPrevBalance + netAmount - totalReceived, [staticPrevBalance, netAmount, totalReceived]);
     
     // Auto-calculated totals from items
     const calculatedTotalBox = useMemo(() => items.reduce((sum, item) => sum + (item.box || 0), 0), [items]);
@@ -330,6 +348,15 @@ export default function PartyBillPage() {
             toast({ variant: 'destructive', title: 'Missing required fields' });
             return null;
         }
+
+        // PERSIST MANUAL BALANCE OVERRIDE
+        if (isPrevBalModified && partyId) {
+            const delta = staticPrevBalance - actualPreviousBalance;
+            if (delta !== 0) {
+                const currentBalance = partyBalances[partyId] || 0;
+                setPartyBalance(partyId, currentBalance + delta);
+            }
+        }
         
         const billData: Omit<PartyBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
             date: Timestamp.fromDate(date),
@@ -414,7 +441,7 @@ export default function PartyBillPage() {
         const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
         const finalKgsValue = totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs;
 
-        const totalAfterPrevious = netAmount + previousBalance;
+        const totalAfterPrevious = netAmount + staticPrevBalance;
 
         const data = {
             id: editingBillId || 'N/A',
@@ -434,14 +461,14 @@ export default function PartyBillPage() {
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
             totalReceived,
-            previousBalance,
+            previousBalance: staticPrevBalance,
             totalAfterPrevious,
             finalBalance,
         };
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
+        expenses, rent, cashReceived, bankReceived, staticPrevBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -516,7 +543,7 @@ export default function PartyBillPage() {
         message += `Total Amt: ₹${totalAmount.toFixed(2)}\n`;
         message += `Deductions: ₹${totalDeductions.toFixed(2)}\n`;
         message += `*Net Amt: ₹${netAmount.toFixed(2)}*\n`;
-        message += `Prev Bal: ₹${previousBalance.toFixed(2)}\n`;
+        message += `Prev Bal: ₹${staticPrevBalance.toFixed(2)}\n`;
         message += `Received: ₹${totalReceived.toFixed(2)}\n`;
         message += `*Final Bal: ₹${finalBalance.toFixed(2)}*\n`;
         message += `-------------------------\n`;
@@ -596,39 +623,47 @@ export default function PartyBillPage() {
                     </div>
                 </div>
                 <Separator className="my-2"/>
-                <div className="flex justify-between items-center">
-                    <div className="w-2/3">
-                        <Label>To M/S :</Label>
-                         <ReactSelect
-                            ref={partySelectRef}
-                            instanceId="party-select"
-                            options={parties.map(p => ({ value: p.id, label: p.name }))}
-                            value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
-                            onChange={(option) => setPartyId(option ? option.value : '')}
-                            placeholder="Select Party..."
-                            isClearable
-                            styles={reactSelectStyles}
-                        />
-                    </div>
-                     <div className="flex items-center gap-2">
-                        <Label>Total Box :</Label>
-                        <Input 
-                            type="number" 
-                            value={totalBox} 
-                            onChange={e => setTotalBox(e.target.value)} 
-                            className="w-24"
-                            placeholder={calculatedTotalBox.toString()}
-                        />
-                    </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
                     <div className="flex items-center gap-2">
-                        <Label>Total Weight :</Label>
-                        <Input 
-                            type="number" 
-                            value={totalKgs} 
-                            onChange={e => setTotalKgs(e.target.value)} 
-                            className="w-24"
-                            placeholder={calculatedTotalKgs.toString()}
-                        />
+                        <Label className="w-24 shrink-0">To M/S</Label>
+                        <span className="font-bold">:</span>
+                        <div className="flex-1">
+                            <ReactSelect
+                                ref={partySelectRef}
+                                instanceId="party-select"
+                                options={parties.map(p => ({ value: p.id, label: p.name }))}
+                                value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
+                                onChange={(option) => setPartyId(option ? option.value : '')}
+                                placeholder="Select Party..."
+                                isClearable
+                                styles={reactSelectStyles}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4 justify-end">
+                        <div className="flex items-center gap-2">
+                            <Label className="whitespace-nowrap">Total Box</Label>
+                            <span className="font-bold">:</span>
+                            <Input 
+                                type="number" 
+                                value={totalBox} 
+                                onChange={e => setTotalBox(e.target.value)} 
+                                className="w-24 h-9"
+                                placeholder={calculatedTotalBox.toString()}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Label className="whitespace-nowrap">Total Weight</Label>
+                            <span className="font-bold">:</span>
+                            <Input 
+                                type="number" 
+                                value={totalKgs} 
+                                onChange={e => setTotalKgs(e.target.value)} 
+                                className="w-24 h-9"
+                                placeholder={calculatedTotalKgs.toString()}
+                            />
+                        </div>
                     </div>
                 </div>
                 <Separator className="my-2"/>
@@ -756,7 +791,21 @@ export default function PartyBillPage() {
                     </div>
 
                      <div className="space-y-2 text-right">
-                         <div className="flex justify-between items-center"><Label>Previous Balance</Label><span>{previousBalance.toFixed(2)}</span></div>
+                         <div className="flex justify-between items-center">
+                            <Label>Previous Balance</Label>
+                            <Input 
+                                className={cn(
+                                    "max-w-32 text-right font-mono",
+                                    isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
+                                )} 
+                                type="number" 
+                                value={prevBalInput} 
+                                onChange={e => {
+                                    setPrevBalInput(e.target.value);
+                                    setIsPrevBalModified(true);
+                                }} 
+                            />
+                         </div>
                          <Separator/>
                          <div className="flex justify-between items-center font-bold text-xl"><Label>Final Balance</Label><span>{finalBalance.toFixed(2)}</span></div>
                          <Separator/>
