@@ -82,9 +82,11 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings = [];
-  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)}KGS`);
-  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)}BOX`);
-  const totalQtyString = qtyStrings.join(',');
+  // User: "add space after values and box(or kgs) alone"
+  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS `);
+  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
+  // Join with comma, no extra spaces around comma, then trim trailing space
+  const totalQtyString = qtyStrings.join(',').trim();
 
   return (
     <div>
@@ -190,7 +192,7 @@ function PrintPageContent() {
                   <div className="flex justify-between items-center whitespace-nowrap font-bold text-[11px] uppercase w-full">
                     <span>Total Items: {items.length}</span>
                     {totalQtyString && (
-                      <span>Total Qty-&gt;{totalQtyString}</span>
+                      <span>Total Qty->{totalQtyString}</span>
                     )}
                   </div>
                 </TableCell>
