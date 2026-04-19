@@ -179,15 +179,25 @@ function PrintPageContent() {
                 </TableRow>
               ))}
 
-              {/* Total Qty Row */}
-              {totalQtyString && (
-                <TableRow>
-                  <TableCell className="col-product text-left">Total Qty -&gt;</TableCell>
-                  <TableCell colSpan={3} className="text-left whitespace-nowrap p-0">
-                    <strong>{totalQtyString}</strong>
-                  </TableCell>
-                </TableRow>
-              )}
+              {/* Combined Items and Qty Row with Divider Lines */}
+              <TableRow>
+                <TableCell colSpan={4} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
+
+              <TableRow className="combined-summary-row">
+                <TableCell className="col-product text-left whitespace-nowrap">
+                  Total Items: <strong>{items.length}</strong>
+                </TableCell>
+                <TableCell colSpan={3} className="text-left whitespace-nowrap">
+                  {totalQtyString && (
+                    <span>
+                      Total Qty -&gt; <strong>{totalQtyString}</strong>
+                    </span>
+                  )}
+                </TableCell>
+              </TableRow>
 
               <TableRow>
                 <TableCell colSpan={4} className="p-0">
@@ -278,10 +288,6 @@ function PrintPageContent() {
                 )}
               </tbody>
             </table>
-          </div>
-          
-          <div className="label-total-items text-left mt-3 px-1">
-            Total Items: <span className="value-total-items font-mono">{items.length}</span>
           </div>
 
           <footer className="print-footer mt-4">Developed by MC & SONS</footer>
@@ -497,15 +503,6 @@ function PrintPageContent() {
           .print-root.thermal .summary-colon {
             width: 10px;
             text-align: center;
-          }
-          .print-root.thermal .label-total-items {
-            font-size: 13px;
-            font-weight: 700;
-            white-space: nowrap;
-          }
-          .print-root.thermal .value-total-items {
-            font-size: 13px;
-            font-weight: 700;
           }
           .print-root.thermal .summary-value {
             text-align: right;
