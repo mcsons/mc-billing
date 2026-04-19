@@ -82,9 +82,9 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings = [];
-  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS`);
-  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX`);
-  const totalQtyString = qtyStrings.join(', ');
+  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)}KGS`);
+  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)}BOX`);
+  const totalQtyString = qtyStrings.join(',');
 
   return (
     <div>
@@ -179,7 +179,6 @@ function PrintPageContent() {
                 </TableRow>
               ))}
 
-              {/* Combined Items and Qty Row with Divider Lines */}
               <TableRow>
                 <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
@@ -187,15 +186,13 @@ function PrintPageContent() {
               </TableRow>
 
               <TableRow className="combined-summary-row">
-                <TableCell className="col-product text-left whitespace-nowrap">
-                  Total Items: <strong>{items.length}</strong>
-                </TableCell>
-                <TableCell colSpan={3} className="text-left whitespace-nowrap">
-                  {totalQtyString && (
-                    <span>
-                      Total Qty -&gt; <strong>{totalQtyString}</strong>
-                    </span>
-                  )}
+                <TableCell colSpan={4} className="px-1 py-1">
+                  <div className="flex justify-between items-center whitespace-nowrap font-bold text-[11px] uppercase w-full">
+                    <span>Total Items: {items.length}</span>
+                    {totalQtyString && (
+                      <span>Total Qty-&gt;{totalQtyString}</span>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
 
@@ -376,7 +373,7 @@ function PrintPageContent() {
 
           .print-root.thermal #print-area {
             /* 1.5cm padding-top instead of margin to prevent page breaks while keeping the gap */
-            padding: 2cm 4mm 10mm 4mm;
+            padding: 1.5cm 4mm 10mm 4mm;
             margin: 0 !important;
           }
 
