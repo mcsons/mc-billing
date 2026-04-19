@@ -103,8 +103,8 @@ const formatINR = (value: number) => {
 };
 
 export default function BillingPage() {
-  const searchParams = useSearchParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
   const firestore = useFirestore();
@@ -153,6 +153,8 @@ export default function BillingPage() {
 
   // Walk-in mode state
   const [showWalkInConfirm, setShowWalkInConfirm] = useState(false);
+  const [walkInSelectedIndex, setWalkInSelectedIndex] = useState(0);
+  const walkInModalRef = useRef<HTMLDivElement>(null);
 
   // Track unsaved changes
   useEffect(() => {
@@ -168,6 +170,35 @@ export default function BillingPage() {
     
     setIsDirty(hasChanges, handleSaveBill);
   }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, setIsDirty]);
+
+  // Handle Walk-in Selection Logic
+  const handleWalkInSelection = useCallback((index: number) => {
+    if (index === 0) {
+      // Continue as Walk-in
+      setWalkInConfirmed(true); 
+      setSelectedCustomerId('WALK-IN'); 
+      setShowWalkInConfirm(false); 
+      setTimeout(() => manualCustomerNameRef.current?.focus(), 50); 
+    } else if (index === 1) {
+      // Select Customer
+      setShowWalkInConfirm(false); 
+      setTimeout(() => customerSelectRef.current?.focus(), 50); 
+    } else {
+      // Cancel
+      setShowWalkInConfirm(false);
+    }
+  }, [setSelectedCustomerId]);
+
+  // Walk-in Modal keyboard/focus effect
+  useEffect(() => {
+    if (showWalkInConfirm) {
+      setWalkInSelectedIndex(0);
+      const timer = setTimeout(() => {
+        walkInModalRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showWalkInConfirm]);
 
   // Clear manual name if a non-walk-in customer is selected
   useEffect(() => {
@@ -570,7 +601,7 @@ export default function BillingPage() {
             const purgeBatch = writeBatch(firestore);
             itemsSnap.forEach(d => purgeBatch.delete(d.ref));
             await purgeBatch.commit();
-        } catch (e) { console.error("Item purge failed", e); }
+        } catch (e) { console.error("Item update error:", e); }
     }
 
     const billSummary = {
@@ -671,7 +702,7 @@ export default function BillingPage() {
         }
       }
     } catch (err) {
-      console.error("Failed to capture bill data for undo", err);
+      console.error("Undo data capture failed:", err);
     }
 
     showAlertDialog({
@@ -1160,7 +1191,23 @@ export default function BillingPage() {
       </AlertDialog>
 
       <AlertDialog open={showWalkInConfirm} onOpenChange={setShowWalkInConfirm}>
-        <AlertDialogContent>
+        <AlertDialogContent 
+          className="outline-none" 
+          tabIndex={0} 
+          ref={walkInModalRef}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setWalkInSelectedIndex((prev) => (prev + 1) % 3);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setWalkInSelectedIndex((prev) => (prev - 1 + 3) % 3);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              handleWalkInSelection(walkInSelectedIndex);
+            }
+          }}
+        >
             <AlertDialogHeader>
                 <AlertDialogTitle>Walk-in Customer Confirmation</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -1168,17 +1215,26 @@ export default function BillingPage() {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-2 pt-2">
-                <Button onClick={() => { 
-                    setWalkInConfirmed(true); 
-                    setSelectedCustomerId('WALK-IN'); 
-                    setShowWalkInConfirm(false); 
-                    setTimeout(() => manualCustomerNameRef.current?.focus(), 50); 
-                }}>Continue as Walk-in</Button>
-                <Button variant="outline" onClick={() => { 
-                    setShowWalkInConfirm(false); 
-                    setTimeout(() => customerSelectRef.current?.focus(), 50); 
-                }}>Select Customer</Button>
-                <Button variant="ghost" onClick={() => setShowWalkInConfirm(false)}>Cancel</Button>
+                <Button 
+                  onClick={() => handleWalkInSelection(0)}
+                  className={cn(walkInSelectedIndex === 0 && "bg-blue-600 text-white hover:bg-blue-700")}
+                >
+                  Continue as Walk-in
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => handleWalkInSelection(1)}
+                  className={cn(walkInSelectedIndex === 1 && "bg-blue-600 text-white hover:bg-blue-700")}
+                >
+                  Select Customer
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => handleWalkInSelection(2)}
+                  className={cn(walkInSelectedIndex === 2 && "bg-blue-600 text-white hover:bg-blue-700")}
+                >
+                  Cancel
+                </Button>
             </div>
         </AlertDialogContent>
       </AlertDialog>
