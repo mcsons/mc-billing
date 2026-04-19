@@ -196,7 +196,7 @@ export default function BillingPage() {
   const productSelectRef = useRef<any>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const rateInputRef = useRef<HTMLInputElement>(null);
-  const uomTriggerRef = useRef<HTMLButtonElement>(null);
+  const uomSelectRef = useRef<any>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
   const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
   const manualCustomerNameRef = useRef<HTMLInputElement>(null);
@@ -265,15 +265,15 @@ export default function BillingPage() {
     option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
-        ? 'hsl(var(--accent))'
+        ? 'hsl(var(--primary))'
         : state.isFocused
-        ? 'hsl(var(--muted))'
+        ? 'hsl(var(--primary) / 0.15)'
         : 'transparent',
       color: state.isSelected
-        ? 'hsl(var(--accent-foreground))'
+        ? 'hsl(var(--primary-foreground))'
         : 'hsl(var(--foreground))',
       '&:active': {
-        backgroundColor: 'hsl(var(--accent))',
+        backgroundColor: 'hsl(var(--primary))',
       },
     }),
     singleValue: (baseStyles: any) => ({
@@ -731,7 +731,10 @@ export default function BillingPage() {
 
   // Keyboard navigation
   const handleQtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') { e.preventDefault(); uomTriggerRef.current?.focus(); }
+    if (e.key === 'Enter') { 
+        e.preventDefault(); 
+        uomSelectRef.current?.focus(); 
+    }
   };
   
   const handleRateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -875,28 +878,21 @@ export default function BillingPage() {
                 </div>
                 <div className="grid flex-1 shrink-0 gap-1.5 min-w-[100px]">
                   <Label className="text-xs">UOM</Label>
-                  <div className="flex gap-1 h-10">
-                    {selectedProduct?.uom_allowed.map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        className={cn(
-                          "qty-option flex-1 px-2 py-1 text-xs font-bold border rounded transition-all",
-                          uom === opt ? "active bg-blue-600 text-white border-blue-600" : "bg-background border-input hover:border-blue-400"
-                        )}
-                        onClick={() => { setUom(opt); setTimeout(() => rateInputRef.current?.focus(), 50); }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Tab' && !e.shiftKey) {
-                                e.preventDefault();
-                                setUom(opt);
-                                setTimeout(() => rateInputRef.current?.focus(), 0);
-                            }
-                        }}
-                      >
-                        {opt}
-                      </button>
-                    )) || <div className="h-10 w-full border border-dashed rounded opacity-30"></div>}
-                  </div>
+                  <ReactSelect
+                    ref={uomSelectRef}
+                    instanceId="uom-select"
+                    placeholder="UOM"
+                    options={selectedProduct?.uom_allowed.map(o => ({ value: o, label: o })) || []}
+                    value={uom ? { value: uom, label: uom } : null}
+                    onChange={(option: any) => {
+                      setUom(option ? option.value : '');
+                      setTimeout(() => rateInputRef.current?.focus(), 50);
+                    }}
+                    styles={reactSelectStyles}
+                    tabSelectsValue={true}
+                    openMenuOnFocus={true}
+                    isSearchable={false}
+                  />
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="rate" className="text-xs">Rate</Label>
