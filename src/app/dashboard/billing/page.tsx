@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -12,13 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -99,6 +93,14 @@ interface BillPrintData {
   finalBalance: number;
   stall: string;
 }
+
+// INR Currency Formatter Helper
+const formatINR = (value: number) => {
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
 
 export default function BillingPage() {
   const searchParams = useSearchParams();
@@ -767,6 +769,8 @@ export default function BillingPage() {
     return opts;
   }, [customers]);
 
+  const selectedProduct = useMemo(() => products.find(p => p.id === selectedProductId), [products, selectedProductId]);
+
   return (
     <div className="flex flex-col gap-8 pb-24 md:pb-8">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
@@ -869,22 +873,43 @@ export default function BillingPage() {
                   <Label htmlFor="qty" className="text-xs">Qty</Label>
                   <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} />
                 </div>
-                <div className="grid w-24 shrink-0 gap-1.5">
-                  <Label htmlFor="uom" className="text-xs">UOM</Label>
-                  <Select value={uom} onValueChange={(val) => { setUom(val); setTimeout(() => rateInputRef.current?.focus(), 50); }} disabled={!selectedProductId}>
-                    <SelectTrigger id="uom" ref={uomTriggerRef}>
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.find(p => p.id === selectedProductId)?.uom_allowed.map((uom) => (
-                        <SelectItem key={uom} value={uom}>{uom}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid flex-1 shrink-0 gap-1.5 min-w-[100px]">
+                  <Label className="text-xs">UOM</Label>
+                  <div className="flex gap-1 h-10">
+                    {selectedProduct?.uom_allowed.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        className={cn(
+                          "qty-option flex-1 px-2 py-1 text-xs font-bold border rounded transition-all",
+                          uom === opt ? "active bg-blue-600 text-white border-blue-600" : "bg-background border-input hover:border-blue-400"
+                        )}
+                        onClick={() => { setUom(opt); setTimeout(() => rateInputRef.current?.focus(), 50); }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Tab' && !e.shiftKey) {
+                                e.preventDefault();
+                                setUom(opt);
+                                setTimeout(() => rateInputRef.current?.focus(), 0);
+                            }
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    )) || <div className="h-10 w-full border border-dashed rounded opacity-30"></div>}
+                  </div>
                 </div>
                 <div className="grid w-24 shrink-0 gap-1.5">
                   <Label htmlFor="rate" className="text-xs">Rate</Label>
-                  <Input id="rate" type="number" placeholder="0.00" value={rate} onChange={(e) => setRate(e.target.value)} ref={rateInputRef} onKeyDown={handleRateKeyDown} />
+                  <Input 
+                    id="rate" 
+                    type="number" 
+                    placeholder="0.00" 
+                    value={rate} 
+                    onChange={(e) => setRate(e.target.value)} 
+                    ref={rateInputRef} 
+                    onKeyDown={handleRateKeyDown} 
+                    onFocus={(e) => e.target.select()}
+                  />
                 </div>
                 <div className="shrink-0"><Button onClick={handleAddItem} className="h-10 w-10 p-0" size="icon"><PlusCircle className="h-5 w-5" /></Button></div>
               </div>
@@ -920,7 +945,7 @@ export default function BillingPage() {
                         <TableCell className="px-1 text-center">{item.uom}</TableCell>
                         <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-10 w-[90px] text-center font-mono text-base px-1" /></TableCell>
                         <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-10 w-[110px] text-right font-mono text-base px-1" /></TableCell>
-                        <TableCell className="px-1 text-right font-mono font-semibold">{item.amount.toFixed(2)}</TableCell>
+                        <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
                         <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
                       </TableRow>
                     ))
@@ -931,9 +956,9 @@ export default function BillingPage() {
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-lg">
-                  <span className="font-semibold">Items Total:</span><span className="font-mono">₹{itemsTotal.toFixed(2)}</span>
-                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
-                  <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{totalAmount.toFixed(2)}</span>
+                  <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
+                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>
                   <span className="font-semibold">Prev Bal:</span>
                   <Input 
                     className={cn(
@@ -947,8 +972,14 @@ export default function BillingPage() {
                     }} 
                     onFocus={(e) => e.target.select()}
                   />
-                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} />
-                  <span className="font-semibold">Balance:</span><span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
+                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold text-lg pt-1">Balance:</span>
+                  <span className={cn(
+                    "font-mono font-bold text-2xl pt-1",
+                    finalBalance >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
+                  )}>
+                    ₹{formatINR(finalBalance)}
+                  </span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
                   <Button 
@@ -1012,7 +1043,7 @@ export default function BillingPage() {
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -1048,7 +1079,7 @@ export default function BillingPage() {
                         <TableCell className="font-medium">{bill.billNo}</TableCell>
                         <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
                         <TableCell>{bill.customerName}</TableCell>
-                        <TableCell className="text-right font-mono">₹{bill.amount.toFixed(2)}</TableCell>
+                        <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
                         <TableCell>{creator?.username || bill.createdBy}</TableCell>
                       </TableRow>
                     );
@@ -1065,7 +1096,12 @@ export default function BillingPage() {
         <div className="flex h-full w-full items-center justify-between gap-4">
           <div className="text-left">
             <div className="text-xs text-muted-foreground">Balance</div>
-            <div className="font-mono text-lg font-bold">₹{finalBalance.toFixed(2)}</div>
+            <div className={cn(
+              "font-mono text-lg font-bold",
+              finalBalance >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
+            )}>
+              ₹{formatINR(finalBalance)}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button size="lg" className="flex-1" onClick={handleAddItem} disabled={!qty || !rate}><PlusCircle className="h-5 w-5" /></Button>

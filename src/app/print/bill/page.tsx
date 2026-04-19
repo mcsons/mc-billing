@@ -264,6 +264,15 @@ function PrintPageContent() {
           <footer className="print-footer mt-4">Developed by MC & SONS</footer>
         </div>
       </div>
+      
+      {/* Bottom Print Button (Print Preview Only) */}
+      <div className="p-4 print:hidden flex justify-end">
+        <Button size="lg" onClick={() => window.print()}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
+        </Button>
+      </div>
+
       <style jsx global>{`
         /* ===============================
           SCREEN PREVIEW STYLES

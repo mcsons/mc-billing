@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -105,4 +106,23 @@
     color: hsl(var(--shell-foreground));
     font-family: var(--font-body), sans-serif;
   }
+}
+
+/* Custom Qty/UOM Selection Highlights */
+.qty-option {
+  transition: all 0.15s ease;
+}
+
+.qty-option:hover,
+.qty-option:focus {
+  background-color: #2563eb !important;   /* clear blue highlight */
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+.qty-option.active {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
 }
