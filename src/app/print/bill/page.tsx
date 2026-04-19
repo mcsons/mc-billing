@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -73,6 +72,19 @@ function PrintPageContent() {
   } = billData;
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
+
+  // Calculate Total Quantity for KGS and BOX
+  const totalKgs = items
+    .filter((i) => i.uom.toUpperCase() === 'KGS')
+    .reduce((sum, i) => sum + i.qty, 0);
+  const totalBox = items
+    .filter((i) => i.uom.toUpperCase() === 'BOX')
+    .reduce((sum, i) => sum + i.qty, 0);
+
+  const qtyStrings = [];
+  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS`);
+  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX`);
+  const totalQtyString = qtyStrings.join(', ');
 
   return (
     <div>
@@ -166,6 +178,17 @@ function PrintPageContent() {
                   </TableCell>
                 </TableRow>
               ))}
+
+              {/* Total Qty Row */}
+              {totalQtyString && (
+                <TableRow>
+                  <TableCell className="col-product text-left">Total Qty -&gt;</TableCell>
+                  <TableCell colSpan={3} className="text-left whitespace-nowrap p-0">
+                    <strong>{totalQtyString}</strong>
+                  </TableCell>
+                </TableRow>
+              )}
+
               <TableRow>
                 <TableCell colSpan={4} className="p-0">
                   <div className="table-header-line"></div>
@@ -374,7 +397,7 @@ function PrintPageContent() {
             margin: 6px 0;
           }
           .print-root.thermal .table-header-line {
-            border-top: 2px solid #000;
+            border-top: 1px solid #000;
             margin: 0;
           }
 
