@@ -986,16 +986,16 @@ export default function BillingPage() {
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[14rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
-              <Table className="min-w-[480px] md:min-w-[650px] md:table-fixed border-collapse">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-28rem)] min-h-[16rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
+              <Table className="min-w-[600px] md:min-w-full md:table-fixed border-collapse">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b">
-                    <TableHead className="w-[45px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
-                    <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[120px]">Product</TableHead>
+                    <TableHead className="w-[40px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
+                    <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[200px] md:min-w-0">Product</TableHead>
                     <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
                     <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
                     <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
-                    <TableHead className="w-[80px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
+                    <TableHead className="w-[100px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
                     <TableHead className="w-[40px] md:w-[45px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1007,7 +1007,7 @@ export default function BillingPage() {
                       return (
                         <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
                           <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
-                          <TableCell className="px-1 max-w-[120px]">
+                          <TableCell className="px-1 min-w-[200px] md:min-w-0 md:max-w-[250px]">
                                 <Tooltip key={item.id}>
                                   <TooltipTrigger asChild>
                                     <span className="cursor-default block w-full whitespace-normal break-words text-xs md:text-base leading-tight md:leading-normal font-medium">{item.product}</span>
@@ -1033,13 +1033,13 @@ export default function BillingPage() {
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 {/* Mobile totals — compact two-column grid, full width */}
-                <div className="w-full md:hidden rounded-lg bg-muted/40 border p-3">
-                  <div className="grid grid-cols-2 gap-x-2 gap-y-2 text-sm">
+                <div className="w-full md:hidden rounded-lg bg-muted/40 border p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
                     <span className="font-medium text-muted-foreground">Items Total</span>
                     <span className="font-mono font-semibold text-right">₹{itemsTotal.toFixed(2)}</span>
 
                     <span className="font-medium text-muted-foreground flex items-center">Delivery</span>
-                    <Input className="h-8 text-right font-mono text-sm px-2" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
+                    <Input className="h-9 text-right font-mono text-sm px-2" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
 
                     <span className="font-medium text-muted-foreground">Bill Total</span>
                     <span className="font-mono font-bold text-right">₹{totalAmount.toFixed(2)}</span>
@@ -1047,7 +1047,7 @@ export default function BillingPage() {
                     <span className="font-medium text-muted-foreground flex items-center">Prev Bal</span>
                     <Input
                       className={cn(
-                        "h-8 text-right font-mono text-sm px-2",
+                        "h-9 text-right font-mono text-sm px-2",
                         isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
                       )}
                       value={prevBalInput}
@@ -1056,14 +1056,14 @@ export default function BillingPage() {
                     />
 
                     <span className="font-medium text-muted-foreground flex items-center">Paid</span>
-                    <Input className="h-8 text-right font-mono text-sm px-2" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} />
+                    <Input className="h-9 text-right font-mono text-sm px-2" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
 
-                    <span className="font-semibold text-base border-t pt-2">Balance</span>
-                    <span className="font-mono font-bold text-right text-base text-primary border-t pt-2">₹{finalBalance.toFixed(2)}</span>
+                    <span className="font-semibold text-base border-t pt-3">Balance</span>
+                    <span className="font-mono font-bold text-right text-base text-primary border-t pt-3">₹{finalBalance.toFixed(2)}</span>
                   </div>
                 </div>
                 {/* Desktop totals — unchanged */}
-                <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
+                <div className="hidden md:grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>
@@ -1175,7 +1175,7 @@ export default function BillingPage() {
           </div>
 
           <div className="overflow-x-auto rounded-md border">
-            <Table className="min-w-[600px]">
+            <Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
@@ -1223,7 +1223,7 @@ export default function BillingPage() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="lg" variant="outline" className="px-3 bg-background border-border text-black dark:text-white" style={{ zIndex: 20 }}>
+              <Button size="lg" variant="outline" className="px-3 bg-background border-2 border-border/60 text-black dark:text-white" style={{ zIndex: 20 }}>
                 <MoreVertical className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
