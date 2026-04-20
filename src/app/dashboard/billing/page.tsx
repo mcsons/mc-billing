@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -221,6 +220,7 @@ export default function BillingPage() {
   const [historySelectedCustomer, setHistorySelectedCustomer] = useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [filteredHistoryBills, setFilteredHistoryBills] = useState<LiveBillSummary[]>([]);
+  const [historySearchText, setHistorySearchText] = useState('');
 
   // Refs
   const customerSelectRef = useRef<any>(null);
@@ -443,8 +443,20 @@ export default function BillingPage() {
         return isSameDay(billDate, historyDate);
       });
     }
+    if (historySearchText) {
+      const query = historySearchText.toLowerCase();
+      results = results.filter(bill => {
+        const searchableName = bill.customerId === 'WALK-IN' 
+          ? (bill.customerName || 'WALK-IN') 
+          : bill.customerName;
+        return (
+          searchableName.toLowerCase().includes(query) ||
+          bill.billNo.toLowerCase().includes(query)
+        );
+      });
+    }
     setFilteredHistoryBills(sortBills(results));
-  }, [liveBillSummaries, historySelectedCustomer, historyDate, sortBills]);
+  }, [liveBillSummaries, historySelectedCustomer, historyDate, historySearchText, sortBills]);
 
   // LOCAL INTERACTIONS: operate on localBillItems without DB writes
   const handleAddItem = useCallback(() => {
@@ -760,6 +772,7 @@ export default function BillingPage() {
   const handleClearHistorySearch = () => {
     setHistoryDate(undefined);
     setHistorySelectedCustomer('');
+    setHistorySearchText('');
   };
 
   // Keyboard navigation
@@ -808,7 +821,7 @@ export default function BillingPage() {
   const selectedProduct = useMemo(() => products.find(p => p.id === selectedProductId), [products, selectedProductId]);
 
   return (
-    <div className="flex flex-col gap-8 pb-24 md:pb-8">
+    <div className="flex flex-col gap-8 pb-24 md:pb-8 max-w-full overflow-x-hidden md:overflow-x-visible">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
         <div className="grid auto-rows-max gap-4">
           <Card>
@@ -819,10 +832,10 @@ export default function BillingPage() {
                 </CardTitle>
                 <CardDescription>Manage active transaction.</CardDescription>
               </div>
-              <div className="flex flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+              <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto sm:items-end">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px]', !date && 'text-muted-foreground')}>
+                    <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px] h-11 md:h-10', !date && 'text-muted-foreground')}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {date ? format(date, 'dd-MM-yyyy') : <span>Pick a date</span>}
                     </Button>
@@ -831,7 +844,7 @@ export default function BillingPage() {
                     <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
                   </PopoverContent>
                 </Popover>
-                <Button variant="outline" onClick={handleNewBill}>
+                <Button variant="outline" onClick={handleNewBill} className="h-11 md:h-10">
                   <FilePlus className="mr-2 h-4 w-4" />
                   New Bill
                 </Button>
@@ -872,6 +885,7 @@ export default function BillingPage() {
                       value={manualCustomerName}
                       onChange={(e) => setManualCustomerName(e.target.value)}
                       onKeyDown={handleManualCustomerNameKeyDown}
+                      className="h-11 md:h-10"
                     />
                   </div>
                 )}
@@ -882,8 +896,8 @@ export default function BillingPage() {
           <Card>
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent>
-              <div className="flex flex-nowrap items-end gap-3">
-                <div className="grid flex-[4] min-w-0 gap-1.5" onClick={handleProductSelectInteraction}>
+              <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-3">
+                <div className="grid w-full md:flex-[4] min-w-0 gap-1.5" onClick={handleProductSelectInteraction}>
                   <Label htmlFor="product" className="text-xs">Product</Label>
                   <ReactSelect
                     instanceId="product-select"
@@ -908,17 +922,21 @@ export default function BillingPage() {
                     onFocus={handleProductSelectInteraction}
                   />
                 </div>
-                <div className="grid w-24 shrink-0 gap-1.5">
+                <div className="grid w-full md:w-24 shrink-0 gap-1.5">
                   <Label htmlFor="qty" className="text-xs">Qty</Label>
-                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} />
+                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 md:h-10" />
                 </div>
-                <div className="grid flex-1 shrink-0 gap-1.5 min-w-[100px]">
+                <div className="grid w-full md:flex-1 shrink-0 gap-1.5 min-w-0 md:min-w-[100px]">
                   <Label className="text-xs">UOM</Label>
                   <ReactSelect
                     ref={uomSelectRef}
                     instanceId="uom-select"
                     placeholder="UOM"
-                    options={selectedProduct?.uom_allowed.map(o => ({ value: o, label: o })) || []}
+                    options={useMemo(() => {
+                      const opts = selectedProduct?.uom_allowed.map(o => ({ value: o, label: o })) || [];
+                      // Force KGS to the top of the list so it is highlighted by default when the menu opens
+                      return [...opts].sort((a, b) => a.value === 'KGS' ? -1 : b.value === 'KGS' ? 1 : 0);
+                    }, [selectedProduct])}
                     value={uom ? { value: uom, label: uom } : null}
                     onChange={(option: any) => {
                       setUom(option ? option.value : 'KGS');
@@ -936,7 +954,7 @@ export default function BillingPage() {
                     isSearchable={false}
                   />
                 </div>
-                <div className="grid w-24 shrink-0 gap-1.5">
+                <div className="grid w-full md:w-24 shrink-0 gap-1.5">
                   <Label htmlFor="rate" className="text-xs">Rate</Label>
                   <Input 
                     id="rate" 
@@ -947,9 +965,10 @@ export default function BillingPage() {
                     ref={rateInputRef} 
                     onKeyDown={handleRateKeyDown} 
                     onFocus={(e) => e.target.select()}
+                    className="h-11 md:h-10"
                   />
                 </div>
-                <div className="shrink-0"><Button onClick={handleAddItem} className="h-10 w-10 p-0" size="icon"><PlusCircle className="h-5 w-5" /></Button></div>
+                <div className="w-full md:w-auto shrink-0"><Button onClick={handleAddItem} className="h-11 md:h-10 w-full md:w-10 p-0" size={null as any}><PlusCircle className="h-5 w-5 mr-2 md:mr-0" /><span className="md:hidden">Add Item</span></Button></div>
               </div>
             </CardContent>
           </Card>
@@ -959,18 +978,18 @@ export default function BillingPage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="font-headline">Current Bill</CardTitle>
-              <CardDescription>{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
+              <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[22rem] overflow-auto p-0 border-t">
-              <Table className="w-full table-fixed border-collapse">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[18rem] md:min-h-[22rem] overflow-auto p-0 border-t">
+              <Table className="w-full table-auto md:table-fixed border-collapse min-w-[500px] md:min-w-0">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b">
-                    <TableHead className="w-[45px] px-1 text-center font-bold text-sm uppercase">S/N</TableHead>
-                    <TableHead className="px-1 text-left font-bold text-sm uppercase">Product</TableHead>
-                    <TableHead className="w-[60px] px-1 text-center font-bold text-sm uppercase">UOM</TableHead>
-                    <TableHead className="w-[100px] px-1 text-center font-bold text-sm uppercase">Qty</TableHead>
-                    <TableHead className="w-[120px] px-1 text-right font-bold text-sm uppercase">Rate</TableHead>
-                    <TableHead className="w-[130px] px-1 text-right font-bold text-sm uppercase">Amount</TableHead>
+                    <TableHead className="w-[45px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
+                    <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[120px]">Product</TableHead>
+                    <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
+                    <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
+                    <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
+                    <TableHead className="w-[110px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
                     <TableHead className="w-[45px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -979,10 +998,10 @@ export default function BillingPage() {
                     localBillItems.map((item, index) => (
                       <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
                         <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="px-1 truncate">{item.product}</TableCell>
+                        <TableCell className="px-1 truncate font-medium">{item.product}</TableCell>
                         <TableCell className="px-1 text-center">{item.uom}</TableCell>
-                        <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-10 w-[90px] text-center font-mono text-base px-1" /></TableCell>
-                        <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-10 w-[110px] text-right font-mono text-base px-1" /></TableCell>
+                        <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
+                        <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
                         <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
                         <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
                       </TableRow>
@@ -993,14 +1012,14 @@ export default function BillingPage() {
             </CardContent>
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
-                <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-lg">
+                <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
-                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>
                   <span className="font-semibold">Prev Bal:</span>
                   <Input 
                     className={cn(
-                      "ml-auto max-w-32 text-right font-mono",
+                      "ml-auto max-w-32 h-9 md:h-10 text-right font-mono",
                       isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
                     )} 
                     value={prevBalInput} 
@@ -1010,10 +1029,10 @@ export default function BillingPage() {
                     }} 
                     onFocus={(e) => e.target.select()}
                   />
-                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold text-lg pt-1">Balance:</span>
                   <span className={cn(
-                    "font-mono font-bold text-2xl pt-1",
+                    "font-mono font-bold text-xl md:text-2xl pt-1",
                     finalBalance >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
                   )}>
                     ₹{formatINR(finalBalance)}
@@ -1051,10 +1070,10 @@ export default function BillingPage() {
 
       <Separator />
 
-      <Card>
+      <Card className="max-w-full overflow-hidden">
         <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="font-headline text-2xl">Bill History</CardTitle>
+            <CardTitle className="font-headline text-xl md:text-2xl">Bill History</CardTitle>
             <CardDescription>Search and view past bills. Double-click or Enter to load for editing.</CardDescription>
           </div>
           {selectedBills.size > 0 && (currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
@@ -1066,7 +1085,19 @@ export default function BillingPage() {
         <CardContent>
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
             <div className="grid flex-1 gap-2">
-              <Label>Customer</Label>
+              <Label>Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or bill no..."
+                  className="pl-9 h-11 md:h-10"
+                  value={historySearchText}
+                  onChange={(e) => setHistorySearchText(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid flex-1 gap-2">
+              <Label>Customer Filter</Label>
               <ReactSelect
                 instanceId="history-customer-select"
                 options={customerOptions}
@@ -1081,7 +1112,7 @@ export default function BillingPage() {
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal md:w-[200px] h-11 md:h-10', !historyDate && 'text-muted-foreground')}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -1089,18 +1120,18 @@ export default function BillingPage() {
                 <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
               </Popover>
             </div>
-            <Button variant="ghost" onClick={handleClearHistorySearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
+            <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
           </div>
 
           <div className="overflow-x-auto rounded-md border">
-            <Table>
+            <Table className="min-w-[600px]">
               <TableHeader>
                 <TableRow>
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
                   <TableHead>Bill No</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Amt</TableHead>
                   <TableHead>Created By</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1116,9 +1147,9 @@ export default function BillingPage() {
                         )}
                         <TableCell className="font-medium">{bill.billNo}</TableCell>
                         <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell>{bill.customerName}</TableCell>
+                        <TableCell className="font-medium">{bill.customerName}</TableCell>
                         <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell>{creator?.username || bill.createdBy}</TableCell>
+                        <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
                       </TableRow>
                     );
                   })
@@ -1130,7 +1161,7 @@ export default function BillingPage() {
       </Card>
 
       {/* Sticky Mobile Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 h-20 border-t bg-background/95 px-4 py-2 md:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 h-20 border-t bg-background/95 px-4 py-2 md:hidden w-screen">
         <div className="flex h-full w-full items-center justify-between gap-4">
           <div className="text-left">
             <div className="text-xs text-muted-foreground">Balance</div>
@@ -1142,14 +1173,18 @@ export default function BillingPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="lg" className="flex-1" onClick={handleAddItem} disabled={!qty || !rate}><PlusCircle className="h-5 w-5" /></Button>
+            <Button className="h-12 px-6" onClick={handleAddItem} disabled={!qty || !rate}><PlusCircle className="h-5 w-5" /></Button>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild><Button size="lg" variant="outline" className="px-3"><MoreVertical className="h-5 w-5" /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="mb-2">
-                <DropdownMenuItem onClick={handleSaveBill} disabled={!selectedCustomerId}><Save className="mr-2 h-4 w-4" /><span>Save & New</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePrintBill('thermal')}><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePrintBill('a4')}><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-12 w-12 p-0 border-2 border-input text-foreground">
+                  <MoreVertical className="h-6 w-6" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="mb-2 w-48">
+                <DropdownMenuItem onClick={handleSaveBill} disabled={!selectedCustomerId} className="h-11"><Save className="mr-2 h-4 w-4" /><span>Save & New</span></DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePrintBill('thermal')} className="h-11"><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePrintBill('a4')} className="h-11"><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
+                <DropdownMenuItem onClick={handleShareWhatsApp} className="h-11"><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
