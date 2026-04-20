@@ -42,6 +42,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -980,8 +986,8 @@ export default function BillingPage() {
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[18rem] md:min-h-[22rem] overflow-auto p-0 border-t">
-              <Table className="w-full table-auto md:table-fixed border-collapse min-w-[500px] md:min-w-0">
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-26rem)] min-h-[14rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
+              <Table className="min-w-[480px] md:min-w-[650px] md:table-fixed border-collapse">
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-b">
                     <TableHead className="w-[45px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
@@ -989,29 +995,74 @@ export default function BillingPage() {
                     <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
                     <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
                     <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
-                    <TableHead className="w-[110px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
-                    <TableHead className="w-[45px]"></TableHead>
+                    <TableHead className="w-[80px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
+                    <TableHead className="w-[40px] md:w-[45px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                <TooltipProvider delayDuration={200}>
                   {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
-                    localBillItems.map((item, index) => (
-                      <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
-                        <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
-                        <TableCell className="px-1 truncate font-medium">{item.product}</TableCell>
-                        <TableCell className="px-1 text-center">{item.uom}</TableCell>
-                        <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
-                        <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
-                        <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
-                        <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                      </TableRow>
-                    ))
+                    localBillItems.map((item, index) => {
+                      const itemAddedBy = users.find(u => u.id === item.addedBy)?.username || '--';
+                      return (
+                        <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
+                          <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
+                          <TableCell className="px-1 max-w-[120px]">
+                                <Tooltip key={item.id}>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-default block w-full whitespace-normal break-words text-xs md:text-base leading-tight md:leading-normal font-medium">{item.product}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p>Added by: {itemAddedBy}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TableCell>
+                          <TableCell className="px-1 text-center">{item.uom}</TableCell>
+                          <TableCell className="px-1 md:px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
+                          <TableCell className="px-1 md:px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
+                          <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
+                          <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
+                  </TooltipProvider>
                 </TableBody>
               </Table>
             </CardContent>
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
+                {/* Mobile totals — compact two-column grid, full width */}
+                <div className="w-full md:hidden rounded-lg bg-muted/40 border p-3">
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-2 text-sm">
+                    <span className="font-medium text-muted-foreground">Items Total</span>
+                    <span className="font-mono font-semibold text-right">₹{itemsTotal.toFixed(2)}</span>
+
+                    <span className="font-medium text-muted-foreground flex items-center">Delivery</span>
+                    <Input className="h-8 text-right font-mono text-sm px-2" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} />
+
+                    <span className="font-medium text-muted-foreground">Bill Total</span>
+                    <span className="font-mono font-bold text-right">₹{totalAmount.toFixed(2)}</span>
+
+                    <span className="font-medium text-muted-foreground flex items-center">Prev Bal</span>
+                    <Input
+                      className={cn(
+                        "h-8 text-right font-mono text-sm px-2",
+                        isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
+                      )}
+                      value={prevBalInput}
+                      onChange={(e) => { setPrevBalInput(e.target.value); setIsPrevBalModified(true); }}
+                      onFocus={(e) => e.target.select()}
+                    />
+
+                    <span className="font-medium text-muted-foreground flex items-center">Paid</span>
+                    <Input className="h-8 text-right font-mono text-sm px-2" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} />
+
+                    <span className="font-semibold text-base border-t pt-2">Balance</span>
+                    <span className="font-mono font-bold text-right text-base text-primary border-t pt-2">₹{finalBalance.toFixed(2)}</span>
+                  </div>
+                </div>
+                {/* Desktop totals — unchanged */}
                 <div className="grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
@@ -1161,78 +1212,59 @@ export default function BillingPage() {
       </Card>
 
       {/* Sticky Mobile Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 h-20 border-t bg-background/95 px-4 py-2 md:hidden w-screen">
-        <div className="flex h-full w-full items-center justify-between gap-4">
-          <div className="text-left">
-            <div className="text-xs text-muted-foreground">Balance</div>
-            <div className={cn(
-              "font-mono text-lg font-bold",
-              finalBalance >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
-            )}>
-              ₹{formatINR(finalBalance)}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button className="h-12 px-6" onClick={handleAddItem} disabled={!qty || !rate}><PlusCircle className="h-5 w-5" /></Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-12 w-12 p-0 border-2 border-input text-foreground">
-                  <MoreVertical className="h-6 w-6" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="mb-2 w-48">
-                <DropdownMenuItem onClick={handleSaveBill} disabled={!selectedCustomerId} className="h-11"><Save className="mr-2 h-4 w-4" /><span>Save & New</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePrintBill('thermal')} className="h-11"><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePrintBill('a4')} className="h-11"><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
-                <DropdownMenuItem onClick={handleShareWhatsApp} className="h-11"><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+      <div className="fixed bottom-0 left-0 right-0 z-10 h-[72px] border-t bg-background/95 px-4 py-2 md:hidden flex items-center justify-between gap-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-col">
+          <span className="text-xs text-muted-foreground font-semibold uppercase">Total Bal</span>
+          <span className="font-mono text-black dark:text-white font-bold">₹{finalBalance.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-1 justify-end">
+          <Button size="lg" className="flex-1 max-w-[150px]" onClick={handleSaveBill} disabled={!selectedCustomerId || (localBillItems.length === 0 && !activeBillNo)}>
+            <Save className="mr-2 h-5 w-5" /> Save
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="lg" variant="outline" className="px-3 bg-background border-border text-black dark:text-white" style={{ zIndex: 20 }}>
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="mb-2 w-48">
+              <DropdownMenuItem onClick={handleNewBill}><FilePlus className="mr-2 h-4 w-4" /><span>New Bill</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlePrintBill('thermal')}><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlePrintBill('a4')}><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* Dialogs */}
       <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
         <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Confirm Printing</AlertDialogTitle><AlertDialogDescription>Do you want to save this bill before printing?</AlertDialogDescription></AlertDialogHeader>
-            <div className="flex flex-col gap-2 pt-2">
-                <Button onClick={async () => { const d = await handleSaveAndGetData(); if (d) { window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); performReset(); } setShowPrintConfirm(false); }} disabled={!selectedCustomerId}>Save & Print</Button>
-                <Button variant="outline" onClick={() => { const d = getBillPrintData(); if (d) window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); setShowPrintConfirm(false); }}>Continue Without Saving</Button>
-                <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
-            </div>
+          <AlertDialogHeader><AlertDialogTitle>Confirm Printing</AlertDialogTitle><AlertDialogDescription>Do you want to save this bill before printing?</AlertDialogDescription></AlertDialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button onClick={async () => { setShowPrintConfirm(false); const d = await handleSaveAndGetData(); if (d) { window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); performReset(); } }} disabled={!selectedCustomerId}>Save & Print</Button>
+            <Button variant="outline" onClick={() => { setShowPrintConfirm(false); const d = getBillPrintData(); if (d) window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); }}>Print Without Saving</Button>
+            <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={showWhatsAppShareConfirm} onOpenChange={setShowWhatsAppShareConfirm}>
         <AlertDialogContent>
-            <AlertDialogHeader><AlertDialogTitle>Share on WhatsApp</AlertDialogTitle><AlertDialogDescription>Open WhatsApp to share this bill summary?</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => {
-                  const customer = customers.find((c) => c.id === selectedCustomerId);
-                  const phone = customer?.phone || '';
-                  const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : (manualCustomerName || '--');
-                  
-                  let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\n\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n\n-------------------------\n\n`;
-                  
-                  localBillItems.forEach((item, index) => { 
-                    message += `${index + 1}. ${item.product} (${Math.round(item.qty)} ${item.uom}) = ₹${Math.round(item.amount)}\n`; 
-                  });
-                  
-                  const billTotalVal = Math.round(itemsTotal + (parseFloat(deliveryCharge) || 0));
-                  const previousBalanceVal = Math.round(staticPrevBalance);
-                  const finalBalanceVal = Math.round(finalBalance);
-
-                  message += `\n-------------------------\n\n`;
-                  message += `Bill Total: ₹${billTotalVal}\n`;
-                  message += `Previous Balance: ₹${previousBalanceVal}\n`;
-                  message += `Final Balance: ₹${finalBalanceVal}\n\n`;
-                  message += `Thank you!`;
-                  
-                  window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-                  setShowWhatsAppShareConfirm(false);
-                }}>Open WhatsApp</AlertDialogAction>
-            </AlertDialogFooter>
+          <AlertDialogHeader><AlertDialogTitle>Share on WhatsApp</AlertDialogTitle><AlertDialogDescription>Open WhatsApp to share this bill summary?</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const customer = customers.find((c) => c.id === selectedCustomerId);
+              const phone = customer?.phone || '';
+              const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Walk-in Customer';
+              let message = `*M.C & SONS FISH COMPANY*\n*BILL SUMMARY*\n\nBill No: ${activeBillNo || 'New'}\nDate: ${format(date || new Date(), 'dd-MM-yyyy')}\nCustomer: ${customerName}\n\n-------------------------\n\n`;
+              localBillItems.forEach((item, index) => { message += `${index + 1}. ${item.product} (${item.qty} ${item.uom}) = ₹${Math.round(item.amount)}\n`; });
+              message += `\n-------------------------\n\nBill Total: ₹${Math.round(totalAmount)}\nPrevious Balance: ₹${Math.round(staticPrevBalance)}\nFinal Balance: ₹${Math.round(finalBalance)}\n\nThank you!`;
+              window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+              setShowWhatsAppShareConfirm(false);
+            }}>Open WhatsApp</AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
