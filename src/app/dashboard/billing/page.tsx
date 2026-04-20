@@ -475,6 +475,7 @@ export default function BillingPage() {
     // Clear inputs
     setQty('');
     setRate('');
+    setUom('KGS'); // Default reset to KGS
     if (productSelectRef.current) productSelectRef.current.clearValue();
     setSelectedProductId('');
     
@@ -527,6 +528,7 @@ export default function BillingPage() {
     setSelectedProductId('');
     setQty('');
     setRate('');
+    setUom('KGS'); // Default reset to KGS
     setPaidAmount('');
     setDeliveryCharge('');
     setInitialBillTotal(0);
@@ -697,7 +699,7 @@ export default function BillingPage() {
         const summary = liveBillSummaries.find(b => b.billNo === billNo);
         if (summary && firestore) {
           const itemsSnap = await getDocs(collection(firestore, 'bills', billNo, 'billItems'));
-          const items = itemsSnap.docs.map(d => d.data() as BillItem);
+          const items = itemsSnap.docs.map(d => ({ ...d.data(), id: d.id } as BillItem));
           billsToRestore.push({ summary, items });
         }
       }
@@ -895,7 +897,10 @@ export default function BillingPage() {
                       if (!option) { setSelectedProductId(''); setRate(''); return; }
                       setSelectedProductId(option.value);
                       const product = products.find(p => p.id === option.value);
-                      if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
+                      if (product && product.uom_allowed.length > 0) {
+                        const defaultUom = product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0];
+                        setUom(defaultUom);
+                      }
                       setTimeout(() => qtyInputRef.current?.focus(), 0);
                     }}
                     styles={reactSelectStyles}
@@ -916,8 +921,14 @@ export default function BillingPage() {
                     options={selectedProduct?.uom_allowed.map(o => ({ value: o, label: o })) || []}
                     value={uom ? { value: uom, label: uom } : null}
                     onChange={(option: any) => {
-                      setUom(option ? option.value : '');
+                      setUom(option ? option.value : 'KGS');
                       setTimeout(() => rateInputRef.current?.focus(), 50);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Tab') {
+                        // Confirm selection and move to Rate
+                        setTimeout(() => rateInputRef.current?.focus(), 50);
+                      }
                     }}
                     styles={reactSelectStyles}
                     tabSelectsValue={true}
