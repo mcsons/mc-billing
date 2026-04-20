@@ -1,4 +1,3 @@
-
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -105,6 +104,7 @@ interface DataContextType {
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
+  findBillForCustomerOnDate: (customerId: string, date: Date) => LiveBillSummary | undefined;
   getBill: (billNo: string) => LiveBillSummary | undefined;
   getCustomerLedger: (
     customerId: string, 
@@ -692,6 +692,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
         if (!billDate || bill.customerId !== customerId) return false;
         return startOfDay(billDate).getTime() === today.getTime();
+    });
+  }, [liveBillSummaries]);
+
+  const findBillForCustomerOnDate = useCallback((customerId: string, date: Date) => {
+    const targetDate = startOfDay(date);
+    return (liveBillSummaries || []).find(bill => {
+        const billDate = bill.date ? (bill.date as Timestamp).toDate() : null;
+        if (!billDate || bill.customerId !== customerId) return false;
+        return startOfDay(billDate).getTime() === targetDate.getTime();
     });
   }, [liveBillSummaries]);
 
@@ -1316,6 +1325,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         updateProductPrice,
         addPayment,
         findBillForCustomerToday,
+        findBillForCustomerOnDate,
         getBill,
         getCustomerLedger,
         getSalesReport,

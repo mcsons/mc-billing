@@ -113,7 +113,7 @@ export default function BillingPage() {
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
   const firestore = useFirestore();
-  const { setIsDirty } = useNavigationGuard();
+  const { isDirty, setIsDirty } = useNavigationGuard();
 
   const {
     customers,
@@ -121,7 +121,7 @@ export default function BillingPage() {
     productPrices,
     customerBalances,
     currentUser,
-    findBillForCustomerToday,
+    findBillForCustomerOnDate,
     createOrUpdateLiveBill,
     getBill,
     liveBillSummaries,
@@ -222,11 +222,16 @@ export default function BillingPage() {
   const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
   // History states
-  const [historyDate, setHistoryDate] = useState<Date | undefined>();
+  const [historyDate, setHistoryDate] = useState<Date | undefined>(new Date());
   const [historySelectedCustomer, setHistorySelectedCustomer] = useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [filteredHistoryBills, setFilteredHistoryBills] = useState<LiveBillSummary[]>([]);
   const [historySearchText, setHistorySearchText] = useState('');
+
+  // Sync history filters when the main date picker changes (Isolation requirement)
+  useEffect(() => {
+    setHistoryDate(date);
+  }, [date]);
 
   // Refs
   const customerSelectRef = useRef<any>(null);
@@ -331,7 +336,7 @@ export default function BillingPage() {
     customerSelectRef.current?.focus();
   }, []);
 
-  // SESSION INITIALIZATION: Capture items and static balance when customer/bill changes
+  // SESSION INITIALIZATION: Capture items and static balance when customer/bill/date changes
   useEffect(() => {
     const billNoFromParams = searchParams.get('billNo');
     
@@ -343,12 +348,19 @@ export default function BillingPage() {
     // Skip if we are mid-reset
     if (billNoFromParams && billNoFromParams === ignoreUrlBillNoRef.current) return;
 
-    // Use a unique work ID to avoid redundant re-initialization loops during state sync
-    const workId = billNoFromParams ? `load-${billNoFromParams}` : (selectedCustomerId ? `new-${selectedCustomerId}` : 'reset');
+    // Isolation: include date in the session key to re-initialize on date changes
+    const dateKey = date ? format(date, 'yyyy-MM-dd') : 'no-date';
+    const workId = billNoFromParams ? `load-${billNoFromParams}` : (selectedCustomerId ? `new-${selectedCustomerId}-${dateKey}` : `reset-${dateKey}`);
     if (workId === lastSessionKeyRef.current) return;
     lastSessionKeyRef.current = workId;
 
-    if (!selectedCustomerId && !billNoFromParams) return;
+    if (!selectedCustomerId && !billNoFromParams) {
+        // Reset state if no context
+        setActiveBillNo(null);
+        setLocalBillItems([]);
+        setPrevBalInput('0');
+        return;
+    }
 
     const initializeSession = async () => {
         let billToLoad = null;
@@ -365,7 +377,8 @@ export default function BillingPage() {
                 } catch (e) { console.error("Summary fallback fetch failed", e); }
             }
         } else if (selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
-            billToLoad = findBillForCustomerToday(selectedCustomerId);
+            // Isolation Rule: Load bill for specific selected date, not just today
+            billToLoad = findBillForCustomerOnDate(selectedCustomerId, date || new Date());
         }
 
         if (billToLoad) {
@@ -384,7 +397,7 @@ export default function BillingPage() {
             } catch (e) { console.error("Failed to load items", e); }
             setIsItemsLoading(false);
 
-            // Calculate Static Previous Balance: Current DB Total minus this bill's saved contribution
+            // Previous Balance Logic: "Always fetch customer.currentBalance"
             const dbBal = billToLoad.customerId === 'WALK-IN' ? 0 : (customerBalances[billToLoad.customerId] || 0);
             const prev = billToLoad.customerId === 'WALK-IN' ? 0 : (dbBal - billToLoad.amount);
             setPrevBalInput(prev.toString());
@@ -401,11 +414,12 @@ export default function BillingPage() {
                 setManualCustomerName('');
             }
         } else if (selectedCustomerId) {
-            // New Bill for selected customer
+            // New Bill for selected customer on selected date (Clean state)
             setActiveBillNo(null);
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setLocalBillItems([]);
+            // Previous Balance Logic: "Always latest customer balance"
             const prev = selectedCustomerId === 'WALK-IN' ? 0 : (customerBalances[selectedCustomerId] || 0);
             setPrevBalInput(prev.toString());
             setOriginalPrevBalance(prev);
@@ -414,7 +428,7 @@ export default function BillingPage() {
     };
 
     initializeSession();
-  }, [selectedCustomerId, searchParams, customerBalances, getBill, findBillForCustomerToday, firestore]);
+  }, [selectedCustomerId, date, searchParams, customerBalances, getBill, findBillForCustomerOnDate, firestore]);
 
   useEffect(() => {
     if (selectedProductId && uom) {
@@ -569,17 +583,7 @@ export default function BillingPage() {
   }, [router, searchParams]);
 
   const handleNewBill = useCallback(() => {
-    const hasChanges = 
-      selectedCustomerId !== '' || 
-      (localBillItems && localBillItems.length > 0) || 
-      qty !== '' || 
-      rate !== '' || 
-      paidAmount !== '' || 
-      deliveryCharge !== '' ||
-      activeBillNo !== null ||
-      isPrevBalModified;
-
-    if (hasChanges) {
+    if (isDirty) {
       showAlertDialog({
         title: 'Unsaved Changes',
         description: 'You have unsaved changes. Are you sure you want to create a new bill?',
@@ -590,7 +594,7 @@ export default function BillingPage() {
     } else {
       performReset();
     }
-  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, showAlertDialog, performReset]);
+  }, [isDirty, showAlertDialog, performReset]);
 
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
@@ -679,7 +683,7 @@ export default function BillingPage() {
         finalBalance: finalFinalBalance,
         stall: '1'
     };
-  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date]);
+  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date, manualCustomerName]);
 
   const handleSaveBill = async () => {
     if (!selectedCustomerId) {
@@ -776,7 +780,7 @@ export default function BillingPage() {
   };
 
   const handleClearHistorySearch = () => {
-    setHistoryDate(undefined);
+    setHistoryDate(date); // Maintain main date context
     setHistorySelectedCustomer('');
     setHistorySearchText('');
   };
@@ -847,7 +851,22 @@ export default function BillingPage() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
-                    <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                    <Calendar 
+                      mode="single" 
+                      selected={date} 
+                      onSelect={(newDate) => {
+                        if (isDirty) {
+                          showAlertDialog({
+                            title: 'Unsaved Changes',
+                            description: 'You have unsaved changes. Switching the date will discard them. Continue?',
+                            onConfirm: () => setDate(newDate),
+                          });
+                        } else {
+                          setDate(newDate);
+                        }
+                      }} 
+                      initialFocus 
+                    />
                   </PopoverContent>
                 </Popover>
                 <Button variant="outline" onClick={handleNewBill} className="h-11 md:h-10">
@@ -1170,7 +1189,7 @@ export default function BillingPage() {
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} /></PopoverContent>
+                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} initialFocus /></PopoverContent>
               </Popover>
             </div>
             <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
@@ -1207,7 +1226,7 @@ export default function BillingPage() {
                         </TableRow>
                       );
                     })
-                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
+                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found for {historyDate ? format(historyDate, 'dd-MM-yyyy') : 'selected date'}.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </div>
