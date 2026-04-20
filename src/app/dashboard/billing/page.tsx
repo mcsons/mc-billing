@@ -827,7 +827,7 @@ export default function BillingPage() {
   const selectedProduct = useMemo(() => products.find(p => p.id === selectedProductId), [products, selectedProductId]);
 
   return (
-    <div className="flex flex-col gap-8 pb-24 md:pb-8 max-w-full overflow-x-hidden md:overflow-x-visible">
+    <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
         <div className="grid auto-rows-max gap-4">
           <Card>
@@ -986,49 +986,51 @@ export default function BillingPage() {
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-28rem)] min-h-[16rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
-              <Table className="min-w-[600px] md:min-w-full md:table-fixed border-collapse">
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b">
-                    <TableHead className="w-[40px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
-                    <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[200px] md:min-w-0">Product</TableHead>
-                    <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
-                    <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
-                    <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
-                    <TableHead className="w-[100px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
-                    <TableHead className="w-[40px] md:w-[45px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                <TooltipProvider delayDuration={200}>
-                  {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
-                    localBillItems.map((item, index) => {
-                      const itemAddedBy = users.find(u => u.id === item.addedBy)?.username || '--';
-                      return (
-                        <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
-                          <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
-                          <TableCell className="px-1 min-w-[200px] md:min-w-0 md:max-w-[250px]">
-                                <Tooltip key={item.id}>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-default block w-full whitespace-normal break-words text-xs md:text-base leading-tight md:leading-normal font-medium">{item.product}</span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top">
-                                    <p>Added by: {itemAddedBy}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TableCell>
-                          <TableCell className="px-1 text-center">{item.uom}</TableCell>
-                          <TableCell className="px-1 md:px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
-                          <TableCell className="px-1 md:px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
-                          <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
-                          <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
-                  </TooltipProvider>
-                </TableBody>
-              </Table>
+            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-32rem)] min-h-[16rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
+              <div className="min-w-[600px] w-full">
+                <Table className="w-full md:table-fixed border-collapse">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-b">
+                      <TableHead className="w-[40px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
+                      <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[200px] md:min-w-0">Product</TableHead>
+                      <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
+                      <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
+                      <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
+                      <TableHead className="w-[100px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
+                      <TableHead className="w-[40px] md:w-[45px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                  <TooltipProvider delayDuration={200}>
+                    {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
+                      localBillItems.map((item, index) => {
+                        const itemAddedBy = users.find(u => u.id === item.addedBy)?.username || '--';
+                        return (
+                          <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
+                            <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
+                            <TableCell className="px-1 min-w-[200px] md:min-w-0 md:max-w-[250px]">
+                                  <Tooltip key={item.id}>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-default block w-full whitespace-normal break-words text-xs md:text-base leading-tight md:leading-normal font-medium">{item.product}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">
+                                      <p>Added by: {itemAddedBy}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TableCell>
+                            <TableCell className="px-1 text-center">{item.uom}</TableCell>
+                            <TableCell className="px-1 md:px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
+                            <TableCell className="px-1 md:px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
+                            <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
+                            <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
+                    </TooltipProvider>
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
@@ -1039,7 +1041,7 @@ export default function BillingPage() {
                     <span className="font-mono font-semibold text-right">₹{itemsTotal.toFixed(2)}</span>
 
                     <span className="font-medium text-muted-foreground flex items-center">Delivery</span>
-                    <Input className="h-9 text-right font-mono text-sm px-2" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
+                    <Input className="h-10 text-right font-mono text-base px-2 border-primary/20" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
 
                     <span className="font-medium text-muted-foreground">Bill Total</span>
                     <span className="font-mono font-bold text-right">₹{totalAmount.toFixed(2)}</span>
@@ -1047,7 +1049,7 @@ export default function BillingPage() {
                     <span className="font-medium text-muted-foreground flex items-center">Prev Bal</span>
                     <Input
                       className={cn(
-                        "h-9 text-right font-mono text-sm px-2",
+                        "h-10 text-right font-mono text-base px-2 border-primary/20",
                         isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
                       )}
                       value={prevBalInput}
@@ -1056,7 +1058,7 @@ export default function BillingPage() {
                     />
 
                     <span className="font-medium text-muted-foreground flex items-center">Paid</span>
-                    <Input className="h-9 text-right font-mono text-sm px-2" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                    <Input className="h-10 text-right font-mono text-base px-2 border-primary/20" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
 
                     <span className="font-semibold text-base border-t pt-3">Balance</span>
                     <span className="font-mono font-bold text-right text-base text-primary border-t pt-3">₹{finalBalance.toFixed(2)}</span>
@@ -1175,38 +1177,40 @@ export default function BillingPage() {
           </div>
 
           <div className="overflow-x-auto rounded-md border">
-            <Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
-                  <TableHead>Bill No</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Amt</TableHead>
-                  <TableHead>Created By</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody ref={historyTableBodyRef}>
-                {filteredHistoryBills.length > 0 ? (
-                  filteredHistoryBills.map((bill) => {
-                    const creator = users.find((user) => user.id === bill.createdBy);
-                    const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
-                    return (
-                      <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
-                        {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                          <TableCell className="w-[40px]"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
-                        )}
-                        <TableCell className="font-medium">{bill.billNo}</TableCell>
-                        <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell className="font-medium">{bill.customerName}</TableCell>
-                        <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
-              </TableBody>
-            </Table>
+            <div className="min-w-[800px]">
+              <Table className="w-full">
+                <TableHeader>
+                  <TableRow>
+                    {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
+                    <TableHead>Bill No</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Amt</TableHead>
+                    <TableHead>Created By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody ref={historyTableBodyRef}>
+                  {filteredHistoryBills.length > 0 ? (
+                    filteredHistoryBills.map((bill) => {
+                      const creator = users.find((user) => user.id === bill.createdBy);
+                      const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+                      return (
+                        <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
+                          {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
+                            <TableCell className="w-[40px]"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
+                          )}
+                          <TableCell className="font-medium">{bill.billNo}</TableCell>
+                          <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                          <TableCell className="font-medium">{bill.customerName}</TableCell>
+                          <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
+                          <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </CardContent>
       </Card>
