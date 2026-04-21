@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { DataProvider } from '@/context/DataContext';
 import { ThemeProvider } from './theme-provider';
 import { FirebaseClientProvider } from '@/firebase';
+import { GlobalLoadingProvider } from '@/components/providers/GlobalLoadingProvider';
 import myIcon from "./img.png"; 
 
 export const metadata: Metadata = {
@@ -35,8 +36,10 @@ export default function RootLayout({
             disableTransitionOnChange
           >
           <FirebaseClientProvider>
-            {children}
-            <Toaster />
+            <GlobalLoadingProvider>
+              {children}
+              <Toaster />
+            </GlobalLoadingProvider>
           </FirebaseClientProvider>
         </ThemeProvider>
       </body>

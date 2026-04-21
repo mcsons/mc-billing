@@ -57,6 +57,15 @@ type NavItem = {
   roles?: string[];
 };
 
+/** Maps a nav item label to a contextual loading message */
+function getNavLoadingMessage(label: string): string {
+    const openingItems = [
+      'Dashboard', 'Billing', 'Vehicle Bill', 'Party Bill', 'Payments', 'Profile',
+    ];
+    if (openingItems.includes(label)) return `Opening ${label.toLowerCase()}...`;
+    return `Loading ${label.toLowerCase()}...`;
+  }
+
 const coreOperations: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
@@ -124,10 +133,7 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
             <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, !!item.exact)}>
-                    <Link 
-                        href={item.href} 
-                        onClick={(e) => handleItemClick(e, item.href)}
-                    >
+                <Link href={item.href} onClick={() => setLoading(true, getNavLoadingMessage(item.label))}>
                         <item.icon />
                         <span>{item.label}</span>
                     </Link>
@@ -143,6 +149,7 @@ export function DashboardSidebar() {
   const { confirmNavigation } = useNavigationGuard();
   const currentUserRole = currentUser?.role;
   const { setOpenMobile, setOpen } = useSidebar();
+  const { setLoading } = useLoading();
   
   // Track the last pathname to only trigger auto-close on actual navigation
   const lastPathnameRef = React.useRef(pathname);
@@ -221,10 +228,7 @@ export function DashboardSidebar() {
                     {balancesSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link 
-                                    href={subItem.href}
-                                    onClick={(e) => handleSubItemClick(e, subItem.href)}
-                                >
+                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -251,10 +255,7 @@ export function DashboardSidebar() {
                       {manageSubItems.map(subItem => (
                           (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link 
-                                    href={subItem.href}
-                                    onClick={(e) => handleSubItemClick(e, subItem.href)}
-                                >
+                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -281,10 +282,7 @@ export function DashboardSidebar() {
                     {settingsSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link 
-                                    href={subItem.href}
-                                    onClick={(e) => handleSubItemClick(e, subItem.href)}
-                                >
+                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>

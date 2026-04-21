@@ -6,10 +6,6 @@ import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
 import { DataProvider } from '@/context/DataContext';
-import { LoadingProvider } from '@/context/LoadingContext';
-import { NavigationGuardProvider } from '@/context/NavigationGuardContext';
-import { FishLoader } from '@/components/ui/fish-loader';
-import { FloatingSidebarToggle } from '@/components/dashboard/floating-sidebar-toggle';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -35,8 +31,6 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <LoadingProvider>
-    <NavigationGuardProvider>
     <SidebarProvider>
       <AlertDialogProvider>
         <div className="flex min-h-screen w-full">
@@ -56,12 +50,8 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <AlertDialogComponent />
-        <FishLoader />
-        <FloatingSidebarToggle />
       </AlertDialogProvider>
     </SidebarProvider>
-    </NavigationGuardProvider>
-    </LoadingProvider>
   );
 }
 

@@ -72,6 +72,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useNavigationGuard } from '@/context/NavigationGuardContext';
+import { useLoading } from '@/context/LoadingContext';
 import ReactSelect from 'react-select';
 import {
   collection,
@@ -114,6 +115,7 @@ export default function BillingPage() {
   const showAlertDialog = useAlertDialog();
   const firestore = useFirestore();
   const { isDirty, setIsDirty } = useNavigationGuard();
+  const { setLoading } = useLoading();
 
   const {
     customers,
@@ -711,6 +713,21 @@ export default function BillingPage() {
     setShowWhatsAppShareConfirm(true);
   };
 
+  const handleSharePDF = async () => {
+    if (localBillItems.length === 0 && !activeBillNo) {
+      toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please add at least one item.' });
+      return;
+    }
+    setLoading(true, 'Preparing PDF...');
+    const savedData = await handleSaveAndGetData();
+    setLoading(false);
+    if (!savedData) return;
+    // Open the A4 print page with share=pdf flag — it auto-triggers the Web Share API
+    const encoded = encodeURIComponent(JSON.stringify(savedData));
+    window.open(`/print/bill?data=${encoded}&paper=a4&share=pdf`, '_blank');
+    performReset();
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) return;
 
@@ -1133,6 +1150,13 @@ export default function BillingPage() {
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /> Share</Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleSharePDF}
+                    className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                  >
+                    <Share className="mr-2 h-4 w-4" /> Share (PDF)
+                  </Button>
                 </div>
               </CardFooter>
             )}
@@ -1255,6 +1279,7 @@ export default function BillingPage() {
               <DropdownMenuItem onClick={() => handlePrintBill('thermal')}><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
               <DropdownMenuItem onClick={() => handlePrintBill('a4')}><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
               <DropdownMenuItem onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={handleSharePDF}><Share className="mr-2 h-4 w-4" /><span>Share (PDF)</span></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
