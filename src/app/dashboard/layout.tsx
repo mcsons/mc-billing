@@ -6,6 +6,7 @@ import { DashboardHeader } from '@/components/dashboard/header';
 import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
 import { DataProvider } from '@/context/DataContext';
+import { NavigationGuardProvider } from '@/context/NavigationGuardContext';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -61,8 +62,10 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <DataProvider>
-      <AuthenticatedLayout>{children}</AuthenticatedLayout>
-    </DataProvider>
+    <NavigationGuardProvider>
+      <DataProvider>
+        <AuthenticatedLayout>{children}</AuthenticatedLayout>
+      </DataProvider>
+    </NavigationGuardProvider>
   );
 }
