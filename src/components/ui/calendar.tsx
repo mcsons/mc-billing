@@ -2,67 +2,127 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
+import { DayPicker, type DayPickerProps, useDayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>
+export type CalendarProps = DayPickerProps
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+]
+
+function MonthYearCaption() {
+  const { goToMonth, months } = useDayPicker()
+  const currentMonth = months[0]?.date ?? new Date()
+
+  const currentYear = new Date().getFullYear()
+  const startYear = currentYear - 10
+  const endYear = currentYear + 10
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newDate = new Date(currentMonth)
+    newDate.setMonth(parseInt(e.target.value))
+    goToMonth(newDate)
+  }
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newDate = new Date(currentMonth)
+    newDate.setFullYear(parseInt(e.target.value))
+    goToMonth(newDate)
+  }
+
+  const selectBase =
+    "text-sm font-semibold bg-transparent border border-input rounded-md px-2 py-1 pr-6 " +
+    "appearance-none cursor-pointer hover:bg-accent hover:text-accent-foreground " +
+    "focus:outline-none focus:ring-1 focus:ring-ring transition-colors"
+
+  return (
+    <div className="flex items-center gap-1">
+      <div className="relative">
+        <select
+          value={currentMonth.getMonth()}
+          onChange={handleMonthChange}
+          className={selectBase}
+          aria-label="Select month"
+        >
+          {MONTHS.map((name, idx) => (
+            <option key={name} value={idx}>{name}</option>
+          ))}
+        </select>
+        <ChevronRight className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 rotate-90 opacity-50" />
+      </div>
+      <div className="relative">
+        <select
+          value={currentMonth.getFullYear()}
+          onChange={handleYearChange}
+          className={selectBase}
+          aria-label="Select year"
+        >
+          {Array.from({ length: endYear - startYear + 1 }, (_, i) => startYear + i).map((yr) => (
+            <option key={yr} value={yr}>{yr}</option>
+          ))}
+        </select>
+        <ChevronRight className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 h-3 w-3 rotate-90 opacity-50" />
+      </div>
+    </div>
+  )
+}
 
 function Calendar({
   className,
   classNames,
-  showOutsideDays = false,
+  showOutsideDays = true,
   ...props
 }: CalendarProps) {
-  const currentYear = new Date().getFullYear();
-
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn("p-3", className)}
-      // Enable Month and Year Dropdowns
-      captionLayout="dropdown"
-      startMonth={new Date(currentYear - 10, 0)}
-      endMonth={new Date(currentYear + 10, 11)}
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center gap-1",
-        caption_label: "hidden", // Hide text when dropdowns are active
-        nav: "space-x-1 flex items-center",
-        nav_button: cn(
-          buttonVariants({ variant: "outline" }),
-          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
-        ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-y-1",
-        head_row: "grid grid-cols-7 w-full", // Fixed Grid Alignment
-        head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.8rem] text-center",
-        row: "grid grid-cols-7 w-full mt-2", // Fixed Grid Alignment
-        cell: "h-9 w-full text-center text-sm p-0 relative focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
-        day: cn(
+        month_caption: "flex justify-between items-center px-1 pt-1",
+        caption_label: "hidden",
+        nav: "flex items-center gap-1",
+        button_previous: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-full p-0 font-normal aria-selected:opacity-100"
+          "h-7 w-7 bg-transparent p-0 opacity-70 hover:opacity-100"
         ),
-        day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        // Highlight Today's Date (Theme Aware)
-        day_today: "bg-accent text-accent-foreground border-2 border-primary/20 font-bold",
-        day_outside: "invisible", 
-        day_disabled: "text-muted-foreground opacity-50",
-        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
-        day_hidden: "invisible",
-        // Dropdown styling
-        dropdowns: "flex justify-center items-center gap-1",
-        dropdown_root: "relative inline-flex items-center",
-        dropdown: "h-8 bg-transparent border-none text-xs font-semibold focus:outline-none cursor-pointer pr-4",
+        button_next: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-7 w-7 bg-transparent p-0 opacity-70 hover:opacity-100"
+        ),
+        month_grid: "w-full border-collapse",
+        weekdays: "grid grid-cols-7",
+        weekday: "text-muted-foreground text-center font-medium text-[0.8rem] py-1",
+        week: "grid grid-cols-7 mt-1",
+        day: "text-center text-sm p-0 relative focus-within:relative focus-within:z-20",
+        day_button: cn(
+          buttonVariants({ variant: "ghost" }),
+          "h-9 w-9 p-0 font-normal mx-auto rounded-full aria-selected:opacity-100"
+        ),
+        selected:
+          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground rounded-full",
+        today: "bg-accent text-accent-foreground rounded-full",
+        outside:
+          "text-muted-foreground opacity-50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
+        disabled: "text-muted-foreground opacity-30",
+        range_middle:
+          "aria-selected:bg-accent aria-selected:text-accent-foreground",
+        hidden: "invisible",
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        Chevron: ({ orientation, ...rest }) =>
+          orientation === "left" ? (
+            <ChevronLeft className="h-4 w-4" {...rest} />
+          ) : (
+            <ChevronRight className="h-4 w-4" {...rest} />
+          ),
+        CaptionLabel: () => <MonthYearCaption />,
       }}
       {...props}
     />

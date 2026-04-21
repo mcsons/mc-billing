@@ -73,6 +73,15 @@ function PrintPageContent() {
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
 
+  // INR Formatting Helper (A4 Only)
+  const formatINR = (value: number) => {
+    if (value == null || isNaN(value)) return "0.00";
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(value);
+  };
+
   // Calculate Total Quantity for KGS and BOX
   const totalKgs = items
     .filter((i) => i.uom.toUpperCase() === 'KGS')
@@ -82,10 +91,8 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings = [];
-  // User: "u can add space after values and box(or kgs) alone. dont add space otherwise"
   if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS `);
   if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
-  // Join with comma, no extra spaces around comma, then trim trailing space
   const totalQtyString = qtyStrings.join(',').trim();
 
   return (
@@ -176,7 +183,7 @@ function PrintPageContent() {
                     {item.rate.toFixed(2)}
                   </TableCell>
                   <TableCell className="col-amount text-right font-mono">
-                    {item.amount.toFixed(2)}
+                    {paper === 'a4' ? formatINR(item.amount) : item.amount.toFixed(2)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -249,39 +256,39 @@ function PrintPageContent() {
                     <tr>
                       <td className="summary-label">Items Total</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal)}</td>
                     </tr>
                     {displayDeliveryCharge > 0 && (
                       <tr>
                         <td className="summary-label">Delivery Charge</td>
                         <td className="summary-colon">:</td>
-                        <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
+                        <td className="summary-value font-mono">₹{formatINR(displayDeliveryCharge)}</td>
                       </tr>
                     )}
                     <tr>
                       <td className="summary-label">Bill Total</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge).toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal + displayDeliveryCharge)}</td>
                     </tr>
                     <tr>
                       <td className="summary-label">Old Balance</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(previousBalance)}</td>
                     </tr>
                     <tr className="summary-divider-row summary-total-row">
                       <td className="summary-label">Net Total</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal + displayDeliveryCharge + previousBalance)}</td>
                     </tr>
                     <tr>
                       <td className="summary-label">Received Amount</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(paidAmount)}</td>
                     </tr>
                     <tr className="summary-divider-row summary-total-row summary-final-balance">
                       <td className="summary-label">Final Balance</td>
                       <td className="summary-colon">:</td>
-                      <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
+                      <td className="summary-value font-mono">₹{formatINR(finalBalance)}</td>
                     </tr>
                   </>
                 )}
@@ -293,7 +300,6 @@ function PrintPageContent() {
         </div>
       </div>
       
-      {/* Bottom Print Button (Print Preview Only) */}
       <div className="p-4 print:hidden flex justify-end">
         <Button size="lg" onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" />
@@ -341,7 +347,6 @@ function PrintPageContent() {
             overflow: visible !important;
           }
           
-          /* Remove min-height from layout wrappers during print */
           div.min-h-screen {
             min-height: 0 !important;
             height: auto !important;
@@ -374,7 +379,6 @@ function PrintPageContent() {
           }
 
           .print-root.thermal #print-area {
-            /* 1.5cm padding-top instead of margin to prevent page breaks while keeping the gap */
             padding: 1.5cm 4mm 10mm 4mm;
             margin: 0 !important;
           }
@@ -460,7 +464,6 @@ function PrintPageContent() {
             line-height: 1.4;
           }
 
-          /* === COLUMN WIDTH DISTRIBUTION === */
           .print-root.thermal .col-product { 
             width: 60%; 
             font-size: 11px !important;
