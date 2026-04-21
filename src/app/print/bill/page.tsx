@@ -92,34 +92,50 @@ function PrintPageContent() {
       const fileName = `MC_Bill_${billDateFormatted}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `Bill Date: ${billDateFormatted} - M.C & SONS`,
-          text: `Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
-          files: [file],
-        });
-      } else {
+      // ── Build WhatsApp Message Fallback ──
+      const phone = (billData.customer?.phone || '').replace(/\D/g, '');
+      const waMessage =
+        `*M.C & SONS FISH COMPANY*\n*Bill PDF*\n\nBill Date: ${billDateFormatted}\nCustomer: ${billData.customer?.name_en || ''}\n\nPlease find the attached PDF bill.\n\nThank you!`;
+      const waUrl = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
+        : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+
+      let sharedViaWebShare = false;
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({
+            title: `Bill Date: ${billDateFormatted} - M.C & SONS`,
+            text: `Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
+            files: [file],
+          });
+          sharedViaWebShare = true;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') {
+            setIsSharing(false);
+            return;
+          }
+          console.warn('Native share failed, falling back:', shareErr);
+        }
+      }
+
+      // ── Fallback: Download + Open WhatsApp ──
+      if (!sharedViaWebShare) {
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
-
-        const phone = (billData.customer?.phone || '').replace(/\D/g, '');
-        const waMessage =
-          `*M.C & SONS FISH COMPANY*\n*Bill PDF*\n\nBill Date: ${billDateFormatted}\nCustomer: ${billData.customer?.name_en || ''}\n\nPlease find the attached PDF bill.\n\nThank you!`;
-        const waUrl = phone
-          ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
-          : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
-        window.open(waUrl, '_blank');
+        document.body.removeChild(a);
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          window.open(waUrl, '_blank');
+        }, 400);
         setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
       }
     } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        console.error('Share PDF failed:', err);
-        setShareError('Could not generate PDF. Please try printing to PDF instead.');
-      }
+      console.error('Share PDF failed:', err);
+      setShareError('Could not generate PDF. Please try printing to PDF instead.');
     } finally {
       setIsSharing(false);
     }
@@ -317,7 +333,6 @@ function PrintPageContent() {
 
   return (
     <div>
-      {/* ── Green share banner (shown when opened via Share PDF button) ── */}
       {autoShare && (
         <div className="print:hidden bg-green-600 text-white px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -345,7 +360,6 @@ function PrintPageContent() {
           {shareError}
         </div>
       )}
-      {/* ── Toolbar ── */}
       <div className="p-4 print:hidden flex justify-between items-center gap-2">
         <Button variant="outline" onClick={() => window.close()} className="text-foreground">
           <X className="mr-2 h-4 w-4" />
@@ -561,20 +575,9 @@ function PrintPageContent() {
         </div>
       </div>
       
-      <div className="p-4 print:hidden flex justify-end">
-        <Button size="lg" onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
-        </Button>
-      </div>
-
-      {/* ── Hidden A4 div for PDF capture (inline styles — html2canvas compatible) ── */}
       {hiddenA4}
 
       <style jsx global>{`
-        /* ===============================
-          SCREEN PREVIEW STYLES
-        ================================ */
         @media screen {
             #print-area {
                 background: white;
@@ -582,299 +585,60 @@ function PrintPageContent() {
                 padding: 2rem;
                 margin: 2rem auto;
             }
-
-            .print-root.thermal #print-area {
-                width: 106mm;
-            }
-            .print-root.a4 #print-area {
-                width: 210mm;
-                min-height: 297mm;
-            }
+            .print-root.thermal #print-area { width: 106mm; }
+            .print-root.a4 #print-area { width: 210mm; min-height: 297mm; }
         }
         
-        /* ===============================
-          GLOBAL PRINT
-        ================================ */
         @media print {
-          * {
-            color: #000 !important;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-            text-rendering: optimizeLegibility;
-          }
-          html, body {
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            min-height: 0 !important;
-            background: white !important;
-            overflow: visible !important;
-          }
-          
-          div.min-h-screen {
-            min-height: 0 !important;
-            height: auto !important;
-          }
-
-          #print-area {
-              margin: 0;
-              padding: 0;
-          }
-
-          .print\:hidden {
-            display: none !important;
-          }
-
-          @page {
-            size: ${paper === 'thermal' ? '106mm auto' : 'A4'};
-            margin: 0;
-          }
+          * { color: #000 !important; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+          html, body { margin: 0 !important; padding: 0 !important; height: auto !important; min-height: 0 !important; background: white !important; overflow: visible !important; }
+          div.min-h-screen { min-height: 0 !important; height: auto !important; }
+          #print-area { margin: 0; padding: 0; }
+          .print\:hidden { display: none !important; }
+          @page { size: ${paper === 'thermal' ? '106mm auto' : 'A4'}; margin: 0; }
         }
 
-        /* ===============================
-          THERMAL BILL (106mm)
-        ================================ */
         @media print {
-          .print-root.thermal {
-            width: 106mm;
-            margin: 0 auto;
-            display: block;
-            font-family: 'Courier New', 'Lucida Console', monospace !important;
-          }
-
-          .print-root.thermal #print-area {
-            padding: 1.5cm 4mm 10mm 4mm;
-            margin: 0 !important;
-          }
-
-          .print-root.thermal .header-title {
-            font-size: 22px !important;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            line-height: 1.2;
-            white-space: nowrap;
-          }
-          .print-root.thermal .header-sub {
-            display: block;
-            text-align: center;
-            font-size: 13px !important;
-            font-weight: 700;
-            line-height: 1.3;
-            margin-top: 2px;
-          }
-          .print-root.thermal .header-phone {
-            margin-top: 4px;
-          }
-          .print-root.thermal .hr-line {
-            border-top: 2px solid #000;
-            margin: 6px 0;
-          }
-          .print-root.thermal .table-header-line {
-            border-top: 1px solid #000;
-            margin: 0;
-          }
-
-          .print-root.thermal .cust-name {
-            font-weight: 700;
-            font-size: 13px;
-          }
-
-          .print-root.thermal .bill-no, .print-root.thermal .bill-date {
-            font-size: 13px;
-          }
-
-          .print-root.thermal .bill-no > strong,
-          .print-root.thermal .bill-date > strong {
-            font-weight: 700;
-          }
-
-          .print-root.thermal .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
-
-          .print-root.thermal .print-table th,
-          .print-root.thermal .print-table td {
-            border: none;
-            padding: 0px 2px;
-            vertical-align: middle !important;
-          }
-
-          .print-root.thermal .print-table thead th {
-            font-weight: 800 !important;
-            font-size: 14px !important;
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
-          }
-          
-          .print-root.thermal .header-row-divider td {
-            padding: 0 !important;
-          }
-
-          .print-root.thermal .text-center {
-            text-align: center !important;
-          }
-          .print-root.thermal .text-left {
-            text-align: left !important;
-          }
-          .print-root.thermal .text-right {
-            text-align: right !important;
-          }
-
-          .print-root.thermal .print-table tbody td {
-            font-weight: 700 !important;
-            font-size: 13px;
-            line-height: 1.4;
-          }
-
-          .print-root.thermal .col-product { 
-            width: 60%; 
-            font-size: 11px !important;
-            line-height: 1.2;
-            white-space: normal; 
-            word-break: keep-all; 
-          }
-
-          .print-root.thermal .col-qty {
-            width: 14%;
-          }
-
-          .print-root.thermal .col-rate {
-            width: 12%;
-          }
-
-          .print-root.thermal .col-amount {
-            width: 14%;
-          }
-
-          .print-root.thermal .uom-text {
-            margin-left: 3px;
-          }
-          
-          .print-root.thermal .summary-table {
-            width: 100%;
-            max-width: 280px;
-            border-collapse: collapse;
-            font-size: 15px;
-            font-weight: 700;
-          }
-          .print-root.thermal .summary-table td {
-            padding: 1px 4px;
-          }
-          .print-root.thermal .summary-label {
-            text-align: left;
-            white-space: nowrap;
-          }
-          .print-root.thermal .summary-colon {
-            width: 10px;
-            text-align: center;
-          }
-          .print-root.thermal .summary-value {
-            text-align: right;
-            white-space: nowrap;
-          }
-          .print-root.thermal .summary-total-row td {
-            font-weight: bold;
-          }
-          .print-root.thermal .summary-divider-row td {
-            border-top: 1px solid black;
-          }
-           .print-root.thermal .summary-final-balance td {
-            font-size: 16px;
-            font-weight: 800;
-          }
-
-          .print-root.thermal .print-footer {
-            margin-top: 10mm;
-            text-align: left;
-            font-size: 10px;
-            font-weight: 800;
-            font-style: italic;
-            padding-bottom: 5mm;
-          }
+          .print-root.thermal { width: 106mm; margin: 0 auto; display: block; font-family: 'Courier New', 'Lucida Console', monospace !important; }
+          .print-root.thermal #print-area { padding: 1.5cm 4mm 10mm 4mm; margin: 0 !important; }
+          .print-root.thermal .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
+          .print-root.thermal .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
+          .print-root.thermal .header-phone { margin-top: 4px; }
+          .print-root.thermal .hr-line { border-top: 2px solid #000; margin: 6px 0; }
+          .print-root.thermal .table-header-line { border-top: 1px solid #000; margin: 0; }
+          .print-root.thermal .cust-name { font-weight: 700; font-size: 13px; }
+          .print-root.thermal .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          .print-root.thermal .print-table th, .print-root.thermal .print-table td { border: none; padding: 0px 2px; vertical-align: middle !important; }
+          .print-root.thermal .print-table thead th { font-weight: 800 !important; font-size: 14px !important; }
+          .print-root.thermal .print-table tbody td { font-weight: 700 !important; font-size: 13px; line-height: 1.4; }
+          .print-root.thermal .col-product { width: 60%; font-size: 11px !important; line-height: 1.2; white-space: normal; word-break: keep-all; }
+          .print-root.thermal .col-qty { width: 14%; }
+          .print-root.thermal .col-rate { width: 12%; }
+          .print-root.thermal .col-amount { width: 14%; }
+          .print-root.thermal .summary-table { width: 100%; max-width: 280px; border-collapse: collapse; font-size: 15px; font-weight: 700; }
+          .print-root.thermal .summary-table td { padding: 1px 4px; }
+          .print-root.thermal .summary-label { text-align: left; white-space: nowrap; }
+          .print-root.thermal .summary-colon { width: 10px; text-align: center; }
+          .print-root.thermal .summary-value { text-align: right; white-space: nowrap; }
+          .print-root.thermal .summary-divider-row td { border-top: 1px solid black; }
+          .print-root.thermal .summary-final-balance td { font-size: 16px; font-weight: 800; }
+          .print-root.thermal .print-footer { margin-top: 10mm; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; padding-bottom: 5mm; }
         }
-        /* ===============================
-           A4 PRINT
-        ================================ */
+
         @media print {
-          .print-root.a4 {
-            width: 210mm;
-            margin: 0 auto;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-          }
-
-          .print-root.a4 #print-area {
-            padding: 15mm;
-          }
-          
-          .print-root.a4 .header-title {
-            font-size: 20px;
-            font-weight: bold;
-          }
-          .print-root.a4 .header-sub {
-            font-size: 12px;
-          }
-          .print-root.a4 .hr-line,
-          .print-root.a4 .table-header-line {
-            display: none;
-          }
-
-          .print-root.a4 .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10mm;
-          }
-          .print-root.a4 .print-table th,
-          .print-root.a4 .print-table td {
-            padding: 8px;
-            border: 1px solid #ddd;
-            text-align: left;
-          }
-          .print-root.a4 .print-table th {
-            background-color: #f2f2f2;
-            font-weight: bold;
-          }
-          .print-root.a4 .print-table .text-right {
-            text-align: right;
-          }
-          .print-root.a4 .print-table .text-center {
-            text-align: center;
-          }
-          
-          .print-root.a4 .summary-table {
-            width: 100%;
-            max-width: 350px;
-            border-collapse: collapse;
-            font-size: 12px;
-            margin-top: 10mm;
-          }
-          .print-root.a4 .summary-table td {
-            padding: 6px;
-            border: 1px solid #ddd;
-          }
-          .print-root.a4 .summary-label {
-            font-weight: bold;
-          }
-          .print-root.a4 .summary-value {
-            text-align: right;
-          }
-          .print-root.a4 .summary-final-balance td {
-            font-weight: bold;
-            font-size: 14px;
-          }
-
-          .print-root.a4 .print-footer {
-            margin-top: 20mm;
-            font-size: 10px;
-          }
+          .print-root.a4 { width: 210mm; margin: 0 auto; font-family: Arial, sans-serif; font-size: 12px; }
+          .print-root.a4 #print-area { padding: 15mm; }
+          .print-root.a4 .print-table { width: 100%; border-collapse: collapse; margin-top: 10mm; }
+          .print-root.a4 .print-table th, .print-root.a4 .print-table td { padding: 8px; border: 1px solid #ddd; text-align: left; }
+          .print-root.a4 .print-table th { background-color: #f2f2f2; font-weight: bold; }
+          .print-root.a4 .summary-table { width: 100%; max-width: 350px; border-collapse: collapse; font-size: 12px; margin-top: 10mm; }
+          .print-root.a4 .summary-table td { padding: 6px; border: 1px solid #ddd; }
+          .print-root.a4 .summary-final-balance td { font-weight: bold; font-size: 14px; }
         }
       `}</style>
     </div>
   );
 }
-
 
 export default function PrintBillPage() {
   return (
