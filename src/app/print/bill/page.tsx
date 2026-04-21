@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { BillItem, Customer } from '@/lib/data';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Share2, Loader2} from 'lucide-react';
 import { format } from 'date-fns';
 
 interface BillPrintData {
@@ -33,7 +33,10 @@ function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<BillPrintData | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const paper = searchParams.get('paper') || 'thermal';
+  const autoShare = searchParams.get('share') === 'pdf';
 
   useEffect(() => {
     const data = searchParams.get('data');
@@ -49,6 +52,86 @@ function PrintPageContent() {
       router.push('/dashboard');
     }
   }, [searchParams, router]);
+
+   // ─────────────────────────────────────────────────────────────
+  //  Share PDF handler
+  //  Captures the hidden #pdf-area div (inline-styled A4 layout)
+  //  which is always rendered with the correct A4 look on screen.
+  //  navigator.share() on mobile, wa.me download fallback on desktop.
+  // ─────────────────────────────────────────────────────────────
+  const handleSharePDF = useCallback(async () => {
+    const captureEl = document.getElementById('pdf-area');
+    if (!captureEl || !billData) return;
+
+    setIsSharing(true);
+    setShareError(null);
+
+    try {
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
+
+      const canvas = await html2canvas(captureEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: captureEl.scrollWidth,
+        windowHeight: captureEl.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = pageWidth * (canvas.height / canvas.width);
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+
+      const pdfBlob = pdf.output('blob');
+      const billDateFormatted = billData.date
+        ? format(new Date(billData.date), 'dd-MM-yyyy')
+        : 'receipt';
+      const fileName = `MC_Bill_${billDateFormatted}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        // Mobile — OS share sheet, user picks WhatsApp contact
+        await navigator.share({
+          title: `Bill Date: ${billDateFormatted} - M.C & SONS`,
+          text: `Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
+          files: [file],
+        });
+      } else {
+        // Desktop — download PDF then open WhatsApp
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        const phone = (billData.customer?.phone || '').replace(/\D/g, '');
+        const waMessage =
+          `*M.C & SONS FISH COMPANY*\n*Bill PDF*\n\nBill Date: ${billDateFormatted}\nCustomer: ${billData.customer?.name_en || ''}\n\nPlease find the attached PDF bill.\n\nThank you!`;
+        const waUrl = phone
+          ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
+          : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+        window.open(waUrl, '_blank');
+        setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Share PDF failed:', err);
+        setShareError('Could not generate PDF. Please try printing to PDF instead.');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [billData]);
 
   if (!billData) {
     return (
@@ -95,17 +178,216 @@ function PrintPageContent() {
   if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
   const totalQtyString = qtyStrings.join(',').trim();
 
+  // ─────────────────────────────────────────────────────────────
+  //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
+  //  can capture it correctly (media-query print styles are
+  //  invisible to html2canvas).
+  //  This div is off-screen (left: -9999px) and never printed.
+  // ─────────────────────────────────────────────────────────────
+  const S = {
+    cell: (extra?: React.CSSProperties): React.CSSProperties => ({
+      border: '1px solid #bbb',
+      padding: '7px 9px',
+      ...extra,
+    }),
+    hCell: (extra?: React.CSSProperties): React.CSSProperties => ({
+      border: '1px solid #bbb',
+      padding: '7px 9px',
+      background: '#f4f4f4',
+      fontWeight: 'bold' as const,
+      ...extra,
+    }),
+  };
+
+  const hiddenA4 = (
+    <div
+      id="pdf-area"
+      style={{
+        position: 'fixed',
+        left: '-9999px',
+        top: 0,
+        width: '210mm',
+        minHeight: '297mm',
+        padding: '15mm',
+        background: '#fff',
+        color: '#000',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '12px',
+        boxSizing: 'border-box',
+      }}
+    >
+      {/* Header */}
+      <header style={{ textAlign: 'center', marginBottom: '10px' }}>
+        <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>
+          M.C &amp; SONS FISH COMPANY
+        </h1>
+        <p style={{ fontSize: '11px', margin: '2px 0' }}>No. 1, Fish Market, Palladam Road,</p>
+        <p style={{ fontSize: '11px', margin: '2px 0' }}>Tiruppur - 641604</p>
+        <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
+      </header>
+
+      {/* Customer Info */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0 6px', fontSize: '12px', fontFamily: 'monospace' }}>
+        <table style={{ textAlign: 'left', width: '55%' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '1px 0', width: '48px' }}>ID</td>
+              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
+                <strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: '1px 0' }}>Name</td>
+              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
+                <strong>
+                  {customer?.id === 'WALK-IN'
+                    ? customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--'
+                    : customer?.name_en && customer.name_en !== '--' ? customer.name_en : (customer?.name_ta || '-')}
+                </strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <table style={{ textAlign: 'right' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Bill No</td>
+              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}><strong>{billNo}</strong></td>
+            </tr>
+            <tr>
+              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Date</td>
+              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>
+                <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
+
+      {/* Items Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '12px' }}>
+        <thead>
+          <tr>
+            <th style={S.hCell({ textAlign: 'left' })}>Product</th>
+            <th style={S.hCell({ textAlign: 'right', width: '80px' })}>Qty</th>
+            <th style={S.hCell({ textAlign: 'right', width: '80px' })}>Rate</th>
+            <th style={S.hCell({ textAlign: 'right', width: '100px' })}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => (
+            <tr key={item.id} style={{ background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
+              <td style={S.cell({ textAlign: 'left' })}>{item.product}</td>
+              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{item.qty}{item.uom}</td>
+              <td style={S.cell({ textAlign: 'right' })}>{item.rate.toFixed(2)}</td>
+              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{formatINR(item.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'left' }}>
+              TOTAL ITEMS: {items.length}
+            </td>
+            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>
+              {totalQtyString ? `TOTAL QTY->${totalQtyString}` : ''}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {/* Summary */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
+          <tbody>
+            {[
+              { label: 'Items Total',      value: formatINR(itemsTotal) },
+              ...(displayDeliveryCharge > 0 ? [{ label: 'Delivery Charge', value: formatINR(displayDeliveryCharge) }] : []),
+              { label: 'Bill Total',       value: formatINR(itemsTotal + displayDeliveryCharge) },
+              { label: 'Old Balance',      value: formatINR(previousBalance) },
+              { label: 'Net Total',        value: formatINR(itemsTotal + displayDeliveryCharge + previousBalance) },
+              { label: 'Received Amount',  value: formatINR(paidAmount) },
+            ].map(({ label, value }) => (
+              <tr key={label}>
+                <td style={{ padding: '5px 8px', fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>{label}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', width: '18px', color: '#555', borderBottom: '1px solid #e0e0e0' }}>:</td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>₹{value}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ padding: '7px 8px', fontWeight: 'bold', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap', borderTop: '1.5px solid #333' }}>Final Balance</td>
+              <td style={{ padding: '7px 8px', textAlign: 'center', color: '#555', borderTop: '1.5px solid #333' }}>:</td>
+              <td style={{ padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px', borderTop: '1.5px solid #333' }}>₹{formatINR(finalBalance)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <footer style={{ marginTop: '28px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5', textAlign: 'left' }}>
+        Developed by MC &amp; SONS
+      </footer>
+    </div>
+  );
+
   return (
     <div>
-      <div className="p-4 print:hidden flex justify-between items-center">
+      {/* ── Green share banner (shown when opened via Share PDF button) ── */}
+      {autoShare && (
+        <div className="print:hidden bg-green-600 text-white px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Share2 className="h-6 w-6 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm leading-tight">Your bill is ready to share!</p>
+              <p className="text-xs text-green-100 leading-tight mt-0.5">
+                Tap the button to send this bill as a PDF via WhatsApp.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="w-full sm:w-auto bg-white text-green-700 hover:bg-green-50 font-bold text-sm px-6 shrink-0"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating PDF...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share via WhatsApp</>}
+          </Button>
+        </div>
+      )}
+      {shareError && (
+        <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm">
+          {shareError}
+        </div>
+      )}
+      {/* ── Toolbar ── */}
+      <div className="p-4 print:hidden flex justify-between items-center gap-2">
         <Button variant="outline" onClick={() => window.close()} className="text-foreground">
           <X className="mr-2 h-4 w-4" />
           Close Preview
         </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
+          </Button>
+          <Button onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
+        </div>
       </div>
       <div className={`print-root ${paper}`}>
         <div id="print-area">
@@ -306,6 +588,9 @@ function PrintPageContent() {
           Print
         </Button>
       </div>
+
+      {/* ── Hidden A4 div for PDF capture (inline styles — html2canvas compatible) ── */}
+      {hiddenA4}
 
       <style jsx global>{`
         /* ===============================
