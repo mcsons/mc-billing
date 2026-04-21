@@ -53,12 +53,6 @@ function PrintPageContent() {
     }
   }, [searchParams, router]);
 
-   // ─────────────────────────────────────────────────────────────
-  //  Share PDF handler
-  //  Captures the hidden #pdf-area div (inline-styled A4 layout)
-  //  which is always rendered with the correct A4 look on screen.
-  //  navigator.share() on mobile, wa.me download fallback on desktop.
-  // ─────────────────────────────────────────────────────────────
   const handleSharePDF = useCallback(async () => {
     const captureEl = document.getElementById('pdf-area');
     if (!captureEl || !billData) return;
@@ -99,14 +93,12 @@ function PrintPageContent() {
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        // Mobile — OS share sheet, user picks WhatsApp contact
         await navigator.share({
           title: `Bill Date: ${billDateFormatted} - M.C & SONS`,
           text: `Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
           files: [file],
         });
       } else {
-        // Desktop — download PDF then open WhatsApp
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
@@ -156,7 +148,6 @@ function PrintPageContent() {
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
 
-  // INR Formatting Helper (A4 Only)
   const formatINR = (value: number) => {
     if (value == null || isNaN(value)) return "0.00";
     return new Intl.NumberFormat('en-IN', {
@@ -165,7 +156,6 @@ function PrintPageContent() {
     }).format(value);
   };
 
-  // Calculate Total Quantity for KGS and BOX
   const totalKgs = items
     .filter((i) => i.uom.toUpperCase() === 'KGS')
     .reduce((sum, i) => sum + i.qty, 0);
@@ -178,12 +168,6 @@ function PrintPageContent() {
   if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
   const totalQtyString = qtyStrings.join(',').trim();
 
-  // ─────────────────────────────────────────────────────────────
-  //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
-  //  can capture it correctly (media-query print styles are
-  //  invisible to html2canvas).
-  //  This div is off-screen (left: -9999px) and never printed.
-  // ─────────────────────────────────────────────────────────────
   const S = {
     cell: (extra?: React.CSSProperties): React.CSSProperties => ({
       border: '1px solid #bbb',
@@ -216,7 +200,6 @@ function PrintPageContent() {
         boxSizing: 'border-box',
       }}
     >
-      {/* Header */}
       <header style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>
           M.C &amp; SONS FISH COMPANY
@@ -226,7 +209,6 @@ function PrintPageContent() {
         <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
       </header>
 
-      {/* Customer Info */}
       <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0 6px', fontSize: '12px', fontFamily: 'monospace' }}>
         <table style={{ textAlign: 'left', width: '55%' }}>
           <tbody>
@@ -268,10 +250,8 @@ function PrintPageContent() {
         </table>
       </div>
 
-      {/* Divider */}
       <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
 
-      {/* Items Table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '12px' }}>
         <thead>
           <tr>
@@ -303,7 +283,6 @@ function PrintPageContent() {
         </tfoot>
       </table>
 
-      {/* Summary */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
         <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
           <tbody>
