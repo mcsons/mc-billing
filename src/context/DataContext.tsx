@@ -1001,11 +1001,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, {} as Record<string, BillItem[]>);
 
     const itemsByDate = Object.entries(itemsGroupedByDate)
-      .map(([date, items]) => ({ date, items }))
       .sort((a, b) => {
-        const dateA = new Date(a.date.split('/').reverse().join('-'));
-        const dateB = new Date(b.date.split('/').reverse().join('-'));
-        return dateA.getTime() - dateB.getTime();
+        const keyA = a[0].split('/').reverse().join(''); // yyyyMMdd
+        const keyB = b[0].split('/').reverse().join('');
+        return keyA.localeCompare(keyB);
+      })
+      .map(([dateStr, items]) => {
+        const parts = dateStr.split('/');
+        const shortDate = `${parts[0]}/${parts[1]}/${parts[2].slice(-2)}`;
+        return { date: shortDate, items };
       });
 
     const totalQty: Record<string, number> = {};

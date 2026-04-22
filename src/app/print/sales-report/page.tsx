@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -287,11 +286,11 @@ function PrintPageContent() {
           
           /* --- Column Specific Styles (Adjusted for Alignment) --- */
           .col-billdate { 
-            width: 12%; 
+            width: 15%; 
             white-space: nowrap;
           }
           .col-itemname { 
-            width: 52%; 
+            width: 49%; 
             white-space: normal;
             font-size: 10px !important; 
             padding-right: 4px;
