@@ -612,6 +612,31 @@ export default function BillingPage() {
     }
   }, [isDirty, showAlertDialog, performReset]);
 
+  const getBillPrintData = useCallback((overrideBillNo?: string): BillPrintData | null => {
+    const customer = customers.find((c) => c.id === selectedCustomerId);
+    const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
+    const paidAmountNum = parseFloat(paidAmount) || 0;
+    const finalItemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
+    const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
+    const finalFinalBalance = staticPrevBalance + finalTotalAmount - paidAmountNum;
+
+    const printCustomer = customer || { id: 'WALK-IN', name_en: manualCustomerName || '--', name_ta: 'வாடிக்கையாளர்', phone: '-' };
+
+    return {
+        billNo: overrideBillNo || activeBillNo || 'New Bill',
+        date: date?.toISOString() || new Date().toISOString(),
+        customer: printCustomer as Customer,
+        items: localBillItems,
+        itemsTotal: finalItemsTotal,
+        deliveryCharge: deliveryChargeNum,
+        totalAmount: finalTotalAmount,
+        previousBalance: staticPrevBalance,
+        paidAmount: paidAmountNum,
+        finalBalance: finalFinalBalance,
+        stall: '1'
+    };
+  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date, manualCustomerName]);
+
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
     
@@ -669,38 +694,14 @@ export default function BillingPage() {
       // Explicitly mark as clean after successful save
       setIsDirty(false);
       
-      return getBillPrintData();
+      // Return freshly generated ID data for immediate printing
+      return getBillPrintData(billNo);
     } catch (error) {
       console.error('Save failed:', error);
       toast({ variant: 'destructive', title: 'Save failed' });
       return null;
     }
   };
-
-  const getBillPrintData = useCallback((): BillPrintData | null => {
-    const customer = customers.find((c) => c.id === selectedCustomerId);
-    const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
-    const paidAmountNum = parseFloat(paidAmount) || 0;
-    const finalItemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
-    const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
-    const finalFinalBalance = staticPrevBalance + finalTotalAmount - paidAmountNum;
-
-    const printCustomer = customer || { id: 'WALK-IN', name_en: manualCustomerName || '--', name_ta: 'வாடிக்கையாளர்', phone: '-' };
-
-    return {
-        billNo: activeBillNo || 'New Bill',
-        date: date?.toISOString() || new Date().toISOString(),
-        customer: printCustomer as Customer,
-        items: localBillItems,
-        itemsTotal: finalItemsTotal,
-        deliveryCharge: deliveryChargeNum,
-        totalAmount: finalTotalAmount,
-        previousBalance: staticPrevBalance,
-        paidAmount: paidAmountNum,
-        finalBalance: finalFinalBalance,
-        stall: '1'
-    };
-  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date, manualCustomerName]);
 
   const handleSaveBill = async () => {
     if (!selectedCustomerId) {
