@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -829,9 +830,21 @@ export default function BillingPage() {
   };
 
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId && !customerSearchText && !walkInConfirmed) {
-      e.preventDefault(); 
-      setShowWalkInConfirm(true);
+    // Selection logic via TAB
+    if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId) {
+      // Find if there are results based on current search
+      const results = customerOptions.filter(opt => 
+        opt.label.toLowerCase().includes(customerSearchText.toLowerCase())
+      );
+
+      // EDGE CASE: No suggestions or empty search -> Trigger Walk-in Confirm
+      if (results.length === 0 || !customerSearchText) {
+        e.preventDefault(); 
+        setShowWalkInConfirm(true);
+      }
+      // NOTE: If results.length > 0, ReactSelect handles the "Select Top Result" 
+      // automatically due to tabSelectsValue={true}. Focus routing is then 
+      // handled in the onChange event below.
     }
   };
 
@@ -927,16 +940,20 @@ export default function BillingPage() {
                   placeholder="Select customer..."
                   isClearable
                   tabSelectsValue={true}
+                  openMenuOnFocus={true}
                   options={customerOptions}
                   value={customerOptions.find(o => o.value === selectedCustomerId) || null}
+                  onInputChange={(val) => setCustomerSearchText(val)}
                   onChange={(option) => {
                     const id = option ? option.value : '';
                     setSelectedCustomerId(id);
                     if (!id) {
                       setWalkInConfirmed(false);
                     } else if (id === 'WALK-IN') {
+                      // Case 2: Walk-in Customer -> Move focus to name input
                       setTimeout(() => manualCustomerNameRef.current?.focus(), 50);
                     } else {
+                      // Case 1: Regular Customer -> Move focus to product search
                       setTimeout(() => productSelectRef.current?.focus(), 50);
                     }
                   }}
