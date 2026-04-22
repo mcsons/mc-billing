@@ -140,10 +140,9 @@ function PrintPaymentsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow>
-                    <TableCell className="col-date">Opening Balance</TableCell>
-                    <TableCell className="col-billed text-right"></TableCell>
-                    <TableCell className="col-received text-right">{openingBalance.toFixed(2)}</TableCell>
+                <TableRow className="opening-row">
+                    <TableCell className="col-date opening-label">Opening Balance</TableCell>
+                    <TableCell colSpan={2} className="opening-value">₹{openingBalance.toFixed(2)}</TableCell>
                 </TableRow>
                 {dailyTransactions.map((t, index) => (
                   <TableRow key={index}>
@@ -323,6 +322,13 @@ function PrintPaymentsContent() {
             font-size: 13px;
             padding: 2px 4px;
             vertical-align: top;
+          }
+          
+          /* Opening Balance Custom Styles */
+          .opening-value {
+            text-align: center !important;
+            font-size: 14.5px !important; /* 13px base + 1.5px */
+            font-weight: 800 !important;
           }
           
           .col-date { width: 40%; text-align: left; }

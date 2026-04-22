@@ -53,6 +53,12 @@ function PrintPageContent() {
     }
   }, [searchParams, router]);
 
+  // ─────────────────────────────────────────────────────────────
+  //  Share PDF handler
+  //  Captures the hidden #pdf-area div (inline-styled A4 layout)
+  //  which is always rendered with the correct A4 look on screen.
+  //  navigator.share() on mobile, wa.me download fallback on desktop.
+  // ─────────────────────────────────────────────────────────────
   const handleSharePDF = useCallback(async () => {
     const captureEl = document.getElementById('pdf-area');
     if (!captureEl || !billData) return;
@@ -91,17 +97,21 @@ function PrintPageContent() {
         : 'receipt';
       const fileName = `MC_Bill_${billDateFormatted}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      // Build WhatsApp Message Fallback
       const phone = (billData.customer?.phone || '').replace(/\D/g, '');
-      const waMessage = `*M.C & SONS FISH COMPANY*\n*Bill PDF*\n\nBill Date: ${billDateFormatted}\nCustomer: ${billData.customer?.name_en || ''}\n\nPlease find the attached PDF bill.\n\nThank you!`;
+      const waMessage =
+        `*M.C & SONS FISH COMPANY*\n*Bill PDF*\n\nBill Date: ${billDateFormatted}\nCustomer: ${billData.customer?.name_en || ''}\n\nPlease find the attached PDF bill.\n\nThank you!`;
       const waUrl = phone
         ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
         : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
 
+      // ── Mobile: try Web Share API (opens native share sheet → WhatsApp) ──
+      // We attempt this first; if it fails for any non-user-cancel reason,
+      // we fall through to the download + wa.me fallback.
       let sharedViaWebShare = false;
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
+          // Skip canShare() gate — it returns false on many Android browsers
+          // even when sharing IS supported. Try directly and catch failures.
           await navigator.share({
             title: `Bill Date: ${billDateFormatted} - M.C & SONS`,
             text: `Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
@@ -110,22 +120,26 @@ function PrintPageContent() {
           sharedViaWebShare = true;
         } catch (shareErr: any) {
           if (shareErr?.name === 'AbortError') {
-            setIsSharing(false);
+            // User dismissed the share sheet — do nothing
             return;
           }
-          console.warn('Native share failed, falling back:', shareErr);
+          // Any other error (e.g. file type not supported, permission denied):
+          // fall through to the download + wa.me fallback below
+          console.warn('Web Share API failed, using fallback:', shareErr);
         }
       }
 
-      // Fallback: Download + Open WhatsApp
+      // ── Desktop / Web Share fallback: download PDF + open WhatsApp ──
       if (!sharedViaWebShare) {
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
+        // Must be in the DOM for reliable download on mobile browsers
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+        // Small delay so the download initiates before WhatsApp opens
         setTimeout(() => {
           URL.revokeObjectURL(url);
           window.open(waUrl, '_blank');
@@ -133,8 +147,10 @@ function PrintPageContent() {
         setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
       }
     } catch (err: any) {
-      console.error('Share PDF failed:', err);
-      setShareError('Could not generate PDF. Please try printing to PDF instead.');
+      if (err?.name !== 'AbortError') {
+        console.error('Share PDF failed:', err);
+        setShareError('Could not generate PDF. Please try printing to PDF instead.');
+      }
     } finally {
       setIsSharing(false);
     }
@@ -142,7 +158,7 @@ function PrintPageContent() {
 
   if (!billData) {
     return (
-      <div className="flex justify-center items-center h-screen text-white">
+      <div className="flex justify-center items-center h-screen">
         <p>Loading bill data...</p>
       </div>
     );
@@ -163,14 +179,16 @@ function PrintPageContent() {
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
 
+  // INR Formatting Helper (A4 Only)
   const formatINR = (value: number) => {
-    if (value == null || isNaN(value)) return "0.00";
+    if (value == null || isNaN(value)) return '0.00';
     return new Intl.NumberFormat('en-IN', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(value);
   };
 
+  // Calculate Total Quantity for KGS and BOX
   const totalKgs = items
     .filter((i) => i.uom.toUpperCase() === 'KGS')
     .reduce((sum, i) => sum + i.qty, 0);
@@ -178,11 +196,17 @@ function PrintPageContent() {
     .filter((i) => i.uom.toUpperCase() === 'BOX')
     .reduce((sum, i) => sum + i.qty, 0);
 
-  const qtyStrings = [];
-  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS`);
-  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX`);
-  const totalQtyString = qtyStrings.join(', ').trim();
+  const qtyStrings: string[] = [];
+  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS `);
+  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
+  const totalQtyString = qtyStrings.join(',').trim();
 
+  // ─────────────────────────────────────────────────────────────
+  //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
+  //  can capture it correctly (media-query print styles are
+  //  invisible to html2canvas).
+  //  This div is off-screen (left: -9999px) and never printed.
+  // ─────────────────────────────────────────────────────────────
   const S = {
     cell: (extra?: React.CSSProperties): React.CSSProperties => ({
       border: '1px solid #bbb',
@@ -215,29 +239,63 @@ function PrintPageContent() {
         boxSizing: 'border-box',
       }}
     >
+      {/* Header */}
       <header style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>
-          M.C & SONS FISH COMPANY
+          M.C &amp; SONS FISH COMPANY
         </h1>
         <p style={{ fontSize: '11px', margin: '2px 0' }}>No. 1, Fish Market, Palladam Road,</p>
         <p style={{ fontSize: '11px', margin: '2px 0' }}>Tiruppur - 641604</p>
-        <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9894089889</p>
+        <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
       </header>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0 6px', fontSize: '12px' }}>
-        <div style={{ width: '55%' }}>
-          <p><strong>ID:</strong> {customer?.id === 'WALK-IN' ? '-' : customer?.id}</p>
-          <p><strong>Name:</strong> {customer?.name_en || customer?.name_ta || '-'}</p>
-        </div>
-        <div style={{ textAlign: 'right' }}>
-          <p><strong>Bill No:</strong> {billNo}</p>
-          <p><strong>Date:</strong> {format(new Date(date), 'dd-MM-yyyy')}</p>
-        </div>
+      {/* Customer Info */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0 6px', fontSize: '12px', fontFamily: 'monospace' }}>
+        <table style={{ textAlign: 'left', width: '55%' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '1px 0', width: '48px' }}>ID</td>
+              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
+                <strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong>
+              </td>
+            </tr>
+            <tr>
+              <td style={{ padding: '1px 0' }}>Name</td>
+              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
+                <strong>
+                  {customer?.id === 'WALK-IN'
+                    ? customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--'
+                    : customer?.name_ta && customer.name_ta !== '--' ? customer.name_ta : (customer?.name_en || '-')}
+                </strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <table style={{ textAlign: 'right' }}>
+          <tbody>
+            <tr>
+              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Bill No</td>
+              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}><strong>{billNo}</strong></td>
+            </tr>
+            <tr>
+              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Date</td>
+              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
+              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>
+                <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
+      {/* Divider */}
       <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444' }}>
+      {/* Items Table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '12px' }}>
         <thead>
           <tr>
             <th style={S.hCell({ textAlign: 'left' })}>Product</th>
@@ -250,160 +308,624 @@ function PrintPageContent() {
           {items.map((item, idx) => (
             <tr key={item.id} style={{ background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
               <td style={S.cell({ textAlign: 'left' })}>{item.product}</td>
-              <td style={S.cell({ textAlign: 'right' })}>{item.qty}{item.uom}</td>
+              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{item.qty}{item.uom}</td>
               <td style={S.cell({ textAlign: 'right' })}>{item.rate.toFixed(2)}</td>
-              <td style={S.cell({ textAlign: 'right' })}>{formatINR(item.amount)}</td>
+              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{formatINR(item.amount)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={2} style={S.hCell({ textAlign: 'left' })}>TOTAL ITEMS: {items.length}</td>
-            <td colSpan={2} style={S.hCell({ textAlign: 'right' })}>{totalQtyString ? `TOTAL QTY: ${totalQtyString}` : ''}</td>
+            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'left' }}>
+              TOTAL ITEMS: {items.length}
+            </td>
+            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>
+              {totalQtyString ? `TOTAL QTY->${totalQtyString}` : ''}
+            </td>
           </tr>
         </tfoot>
       </table>
 
+      {/* Summary */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-        <table style={{ borderCollapse: 'collapse', minWidth: '260px' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
           <tbody>
-            <tr><td style={{ padding: '4px' }}>Items Total:</td><td style={{ padding: '4px', textAlign: 'right' }}>₹{formatINR(itemsTotal)}</td></tr>
-            {displayDeliveryCharge > 0 && (
-              <tr><td style={{ padding: '4px' }}>Delivery:</td><td style={{ padding: '4px', textAlign: 'right' }}>₹{formatINR(displayDeliveryCharge)}</td></tr>
-            )}
-            <tr><td style={{ padding: '4px' }}>Old Balance:</td><td style={{ padding: '4px', textAlign: 'right' }}>₹{formatINR(previousBalance)}</td></tr>
-            <tr style={{ fontWeight: 'bold', borderTop: '1px solid #000' }}><td style={{ padding: '4px' }}>Final Balance:</td><td style={{ padding: '4px', textAlign: 'right' }}>₹{formatINR(finalBalance)}</td></tr>
+            {[
+              { label: 'Items Total',      value: formatINR(itemsTotal) },
+              ...(displayDeliveryCharge > 0 ? [{ label: 'Delivery Charge', value: formatINR(displayDeliveryCharge) }] : []),
+              { label: 'Bill Total',       value: formatINR(itemsTotal + displayDeliveryCharge) },
+              { label: 'Old Balance',      value: formatINR(previousBalance) },
+              { label: 'Net Total',        value: formatINR(itemsTotal + displayDeliveryCharge + previousBalance) },
+              { label: 'Received Amount',  value: formatINR(paidAmount) },
+            ].map(({ label, value }) => (
+              <tr key={label}>
+                <td style={{ padding: '5px 8px', fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>{label}</td>
+                <td style={{ padding: '5px 8px', textAlign: 'center', width: '18px', color: '#555', borderBottom: '1px solid #e0e0e0' }}>:</td>
+                <td style={{ padding: '5px 8px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>₹{value}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ padding: '7px 8px', fontWeight: 'bold', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap', borderTop: '1.5px solid #333' }}>Final Balance</td>
+              <td style={{ padding: '7px 8px', textAlign: 'center', color: '#555', borderTop: '1.5px solid #333' }}>:</td>
+              <td style={{ padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px', borderTop: '1.5px solid #333' }}>₹{formatINR(finalBalance)}</td>
+            </tr>
           </tbody>
         </table>
       </div>
-      <footer style={{ marginTop: '20px', fontSize: '10px', fontStyle: 'italic' }}>Developed by MC & SONS</footer>
+
+      <footer style={{ marginTop: '28px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5', textAlign: 'left' }}>
+        Developed by MC &amp; SONS
+      </footer>
     </div>
   );
 
   return (
     <div>
+      {/* ── Green share banner (shown when opened via Share PDF button) ── */}
       {autoShare && (
         <div className="print:hidden bg-green-600 text-white px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Share2 className="h-6 w-6 shrink-0" />
             <div>
               <p className="font-semibold text-sm leading-tight">Your bill is ready to share!</p>
-              <p className="text-xs text-green-100 leading-tight mt-0.5">Tap the button to send this bill as a PDF via WhatsApp.</p>
+              <p className="text-xs text-green-100 leading-tight mt-0.5">
+                Tap the button to send this bill as a PDF via WhatsApp.
+              </p>
             </div>
           </div>
-          <Button onClick={handleSharePDF} disabled={isSharing} className="bg-white text-green-700 hover:bg-green-50">
-            {isSharing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...</> : <><Share2 className="mr-2 h-4 w-4" /> Share via WhatsApp</>}
+          <Button
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="w-full sm:w-auto bg-white text-green-700 hover:bg-green-50 font-bold text-sm px-6 shrink-0"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating PDF...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share via WhatsApp</>}
           </Button>
         </div>
       )}
-
       {shareError && (
-        <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm">{shareError}</div>
+        <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm">
+          {shareError}
+        </div>
       )}
 
+      {/* ── Toolbar ── */}
       <div className="p-4 print:hidden flex justify-between items-center gap-2">
         <Button variant="outline" onClick={() => window.close()} className="text-foreground">
-          <X className="mr-2 h-4 w-4" /> Close Preview
+          <X className="mr-2 h-4 w-4" />
+          Close Preview
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleSharePDF} disabled={isSharing} className="border-green-500 text-green-700 hover:bg-green-50">
-            {isSharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />} Share (PDF)
+          <Button
+            variant="outline"
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
           </Button>
-          <Button onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+          <Button onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
         </div>
       </div>
 
+      {/* ── Original print-root (unchanged — used for browser Print) ── */}
       <div className={`print-root ${paper}`}>
         <div id="print-area">
           <header className="text-center">
-            <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
-            <p className="header-sub">No. 1, Fish Market, Palladam Road,<br />Tiruppur - 641604</p>
-            <p className="header-sub header-phone">📞 9894089889</p>
+            <h1 className="header-title">M.C &amp; SONS FISH COMPANY</h1>
+            <p className="header-sub">
+              No. 1, Fish Market, Palladam Road,<br />
+              Tiruppur - 641604
+            </p>
+            <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
           </header>
-          <div className="hr-line" />
-          
+          <div className="hr-line"></div>
+
           <div className="mb-2 text-sm font-mono flex justify-between">
-            <div style={{ width: '55%' }}>
-              <p>ID: <strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong></p>
-              <p>Name: <strong>{customer?.id === 'WALK-IN' ? (customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--') : (customer?.name_en || customer?.name_ta || '-')}</strong></p>
-            </div>
-            <div className="text-right">
-              <p>Bill No: <strong>{billNo}</strong></p>
-              <p>Date: <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong></p>
-            </div>
+            <table className="text-left table-fixed" style={{ width: '55%' }}>
+              <tbody>
+                <tr>
+                  <td className="w-12 py-0">ID</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 truncate pr-2">
+                    <strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td className="py-0">Name</td>
+                  <td className="py-0 text-center">:</td>
+                  <td className="py-0 truncate pr-2">
+                    <strong>
+                      {customer?.id === 'WALK-IN'
+                        ? (customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--')
+                        : (customer?.name_ta && customer.name_ta !== '--' ? customer.name_ta : (customer?.name_en || '-'))}
+                    </strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <table className="text-right">
+              <tbody>
+                <tr>
+                  <td className="py-0 text-left whitespace-nowrap">Bill No</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 text-right whitespace-nowrap"><strong>{billNo}</strong></td>
+                </tr>
+                <tr>
+                  <td className="py-0 text-left whitespace-nowrap">Date</td>
+                  <td className="w-4 py-0 text-center">:</td>
+                  <td className="py-0 text-right whitespace-nowrap">
+                    <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
           <Table className="print-table">
             <TableHeader>
-              <TableRow className="header-row-divider"><TableCell colSpan={4} className="p-0"><div className="table-header-line" /></TableCell></TableRow>
+              <TableRow className="header-row-divider">
+                <TableCell colSpan={4} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
               <TableRow className="header-content-row">
                 <TableHead className="col-product text-left">Product</TableHead>
                 <TableHead className="col-qty text-right">Qty</TableHead>
                 <TableHead className="col-rate text-right">Rate</TableHead>
                 <TableHead className="col-amount text-right">Amount</TableHead>
               </TableRow>
-              <TableRow className="header-row-divider"><TableCell colSpan={4} className="p-0"><div className="table-header-line" /></TableCell></TableRow>
+              <TableRow className="header-row-divider">
+                <TableCell colSpan={4} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
             </TableHeader>
             <TableBody>
               {items.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="col-product text-left">{item.product}</TableCell>
-                  <TableCell className="col-qty text-right"><strong>{item.qty}</strong><span className="text-[10px] ml-0.5">{item.uom}</span></TableCell>
-                  <TableCell className="col-rate text-right font-mono">{item.rate.toFixed(2)}</TableCell>
-                  <TableCell className="col-amount text-right font-mono">{paper === 'a4' ? formatINR(item.amount) : item.amount.toFixed(2)}</TableCell>
+                  <TableCell className="col-qty text-right">
+                    <span className="qty-uom">
+                      <strong>{item.qty}</strong>
+                      <span className="uom-text">{item.uom}</span>
+                    </span>
+                  </TableCell>
+                  <TableCell className="col-rate text-right font-mono">
+                    {item.rate.toFixed(2)}
+                  </TableCell>
+                  <TableCell className="col-amount text-right font-mono">
+                    {paper === 'a4' ? formatINR(item.amount) : item.amount.toFixed(2)}
+                  </TableCell>
                 </TableRow>
               ))}
-              <TableRow><TableCell colSpan={4} className="p-0"><div className="table-header-line" /></TableCell></TableRow>
+
               <TableRow>
+                <TableCell colSpan={4} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
+
+              <TableRow className="combined-summary-row">
                 <TableCell colSpan={4} className="px-1 py-1">
-                  <div className="flex justify-between items-center font-bold text-[11px] uppercase">
-                    <span>Items: {items.length}</span>
-                    {totalQtyString && <span>Total: {totalQtyString}</span>}
+                  <div className="flex justify-between items-center whitespace-nowrap font-bold text-[11px] uppercase w-full">
+                    <span>Total Items: {items.length}</span>
+                    {totalQtyString && (
+                      <span>Total Qty-&gt;{totalQtyString}</span>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
-              <TableRow><TableCell colSpan={4} className="p-0"><div className="table-header-line" /></TableCell></TableRow>
+
+              <TableRow>
+                <TableCell colSpan={4} className="p-0">
+                  <div className="table-header-line"></div>
+                </TableCell>
+              </TableRow>
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-2">
+          <div className="flex justify-end mt-2 summary-section-wrapper" style={{ breakInside: 'avoid' }}>
             <table className="summary-table">
               <tbody>
-                <tr><td>Items Total</td><td>:</td><td className="text-right">₹{paper === 'a4' ? formatINR(itemsTotal) : itemsTotal.toFixed(2)}</td></tr>
-                {displayDeliveryCharge > 0 && (
-                  <tr><td>Delivery</td><td>:</td><td className="text-right">₹{paper === 'a4' ? formatINR(displayDeliveryCharge) : displayDeliveryCharge.toFixed(2)}</td></tr>
+                {paper === 'thermal' ? (
+                  <>
+                    <tr>
+                      <td className="summary-label">Items Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{itemsTotal.toFixed(2)}</td>
+                    </tr>
+                    {displayDeliveryCharge > 0 && (
+                      <tr>
+                        <td className="summary-label">Delivery Charge</td>
+                        <td className="summary-colon">:</td>
+                        <td className="summary-value font-mono">₹{displayDeliveryCharge.toFixed(2)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="summary-label">Previous Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{previousBalance.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row">
+                      <td className="summary-label">Bill Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{(itemsTotal + displayDeliveryCharge + previousBalance).toFixed(2)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Received Amount</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{paidAmount.toFixed(2)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-final-balance">
+                      <td className="summary-label">Final Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
+                    </tr>
+                  </>
+                ) : (
+                  <>
+                    <tr>
+                      <td className="summary-label">Items Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal)}</td>
+                    </tr>
+                    {displayDeliveryCharge > 0 && (
+                      <tr>
+                        <td className="summary-label">Delivery Charge</td>
+                        <td className="summary-colon">:</td>
+                        <td className="summary-value font-mono">₹{formatINR(displayDeliveryCharge)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="summary-label">Bill Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal + displayDeliveryCharge)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Old Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(previousBalance)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row">
+                      <td className="summary-label">Net Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(itemsTotal + displayDeliveryCharge + previousBalance)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Received Amount</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(paidAmount)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-final-balance">
+                      <td className="summary-label">Final Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{formatINR(finalBalance)}</td>
+                    </tr>
+                  </>
                 )}
-                <tr><td>Prev Balance</td><td>:</td><td className="text-right">₹{paper === 'a4' ? formatINR(previousBalance) : previousBalance.toFixed(2)}</td></tr>
-                <tr className="border-t border-black font-bold"><td>Final Balance</td><td>:</td><td className="text-right">₹{paper === 'a4' ? formatINR(finalBalance) : finalBalance.toFixed(2)}</td></tr>
               </tbody>
             </table>
           </div>
-          <footer className="print-footer mt-4">Developed by MC & SONS</footer>
+
+          <footer className="print-footer mt-4">Developed by MC &amp; SONS</footer>
         </div>
       </div>
-      
+
+      <div className="p-4 print:hidden flex justify-end">
+        <Button size="lg" onClick={() => window.print()}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
+        </Button>
+      </div>
+
+      {/* ── Hidden A4 div for PDF capture (inline styles — html2canvas compatible) ── */}
       {hiddenA4}
 
       <style jsx global>{`
+        /* ===============================
+          SCREEN PREVIEW STYLES
+        ================================ */
         @media screen {
-          #print-area { background: white; color: black; padding: 2rem; margin: 2rem auto; }
-          .print-root.thermal #print-area { width: 106mm; }
-          .print-root.a4 #print-area { width: 210mm; min-height: 297mm; }
+            #print-area {
+                background: white;
+                color: black;
+                padding: 2rem;
+                margin: 2rem auto;
+            }
+
+            .print-root.thermal #print-area {
+                width: 106mm;
+            }
+            .print-root.a4 #print-area {
+                width: 210mm;
+                min-height: 297mm;
+            }
         }
+        
+        /* ===============================
+          GLOBAL PRINT
+        ================================ */
         @media print {
-          * { color: #000 !important; }
-          body { margin: 0; padding: 0; background: white !important; }
-          .print\:hidden { display: none !important; }
-          @page { size: ${paper === 'thermal' ? '106mm auto' : 'A4'}; margin: 0; }
-          .print-root.thermal { width: 106mm; margin: 0 auto; font-family: monospace; }
-          .print-root.thermal #print-area { padding: 1.5cm 4mm 10mm 4mm; }
-          .header-title { font-size: 22px; font-weight: bold; }
-          .hr-line { border-top: 2px solid #000; margin: 6px 0; }
-          .table-header-line { border-top: 1px solid #000; margin: 0; }
-          .print-table { width: 100%; border-collapse: collapse; }
-          .col-product { width: 60%; font-size: 11px; }
-          .summary-table { width: 100%; max-width: 280px; font-weight: bold; font-size: 14px; }
-          .print-footer { font-size: 10px; font-style: italic; margin-top: 10mm; }
+          * {
+            color: #000 !important;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            min-height: 0 !important;
+            background: white !important;
+            overflow: visible !important;
+          }
+          
+          div.min-h-screen {
+            min-height: 0 !important;
+            height: auto !important;
+          }
+
+          #print-area {
+              margin: 0;
+              padding: 0;
+          }
+
+          .print\:hidden {
+            display: none !important;
+          }
+
+          @page {
+            size: ${paper === 'thermal' ? '106mm auto' : 'A4'};
+            margin: 0;
+          }
+        }
+
+        /* ===============================
+          THERMAL BILL (106mm)
+        ================================ */
+        @media print {
+          .print-root.thermal {
+            width: 106mm;
+            margin: 0 auto;
+            display: block;
+            font-family: 'Courier New', 'Lucida Console', monospace !important;
+          }
+
+          .print-root.thermal #print-area {
+            padding: 1.5cm 4mm 10mm 4mm;
+            margin: 0 !important;
+          }
+
+          .print-root.thermal .header-title {
+            font-size: 22px !important;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+            white-space: nowrap;
+          }
+          .print-root.thermal .header-sub {
+            display: block;
+            text-align: center;
+            font-size: 13px !important;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-top: 2px;
+          }
+          .print-root.thermal .header-phone {
+            margin-top: 4px;
+          }
+          .print-root.thermal .hr-line {
+            border-top: 2px solid #000;
+            margin: 6px 0;
+          }
+          .print-root.thermal .table-header-line {
+            border-top: 1px solid #000;
+            margin: 0;
+          }
+
+          .print-root.thermal .cust-name {
+            font-weight: 700;
+            font-size: 13px;
+          }
+
+          .print-root.thermal .bill-no, .print-root.thermal .bill-date {
+            font-size: 13px;
+          }
+
+          .print-root.thermal .bill-no > strong,
+          .print-root.thermal .bill-date > strong {
+            font-weight: 700;
+          }
+
+          .print-root.thermal .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+
+          .print-root.thermal .print-table th,
+          .print-root.thermal .print-table td {
+            border: none;
+            padding: 0px 2px;
+            vertical-align: middle !important;
+          }
+
+          .print-root.thermal .print-table thead th {
+            font-weight: 800 !important;
+            font-size: 14px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
+          }
+          
+          .print-root.thermal .header-row-divider td {
+            padding: 0 !important;
+          }
+
+          .print-root.thermal .text-center {
+            text-align: center !important;
+          }
+          .print-root.thermal .text-left {
+            text-align: left !important;
+          }
+          .print-root.thermal .text-right {
+            text-align: right !important;
+          }
+
+          .print-root.thermal .print-table tbody td {
+            font-weight: 700 !important;
+            font-size: 13px;
+            line-height: 1.4;
+          }
+
+          .print-root.thermal .col-product { 
+            width: 60%; 
+            font-size: 11px !important;
+            line-height: 1.2;
+            white-space: normal; 
+            word-break: keep-all; 
+          }
+
+          .print-root.thermal .col-qty {
+            width: 14%;
+          }
+
+          .print-root.thermal .col-rate {
+            width: 12%;
+          }
+
+          .print-root.thermal .col-amount {
+            width: 14%;
+          }
+
+          .print-root.thermal .uom-text {
+            margin-left: 3px;
+          }
+          
+          .print-root.thermal .summary-table {
+            width: 100%;
+            max-width: 280px;
+            border-collapse: collapse;
+            font-size: 15px;
+            font-weight: 700;
+          }
+          .print-root.thermal .summary-table td {
+            padding: 1px 4px;
+          }
+          .print-root.thermal .summary-label {
+            text-align: left;
+            white-space: nowrap;
+          }
+          .print-root.thermal .summary-colon {
+            width: 10px;
+            text-align: center;
+          }
+          .print-root.thermal .summary-value {
+            text-align: right;
+            white-space: nowrap;
+          }
+          .print-root.thermal .summary-total-row td {
+            font-weight: bold;
+          }
+          .print-root.thermal .summary-divider-row td {
+            border-top: 1px solid black;
+          }
+           .print-root.thermal .summary-final-balance td {
+            font-size: 16px;
+            font-weight: 800;
+          }
+
+          .print-root.thermal .print-footer {
+            margin-top: 10mm;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 800;
+            font-style: italic;
+            padding-bottom: 5mm;
+          }
+        }
+        /* ===============================
+           A4 PRINT
+        ================================ */
+        @media print {
+          .print-root.a4 {
+            width: 210mm;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+          }
+
+          .print-root.a4 #print-area {
+            padding: 15mm;
+          }
+          
+          .print-root.a4 .header-title {
+            font-size: 20px;
+            font-weight: bold;
+          }
+          .print-root.a4 .header-sub {
+            font-size: 12px;
+          }
+          .print-root.a4 .hr-line,
+          .print-root.a4 .table-header-line {
+            display: none;
+          }
+
+          .print-root.a4 .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10mm;
+          }
+          .print-root.a4 .print-table th,
+          .print-root.a4 .print-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+          }
+          .print-root.a4 .print-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+          }
+          .print-root.a4 .print-table .text-right {
+            text-align: right;
+          }
+          .print-root.a4 .print-table .text-center {
+            text-align: center;
+          }
+          
+          .print-root.a4 .summary-table {
+            width: 100%;
+            max-width: 350px;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 10mm;
+          }
+          .print-root.a4 .summary-table td {
+            padding: 6px;
+            border: 1px solid #ddd;
+          }
+          .print-root.a4 .summary-label {
+            font-weight: bold;
+          }
+          .print-root.a4 .summary-value {
+            text-align: right;
+          }
+          .print-root.a4 .summary-final-balance td {
+            font-weight: bold;
+            font-size: 14px;
+          }
+
+          .print-root.a4 .print-footer {
+            margin-top: 20mm;
+            font-size: 10px;
+          }
         }
       `}</style>
     </div>
