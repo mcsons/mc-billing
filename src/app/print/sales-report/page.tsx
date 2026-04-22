@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
@@ -180,7 +181,7 @@ function PrintPageContent() {
             
             <div className="totals-section mt-4 space-y-1">
                 <div className="flex">
-                    <span className="w-[40%] font-bold">Total ==></span>
+                    <span className="w-[40%] font-bold">Total ==&gt;</span>
                     <span className="w-[30%] text-center">{totalQtyString}</span>
                     <span className="w-[30%] text-right font-bold">{formatINR(totalAmount)}</span>
                 </div>
