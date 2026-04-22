@@ -146,12 +146,18 @@ function PrintPageContent() {
                             <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
                             <TableCell className="col-itemname">{item.product}</TableCell>
                             <TableCell className="col-qty">
-                              <span className="qty-uom">
-                                <strong>{item.qty.toFixed(1)}</strong>
-                                <span className="uom-text">{item.uom}</span>
-                              </span>
+                            {item.product === 'Delivery' ? (
+                                <span className="qty-uom"><strong>-</strong></span>
+                              ) : (
+                                <span className="qty-uom">
+                                  <strong>{item.qty.toFixed(1)}</strong>
+                                  <span className="uom-text">{item.uom}</span>
+                                </span>
+                              )}
                             </TableCell>
-                            <TableCell className="col-rate text-right">{Math.round(item.rate)}</TableCell>
+                            <TableCell className="col-rate text-right">
+                                {item.product === 'Delivery' ? '-' : Math.round(item.rate)}
+                            </TableCell>
                             <TableCell className="col-amount text-right">{Math.round(item.amount)}</TableCell>
                         </TableRow>
                     ))

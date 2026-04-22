@@ -85,6 +85,7 @@ import {
 import { useFirestore } from '@/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
 
 interface BillPrintData {
   billNo: string;
@@ -146,6 +147,7 @@ export default function BillingPage() {
   const [prevBalInput, setPrevBalInput] = useState('0');
   const [originalPrevBalance, setOriginalPrevBalance] = useState(0);
   const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+  const [description, setDescription] = useState('');
 
   // Derived numeric value from input
   const staticPrevBalance = useMemo(() => parseFloat(prevBalInput) || 0, [prevBalInput]);
@@ -173,10 +175,11 @@ export default function BillingPage() {
       paidAmount !== '' || 
       deliveryCharge !== '' ||
       activeBillNo !== null ||
-      isPrevBalModified;
+      isPrevBalModified ||
+      description !== '';
     
     setIsDirty(hasChanges, handleSaveBill);
-  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, setIsDirty]);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, description, setIsDirty]);
 
   // Handle Walk-in Selection Logic
   const handleWalkInSelection = useCallback((index: number) => {
@@ -246,6 +249,7 @@ export default function BillingPage() {
   const manualCustomerNameRef = useRef<HTMLInputElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
   const lastSessionKeyRef = useRef('');
+  const isEditingRef = useRef(false);
 
   // Bill Navigation and History Sorting
   const sortBills = useCallback((bills: LiveBillSummary[]): LiveBillSummary[] => {
@@ -361,6 +365,7 @@ export default function BillingPage() {
         setActiveBillNo(null);
         setLocalBillItems([]);
         setPrevBalInput('0');
+        setDescription('');
         return;
     }
 
@@ -389,6 +394,7 @@ export default function BillingPage() {
             setInitialBillTotal(billToLoad.amount);
             setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
             setPaidAmount('');
+            setDescription(billToLoad.description || '');
 
             // Fetch items from Firestore once
             setIsItemsLoading(true);
@@ -421,6 +427,7 @@ export default function BillingPage() {
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setLocalBillItems([]);
+            setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
             const prev = selectedCustomerId === 'WALK-IN' ? 0 : (customerBalances[selectedCustomerId] || 0);
             setPrevBalInput(prev.toString());
@@ -433,6 +440,9 @@ export default function BillingPage() {
   }, [selectedCustomerId, date, searchParams, customerBalances, getBill, findBillForCustomerOnDate, firestore]);
 
   useEffect(() => {
+    if (isEditingRef.current) {
+      return;
+    }
     if (selectedProductId && uom) {
       const price = productPrices[selectedProductId]?.[uom];
       if (price !== undefined && price !== null) {
@@ -509,6 +519,7 @@ export default function BillingPage() {
     // Clear inputs
     setQty('');
     setRate('');
+    isEditingRef.current = false;
     setUom('KGS'); // Default reset to KGS
     if (productSelectRef.current) productSelectRef.current.clearValue();
     setSelectedProductId('');
@@ -572,6 +583,8 @@ export default function BillingPage() {
     setOriginalPrevBalance(0);
     setIsPrevBalModified(false);
     setManualCustomerName('');
+    setDescription('');
+    isEditingRef.current = false;
     
     if (productSelectRef.current) {
       productSelectRef.current.clearValue();
@@ -635,6 +648,7 @@ export default function BillingPage() {
       customerId: selectedCustomerId || 'WALK-IN',
       stall: '1',
       createdBy: activeBillNo ? getBill(activeBillNo)?.createdBy : undefined,
+      description: description,
     };
     
     const { billNo, commitPromise } = createOrUpdateLiveBill(
@@ -839,6 +853,18 @@ export default function BillingPage() {
   const totalAmount = itemsTotal + (parseFloat(deliveryCharge) || 0);
   const finalBalance = staticPrevBalance + totalAmount - (parseFloat(paidAmount) || 0);
 
+  const { totalKgs, totalBox } = useMemo(() => {
+    return localBillItems.reduce(
+      (acc, item) => {
+        const uomVal = item.uom.toUpperCase();
+        if (uomVal === 'KGS') acc.totalKgs += item.qty;
+        if (uomVal === 'BOX') acc.totalBox += item.qty;
+        return acc;
+      },
+      { totalKgs: 0, totalBox: 0 }
+    );
+  }, [localBillItems]);
+
   const customerOptions = useMemo(() => {
     const opts = customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }));
     opts.unshift({ value: 'WALK-IN', label: 'Walk-in Customer' });
@@ -950,7 +976,12 @@ export default function BillingPage() {
                     options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
                     value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
                     onChange={(option) => {
-                      if (!option) { setSelectedProductId(''); setRate(''); return; }
+                      if (!option) { 
+                        setSelectedProductId(''); 
+                        setRate(''); 
+                        isEditingRef.current = false;
+                        return; 
+                      }
                       setSelectedProductId(option.value);
                       const product = products.find(p => p.id === option.value);
                       if (product && product.uom_allowed.length > 0) {
@@ -1014,6 +1045,20 @@ export default function BillingPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-headline">Description (optional)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                className="min-h-[70px] w-full resize-none text-sm"
+                placeholder="Enter notes (optional)"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </CardContent>
+          </Card>
         </div>
 
         <div className="lg:sticky lg:top-20">
@@ -1042,7 +1087,19 @@ export default function BillingPage() {
                       localBillItems.map((item, index) => {
                         const itemAddedBy = users.find(u => u.id === item.addedBy)?.username || '--';
                         return (
-                          <TableRow key={item.id} className="h-14 hover:bg-muted/50 border-b">
+                          <TableRow 
+                            key={item.id} 
+                            className="h-14 hover:bg-muted/50 border-b relative cursor-pointer select-none" 
+                            onDoubleClick={() => {
+                              isEditingRef.current = true;
+                              setSelectedProductId(item.productId);
+                              setQty(item.qty.toString());
+                              setUom(item.uom);
+                              setRate(item.rate.toString());
+                              setLocalBillItems(prev => prev.filter(i => i.id !== item.id));
+                              setTimeout(() => productSelectRef.current?.focus(), 50);
+                            }}
+                          >
                             <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
                             <TableCell className="px-1 min-w-[200px] md:min-w-0 md:max-w-[250px]">
                                   <Tooltip key={item.id}>
@@ -1067,6 +1124,17 @@ export default function BillingPage() {
                   </TableBody>
                 </Table>
               </div>
+              
+              {localBillItems.length > 0 && (
+                <div className="mt-2 px-4 py-2 text-sm font-medium text-muted-foreground border-t bg-muted/5 flex gap-1">
+                  <span>Total Qty →</span>
+                  <span className="text-foreground">
+                    {totalKgs > 0 ? `${totalKgs.toFixed(1)} KGS` : ''}
+                    {totalKgs > 0 && totalBox > 0 ? ', ' : ''}
+                    {totalBox > 0 ? `${Math.round(totalBox)} BOX` : ''}
+                  </span>
+                </div>
+              )}
             </CardContent>
             {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">

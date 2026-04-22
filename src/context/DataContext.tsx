@@ -969,10 +969,26 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const allItemsInRange: (BillItem & { billDate: Date })[] = [];
     billItemsSnapshots.forEach((snapshot, index) => {
-      const billDate = (billsInRange[index].date as Timestamp).toDate();
+      const bill = billsInRange[index];
+      const billDate = (bill.date as Timestamp).toDate();
       snapshot.forEach((doc) => {
         allItemsInRange.push({ ...(doc.data() as BillItem), billDate });
       });
+      if (bill.deliveryCharge && bill.deliveryCharge > 0) {
+        allItemsInRange.push({
+          id: `delivery-${bill.billNo}`,
+          product: "Delivery",
+          productId: "delivery",
+          uom: "-",
+          qty: 0,
+          rate: 0,
+          amount: bill.deliveryCharge,
+          addedBy: "system",
+          stall: "1",
+          billId: bill.billNo,
+          billDate: billDate
+        });
+      }
     });
 
     const itemsGroupedByDate = allItemsInRange.reduce((acc, item) => {
@@ -996,11 +1012,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     let totalAmount = 0;
 
     allItemsInRange.forEach((item) => {
-      totalAmount += item.amount;
-      if (!totalQty[item.uom]) {
-        totalQty[item.uom] = 0;
+      if (item.product !== "Delivery") {
+        if (!totalQty[item.uom]) {
+          totalQty[item.uom] = 0;
+        }
+        totalQty[item.uom] += item.qty;
       }
-      totalQty[item.uom] += item.qty;
     });
 
     const netAmount = previousBalance + totalAmount;
