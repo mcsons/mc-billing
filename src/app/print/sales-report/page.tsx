@@ -71,10 +71,11 @@ function PrintPageContent() {
   const totalQtyString = Object.entries(totalQty)
     .map(([uom, qty]) => {
         // Apply unit-specific formatting: BOX as whole numbers, others with decimals
-        if (uom.toUpperCase() === 'BOX') {
-            return `${Math.round(qty)}${uom}`;
+        const uomUpper = uom.toUpperCase();
+        if (uomUpper === 'BOX') {
+            return `${Math.round(qty)} BOX`;
         }
-        return `${qty.toFixed(2)}${uom}`;
+        return `${qty.toFixed(2)} ${uomUpper}`;
     })
     .join(', ');
 
@@ -179,10 +180,14 @@ function PrintPageContent() {
             </Table>
             
             <div className="totals-section mt-4 space-y-1">
-                <div className="flex">
-                    <span className="w-[40%] font-bold">Total ==&gt;</span>
-                    <span className="w-[30%] text-center">{totalQtyString}</span>
-                    <span className="w-[30%] text-right font-bold">{formatINR(totalAmount)}</span>
+                <div className="flex justify-between items-center font-bold">
+                    <div className="flex gap-2 items-center whitespace-nowrap">
+                        <span>Total ==&gt;</span>
+                        <span className="qty-summary-text">{totalQtyString}</span>
+                    </div>
+                    <div className="text-right">
+                        {formatINR(totalAmount)}
+                    </div>
                 </div>
                 <div className="hr-line"></div>
                 <div className="flex justify-between mt-2">
@@ -318,6 +323,7 @@ function PrintPageContent() {
 
           /* --- Totals and Footer --- */
           .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
+          .qty-summary-text { white-space: nowrap; }
           .totals-section .hr-line { margin: 2px 0; }
           .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
           .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
