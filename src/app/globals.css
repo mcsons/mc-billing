@@ -108,6 +108,32 @@
   }
 }
 
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  * {
+    background: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .dark * {
+    background: transparent !important;
+    color: #000000 !important;
+  }
+
+  .print-container,
+  .sales-report,
+  .statement-container {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
 /* Custom Qty/UOM Selection Highlights */
 .qty-option {
   transition: all 0.15s ease;

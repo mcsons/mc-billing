@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -813,7 +812,7 @@ export default function BillingPage() {
   };
 
   const handleClearHistorySearch = () => {
-    setHistoryDate(date); // Maintain main date context
+    setHistoryDate(undefined);
     setHistorySelectedCustomer('');
     setHistorySearchText('');
   };
@@ -1336,7 +1335,7 @@ export default function BillingPage() {
                         </TableRow>
                       );
                     })
-                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found for {historyDate ? format(historyDate, 'dd-MM-yyyy') : 'selected date'}.</TableCell></TableRow>}
+                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found for {historyDate ? format(historyDate, 'dd-MM-yyyy') : 'selected criteria'}.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </div>
