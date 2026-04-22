@@ -17,6 +17,14 @@ import { format } from 'date-fns';
 
 type SalesReportPrintData = SalesReportData;
 
+const formatINR = (value: number) => {
+  if (value == null || isNaN(value)) return '0.00';
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
+
 function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -172,9 +180,9 @@ function PrintPageContent() {
             
             <div className="totals-section mt-4 space-y-1">
                 <div className="flex">
-                    <span className="w-[40%] font-bold">Total ==&gt;</span>
+                    <span className="w-[40%] font-bold">Total ==></span>
                     <span className="w-[30%] text-center">{totalQtyString}</span>
-                    <span className="w-[30%] text-right font-bold">{totalAmount.toFixed(2)}</span>
+                    <span className="w-[30%] text-right font-bold">{formatINR(totalAmount)}</span>
                 </div>
                 <div className="hr-line"></div>
                 <div className="flex justify-between mt-2">
@@ -286,7 +294,7 @@ function PrintPageContent() {
             white-space: normal;
             font-size: 10px !important; 
             padding-right: 4px;
-            word-break: keep-all;
+            word-break: keep-all; 
           }
           .col-qty { 
             width: 12%; 

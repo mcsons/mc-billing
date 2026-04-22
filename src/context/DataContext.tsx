@@ -992,7 +992,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     const itemsGroupedByDate = allItemsInRange.reduce((acc, item) => {
-      const dateStr = format(item.billDate, 'dd/MM/yy');
+      const dateStr = format(item.billDate, 'dd/MM/yyyy');
       if (!acc[dateStr]) {
         acc[dateStr] = [];
       }
@@ -1018,7 +1018,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
         totalQty[item.uom] += item.qty;
       }
+      // Aggregation fix: Ensure numeric conversion before summing
+      const amt = parseFloat(item.amount as any);
+      totalAmount += isNaN(amt) ? 0 : amt;
     });
+
+    // Debug Check (MANDATORY)
+    console.log("Sales Report Items:", allItemsInRange);
+    console.log("Calculated Total Amount:", totalAmount);
 
     const netAmount = previousBalance + totalAmount;
 
