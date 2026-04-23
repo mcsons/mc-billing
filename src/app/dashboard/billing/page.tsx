@@ -834,19 +834,28 @@ export default function BillingPage() {
   const handleCustomerKeyDown = (e: React.KeyboardEvent) => {
     // Selection logic via TAB
     if (e.key === 'Tab' && !e.shiftKey && !selectedCustomerId) {
-      // Find if there are results based on current search
-      const results = customerOptions.filter(opt => 
-        opt.label.toLowerCase().includes(customerSearchText.toLowerCase())
+      // CRITICAL: We must accurately check if any suggestions match the user's typing.
+      // If matches exist, we must let ReactSelect's tabSelectsValue logic handle the selection.
+      // This prevents the Walk-in Customer fallback from popping up when a valid match is found.
+      const query = customerSearchText.toLowerCase();
+      const matches = customerOptions.filter(opt => 
+        opt.label.toLowerCase().includes(query) || 
+        opt.value.toLowerCase().includes(query)
       );
 
-      // EDGE CASE: No suggestions or empty search -> Trigger Walk-in Confirm
-      if (results.length === 0 || !customerSearchText) {
-        e.preventDefault(); 
-        setShowWalkInConfirm(true);
+      // Mandatory Debug Logs for tracking selection flow
+      console.log("TAB pressed. Current input:", customerSearchText);
+      console.log("Matching suggestions:", matches.length);
+
+      // If suggestions are visible, do NOT intercept the TAB key.
+      // ReactSelect will select the highlighted item and trigger our focus routing via onChange.
+      if (customerSearchText && matches.length > 0) {
+        return;
       }
-      // NOTE: If results.length > 0, ReactSelect handles the "Select Top Result" 
-      // automatically due to tabSelectsValue={true}. Focus routing is then 
-      // handled in the onChange event below.
+
+      // If no suggestions match OR the input is empty, trigger the Walk-in Confirmation
+      e.preventDefault(); 
+      setShowWalkInConfirm(true);
     }
   };
 
@@ -961,6 +970,10 @@ export default function BillingPage() {
                   }}
                   onKeyDown={handleCustomerKeyDown}
                   styles={reactSelectStyles}
+                  filterOption={(option, input) =>
+                      option.label.toLowerCase().includes(input.toLowerCase()) ||
+                      option.value.toLowerCase().includes(input.toLowerCase())
+                  }
                 />
                 {selectedCustomerId === 'WALK-IN' && (
                   <div className="mt-2 grid gap-1.5">
