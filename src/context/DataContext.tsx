@@ -1,3 +1,4 @@
+
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -256,7 +257,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const balances: CustomerBalances = {};
     
     customers.forEach(c => {
-        balances[c.id] = openingBalances[c.id] || 0;
+        balances[c.id] = Number((openingBalances[c.id] || 0).toFixed(2));
     });
 
     const allTransactions: {customerId: string, amount: number, type: 'bill' | 'payment', date: Date | Timestamp}[] = [
@@ -285,6 +286,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             } else {
                 balances[tx.customerId] -= tx.amount;
             }
+            // Normalize after each transaction to fix floating point errors
+            balances[tx.customerId] = Number(balances[tx.customerId].toFixed(2));
         }
     });
     
@@ -426,7 +429,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
     const balanceData = {
         customerId: newId,
-        balanceAmount: customer.openingBalance || 0,
+        balanceAmount: Number((customer.openingBalance || 0).toFixed(2)),
         updatedAt: serverTimestamp(),
     };
 
@@ -723,7 +726,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const itemsTotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const totalAmount = itemsTotal + deliveryCharge;
+    const totalAmount = Number((itemsTotal + deliveryCharge).toFixed(2));
 
     const billNo = existingBillNo || (() => {
         const maxBillNo = (liveBillSummaries || [])
@@ -743,23 +746,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         ...sanitizedSummary, 
         billNo, 
         amount: totalAmount, 
-        deliveryCharge: deliveryCharge,
-        paidAmount: paidAmount,
-        finalBalance: finalBalance || 0,
+        deliveryCharge: Number((deliveryCharge || 0).toFixed(2)),
+        paidAmount: Number((paidAmount || 0).toFixed(2)),
+        finalBalance: Number((finalBalance || 0).toFixed(2)),
         date: Timestamp.fromDate(date),
         updatedAt: serverTimestamp(),
     };
 
     if (existingBillNo) {
       // Explicitly preserve original createdBy for both update and restore (undo) scenarios.
-      // For updates: ensures immutability rule is met even on set+merge.
-      // For restores (doc was deleted): ensures createdBy is present in the create payload.
       const originalBill = (liveBillSummaries || []).find(b => b.billNo === existingBillNo);
       if (originalBill?.createdBy && !summaryPayload.createdBy) {
         summaryPayload.createdBy = originalBill.createdBy;
       }
-      // Use set with merge to support "Restore" (Undo) scenarios where the document
-      // might have been previously deleted from the server.
       batch.set(billRef, summaryPayload, { merge: true }); 
     } else {
        summaryPayload.createdBy = currentUser.id;
@@ -767,13 +766,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
        batch.set(billRef, summaryPayload);
       
       if (paidAmount > 0) {
-        addPayment({ customerId: summary.customerId, amount: paidAmount, notes: `Payment for new bill ${billNo}` });
+        addPayment({ customerId: summary.customerId, amount: Number(paidAmount.toFixed(2)), notes: `Payment for new bill ${billNo}` });
       }
     }
 
     const itemsCollectionRef = collection(firestore, 'bills', billNo, 'billItems');
     items.forEach(item => {
-      const itemData: BillItem = { ...item, billId: billNo }; 
+      const itemData: BillItem = { ...item, billId: billNo, amount: Number(item.amount.toFixed(2)) }; 
       const itemRef = doc(itemsCollectionRef, item.id);
       batch.set(itemRef, itemData, { merge: true });
     });
@@ -823,15 +822,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const addPayment = async (payment: Omit<Payment, 'id' | 'date'>) => {
       if (!firestore) return;
       const paymentsCol = collection(firestore, 'payments');
-      addDoc(paymentsCol, { ...payment, date: serverTimestamp() }).catch(e => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: paymentsCol.path, requestResourceData: payment }));
+      const normalizedPayment = { ...payment, amount: Number(payment.amount.toFixed(2)), date: serverTimestamp() };
+      addDoc(paymentsCol, normalizedPayment).catch(e => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: paymentsCol.path, requestResourceData: normalizedPayment }));
       });
   }
 
   const setOpeningBalance = async (customerId: string, balance: number) => {
     if (!firestore) return;
     const balanceRef = doc(firestore, 'customerBalances', customerId);
-    const balanceData = { customerId: customerId, balanceAmount: balance, updatedAt: serverTimestamp() };
+    const balanceData = { customerId: customerId, balanceAmount: Number(balance.toFixed(2)), updatedAt: serverTimestamp() };
     setDoc(balanceRef, balanceData, { merge: true }).catch(e => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
     });
@@ -840,7 +840,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const setPartyBalance = async (partyId: string, balance: number) => {
     if (!firestore) return;
     const balanceRef = doc(firestore, 'partyBalances', partyId);
-    const balanceData = { partyId, balanceAmount: balance, updatedAt: serverTimestamp() };
+    const balanceData = { partyId, balanceAmount: Number(balance.toFixed(2)), updatedAt: serverTimestamp() };
     setDoc(balanceRef, balanceData, { merge: true }).catch(e => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
     });
@@ -850,7 +850,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     if (!firestore) return;
     const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
     const priceRef = doc(firestore, 'productPrices', priceId);
-    const priceData = { productId, uom, pricePerUom: price, priceDate: new Date().toISOString().split('T')[0] };
+    const priceData = { productId, uom, pricePerUom: Number(price.toFixed(2)), priceDate: new Date().toISOString().split('T')[0] };
     setDoc(priceRef, priceData, {merge: true}).catch(e => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: priceRef.path, requestResourceData: priceData }));
     });
@@ -874,7 +874,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
-    const openingBalanceForPeriod = initialOpeningBalance + totalPriorBilled - totalPriorPaid;
+    const openingBalanceForPeriod = Number((initialOpeningBalance + totalPriorBilled - totalPriorPaid).toFixed(2));
     
     const interval = { start: fromDateStart, end: toDateEnd };
     
@@ -906,6 +906,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       } else {
         currentBalance -= t.receivedAmount || 0;
       }
+      currentBalance = Number(currentBalance.toFixed(2));
       return { ...t, balance: currentBalance };
     });
 
@@ -940,8 +941,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     );
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
-    const previousBalance =
-      initialOpeningBalance + totalPriorBilled - totalPriorPaid;
+    const previousBalance = Number((initialOpeningBalance + totalPriorBilled - totalPriorPaid).toFixed(2));
 
     const billsInRange = allBills.filter((b) =>
       isWithinInterval((b.date as Timestamp).toDate(), {
@@ -1022,16 +1022,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
         totalQty[item.uom] += item.qty;
       }
-      // Aggregation fix: Ensure numeric conversion before summing
       const amt = parseFloat(item.amount as any);
       totalAmount += isNaN(amt) ? 0 : amt;
     });
-
-    // Debug Check (MANDATORY)
-    console.log("Sales Report Items:", allItemsInRange);
-    console.log("Calculated Total Amount:", totalAmount);
-
-    const netAmount = previousBalance + totalAmount;
+    
+    totalAmount = Number(totalAmount.toFixed(2));
+    const netAmount = Number((previousBalance + totalAmount).toFixed(2));
 
     return {
       customer,
@@ -1159,13 +1155,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     try {
       if (existingBillId) {
           billRef = doc(firestore, 'vehicleBills', existingBillId);
-          // Strip internal fields like 'id' from spread summary objects
           const { id, ...sanitizedBill } = bill as any;
           billPayload = {
             ...sanitizedBill,
+            advance: Number(bill.advance.toFixed(2)),
+            expenses: Number(bill.expenses.toFixed(2)),
             updatedAt: serverTimestamp(),
           };
-          // Use setDoc with merge instead of updateDoc to support "Restore" (Undo)
           await setDoc(billRef, billPayload, { merge: true });
           const originalBill = vehicleBills.find(b => b.id === existingBillId);
           return { ...originalBill, ...billPayload, id: existingBillId } as VehicleBill;
@@ -1173,6 +1169,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       } else {
           billPayload = {
             ...bill,
+            advance: Number(bill.advance.toFixed(2)),
+            expenses: Number(bill.expenses.toFixed(2)),
             createdBy: currentUser.id,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
@@ -1207,7 +1205,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     let billRef;
     let originalBillState: PartyBill | undefined;
     
-    // Strip internal fields like 'id' from spread summary objects
     const { id, ...sanitizedBillData } = billData as any;
     let billPayload: any;
 
@@ -1216,11 +1213,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       originalBillState = (partyBills || []).find(b => b.id === billId);
       billPayload = {
         ...sanitizedBillData,
+        totalAmount: Number(billData.totalAmount.toFixed(2)),
+        netAmount: Number(billData.netAmount.toFixed(2)),
+        totalReceived: Number(billData.totalReceived.toFixed(2)),
         updatedAt: serverTimestamp(),
       };
     } else { // CREATE
       billPayload = {
         ...sanitizedBillData,
+        totalAmount: Number(billData.totalAmount.toFixed(2)),
+        netAmount: Number(billData.netAmount.toFixed(2)),
+        totalReceived: Number(billData.totalReceived.toFixed(2)),
         createdBy: currentUser.id,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -1253,7 +1256,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         newBalance += balanceChange;
     }
 
-    batch.set(balanceRef, { partyId: billData.partyId, balanceAmount: newBalance, updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(balanceRef, { partyId: billData.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
     
     try {
         await batch.commit();
@@ -1290,7 +1293,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const balanceChange = billToDelete.netAmount - billToDelete.totalReceived;
     const newBalance = currentBalance - balanceChange;
-    batch.set(balanceRef, { partyId: billToDelete.partyId, balanceAmount: newBalance, updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(balanceRef, { partyId: billToDelete.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
 
     batch.commit().catch(e => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));

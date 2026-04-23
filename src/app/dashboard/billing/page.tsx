@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -144,7 +145,7 @@ export default function BillingPage() {
   // SESSION STATE: Local items and static balance
   const [localBillItems, setLocalBillItems] = useState<BillItem[]>([]);
   const [isItemsLoading, setIsItemsLoading] = useState(false);
-  const [prevBalInput, setPrevBalInput] = useState('0');
+  const [prevBalInput, setPrevBalInput] = useState('0.00');
   const [originalPrevBalance, setOriginalPrevBalance] = useState(0);
   const [isPrevBalModified, setIsPrevBalModified] = useState(false);
   const [description, setDescription] = useState('');
@@ -364,7 +365,7 @@ export default function BillingPage() {
         // Reset state if no context
         setActiveBillNo(null);
         setLocalBillItems([]);
-        setPrevBalInput('0');
+        setPrevBalInput('0.00');
         setDescription('');
         return;
     }
@@ -408,7 +409,7 @@ export default function BillingPage() {
             // Previous Balance Logic: "Always fetch customer.currentBalance"
             const dbBal = billToLoad.customerId === 'WALK-IN' ? 0 : (customerBalances[billToLoad.customerId] || 0);
             const prev = billToLoad.customerId === 'WALK-IN' ? 0 : (dbBal - billToLoad.amount);
-            setPrevBalInput(prev.toString());
+            setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
 
@@ -430,7 +431,7 @@ export default function BillingPage() {
             setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
             const prev = selectedCustomerId === 'WALK-IN' ? 0 : (customerBalances[selectedCustomerId] || 0);
-            setPrevBalInput(prev.toString());
+            setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
         }
@@ -508,7 +509,7 @@ export default function BillingPage() {
       uom: uom,
       qty: qtyNum,
       rate: rateNum,
-      amount: qtyNum * rateNum,
+      amount: Number((qtyNum * rateNum).toFixed(2)),
       addedBy: currentUser?.id || 'unknown-user',
       stall: '1',
       billId: activeBillNo || undefined
@@ -536,7 +537,7 @@ export default function BillingPage() {
         if (item.id === itemId) {
             const newQty = field === 'qty' ? parsedValue : item.qty;
             const newRate = field === 'rate' ? parsedValue : item.rate;
-            return { ...item, [field]: parsedValue, amount: newQty * newRate };
+            return { ...item, [field]: parsedValue, amount: Number((newQty * newRate).toFixed(2)) };
         }
         return item;
     }));
@@ -579,7 +580,7 @@ export default function BillingPage() {
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
     setLocalBillItems([]);
-    setPrevBalInput('0');
+    setPrevBalInput('0.00');
     setOriginalPrevBalance(0);
     setIsPrevBalModified(false);
     setManualCustomerName('');
