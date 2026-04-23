@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -141,6 +140,8 @@ export default function BillingPage() {
   const [customerSearchText, setCustomerSearchText] = useState('');
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
+
+  const canEditBalances = currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR';
 
   // SESSION STATE: Local items and static balance
   const [localBillItems, setLocalBillItems] = useState<BillItem[]>([]);
@@ -1177,6 +1178,7 @@ export default function BillingPage() {
                       value={prevBalInput}
                       onChange={(e) => { setPrevBalInput(e.target.value); setIsPrevBalModified(true); }}
                       onFocus={(e) => e.target.select()}
+                      disabled={!canEditBalances}
                     />
 
                     <span className="font-medium text-muted-foreground flex items-center">Paid</span>
@@ -1203,6 +1205,7 @@ export default function BillingPage() {
                       setIsPrevBalModified(true);
                     }} 
                     onFocus={(e) => e.target.select()}
+                    disabled={!canEditBalances}
                   />
                   <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold text-lg pt-1">Balance:</span>

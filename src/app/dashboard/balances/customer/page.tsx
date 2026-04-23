@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +19,8 @@ export default function CustomerBalancePage() {
   const [openingBalance, setOpeningBalanceInput] = useState('');
   const [currentBalance, setCurrentBalanceInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+
+  const canEditBalances = currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR';
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
 
@@ -48,6 +49,11 @@ export default function CustomerBalancePage() {
   }, [openingBalanceValue, currentTotalBalance, isEditing, selectedCustomer]);
 
   const handleSave = () => {
+    if (!canEditBalances) {
+      toast({ variant: 'destructive', title: 'Access Denied', description: 'You do not have permission to edit balances.' });
+      return;
+    }
+
     const newOpeningInput = parseFloat(openingBalance);
     const newCurrentInput = parseFloat(currentBalance);
 
@@ -171,6 +177,7 @@ export default function CustomerBalancePage() {
                     onChange={e => setOpeningBalanceInput(e.target.value)}
                     className="w-full text-2xl font-mono"
                     onFocus={(e) => e.target.select()}
+                    disabled={!canEditBalances}
                   />
                 ) : (
                   <p className="text-2xl font-bold font-mono opacity-70">₹{openingBalanceValue.toFixed(2)}</p>
@@ -185,6 +192,7 @@ export default function CustomerBalancePage() {
                     onChange={e => setCurrentBalanceInput(e.target.value)}
                     className="w-full text-2xl font-mono text-primary font-bold"
                     onFocus={(e) => e.target.select()}
+                    disabled={!canEditBalances}
                   />
                 ) : (
                   <p className="text-2xl font-bold font-mono text-primary">₹{currentTotalBalance.toFixed(2)}</p>
@@ -192,7 +200,7 @@ export default function CustomerBalancePage() {
               </div>
             </div>
 
-            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR') && (
+            {canEditBalances && (
               <div className="flex gap-2 pt-4">
                 {!isEditing ? (
                   <Button onClick={() => setIsEditing(true)}>

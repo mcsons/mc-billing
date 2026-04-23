@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +18,8 @@ export default function PartyBalancePage() {
   const [selectedPartyId, setSelectedPartyId] = useState('');
   const [balance, setBalance] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+
+  const canEditBalances = currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR';
 
   const selectedParty = parties.find(p => p.id === selectedPartyId);
   const currentBalance = selectedPartyId ? partyBalances[selectedPartyId] || 0 : 0;
@@ -41,6 +42,11 @@ export default function PartyBalancePage() {
   }, [currentBalance, isEditing, selectedParty]);
 
   const handleSave = () => {
+    if (!canEditBalances) {
+      toast({ variant: 'destructive', title: 'Access Denied', description: 'You do not have permission to edit balances.' });
+      return;
+    }
+
     const newBalanceValue = parseFloat(balance);
     if (!selectedPartyId || isNaN(newBalanceValue)) {
       toast({
@@ -128,7 +134,7 @@ export default function PartyBalancePage() {
             styles={reactSelectStyles}
           />
         </div>
-        {selectedPartyId && (
+        {selectedCustomerId && (
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-medium text-lg">{selectedParty?.name}</h3>
             <div className="flex items-center gap-4">
@@ -140,12 +146,13 @@ export default function PartyBalancePage() {
                   onChange={e => setBalance(e.target.value)}
                   className="w-48 text-2xl font-mono"
                   autoFocus
+                  disabled={!canEditBalances}
                 />
               ) : (
                 <p className="text-2xl font-bold font-mono">₹{currentBalance.toFixed(2)}</p>
               )}
             </div>
-            {(currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR') && (
+            {canEditBalances && (
               <div className="flex gap-2">
                 {!isEditing ? (
                   <Button onClick={() => setIsEditing(true)}>
