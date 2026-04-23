@@ -138,6 +138,7 @@ export default function BillingPage() {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [customerSearchText, setCustomerSearchText] = useState('');
+  const [productSearchText, setProductSearchText] = useState('');
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
 
@@ -525,6 +526,7 @@ export default function BillingPage() {
     setUom('KGS'); // Default reset to KGS
     if (productSelectRef.current) productSelectRef.current.clearValue();
     setSelectedProductId('');
+    setProductSearchText('');
     
     // UX: Fast Entry - focus back to product search
     setTimeout(() => {
@@ -573,6 +575,7 @@ export default function BillingPage() {
     setActiveBillNo(null);
     setDate(new Date());
     setSelectedProductId('');
+    setProductSearchText('');
     setQty('');
     setRate('');
     setUom('KGS'); // Default reset to KGS
@@ -1007,14 +1010,18 @@ export default function BillingPage() {
                     openMenuOnFocus={true}
                     options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
                     value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
+                    inputValue={productSearchText}
+                    onInputChange={(val) => setProductSearchText(val)}
                     onChange={(option) => {
                       if (!option) { 
                         setSelectedProductId(''); 
                         setRate(''); 
                         isEditingRef.current = false;
+                        setProductSearchText('');
                         return; 
                       }
                       setSelectedProductId(option.value);
+                      setProductSearchText('');
                       const product = products.find(p => p.id === option.value);
                       if (product && product.uom_allowed.length > 0) {
                         const defaultUom = product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0];
@@ -1125,6 +1132,13 @@ export default function BillingPage() {
                             onDoubleClick={() => {
                               isEditingRef.current = true;
                               setSelectedProductId(item.productId);
+                              
+                              // Sync highlight logic
+                              const productInfo = products.find(p => p.id === item.productId);
+                              if (productInfo) {
+                                  setProductSearchText(`${productInfo.name_en} (${productInfo.name_ta})`);
+                              }
+                              
                               setQty(item.qty.toString());
                               setUom(item.uom);
                               setRate(item.rate.toString());
@@ -1230,27 +1244,23 @@ export default function BillingPage() {
                   </span>
                 </div>
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
-                  <Button 
-                    size="icon" 
-                    variant="outline" 
-                    className="bg-[#1a222e] text-white hover:bg-[#252f3f] hover:text-white border-none shadow-sm disabled:opacity-50"
+                  <button 
+                    className="bg-[#1a222e] text-white p-2 rounded-md hover:bg-[#252f3f] disabled:opacity-50"
                     onClick={handlePrevBill} 
                     disabled={currentBillIndex <= 0}
                   >
                     <ChevronLeft className="h-4 w-4" />
-                  </Button>
+                  </button>
                   <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId}><Save className="mr-2 h-4 w-4" /> Save Bill</Button>
                   <Button onClick={() => handlePrintBill('thermal')}>Print Receipt</Button>
                   <Button variant="outline" onClick={() => handlePrintBill('a4')}>Print A4</Button>
-                  <Button 
-                    size="icon" 
-                    variant="outline" 
-                    className="bg-[#1a222e] text-white hover:bg-[#252f3f] hover:text-white border-none shadow-sm disabled:opacity-50"
+                  <button 
+                    className="bg-[#1a222e] text-white p-2 rounded-md hover:bg-[#252f3f] disabled:opacity-50"
                     onClick={handleNextBill} 
                     disabled={currentBillIndex === -1 || currentBillIndex >= sortedBills.length - 1}
                   >
                     <ChevronRight className="h-4 w-4" />
-                  </Button>
+                  </button>
                   <Button variant="outline" onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /> Share</Button>
                   <Button
                     variant="outline"
@@ -1352,7 +1362,7 @@ export default function BillingPage() {
                         </TableRow>
                       );
                     })
-                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found for {historyDate ? format(historyDate, 'dd-MM-yyyy') : 'selected criteria'}.</TableCell></TableRow>}
+                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </div>
@@ -1469,3 +1479,4 @@ export default function BillingPage() {
     </div>
   );
 }
+
