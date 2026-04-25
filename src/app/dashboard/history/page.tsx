@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -415,7 +414,7 @@ export default function HistoryPage() {
                   <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground"></TableHead>
                 )}
                 <TableHead className="w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Bill No</TableHead>
-                <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
+                <TableHead className="w-[150px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
                 <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Customer</TableHead>
                 <TableHead className="w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Amt</TableHead>
                 <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Final Bal</TableHead>
