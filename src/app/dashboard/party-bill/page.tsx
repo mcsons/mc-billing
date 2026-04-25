@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -916,7 +915,7 @@ export default function PartyBillPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onFocus={() => { if(!historyDate) setHistoryDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>

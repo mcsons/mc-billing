@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -232,7 +231,7 @@ export default function BillingPage() {
   const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
   // History states
-  const [historyDate, setHistoryDate] = useState<Date | undefined>(new Date());
+  const [historyDate, setHistoryDate] = useState<Date | undefined>();
   const [historySelectedCustomer, setHistorySelectedCustomer] = useState<string>('');
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [filteredHistoryBills, setFilteredHistoryBills] = useState<LiveBillSummary[]>([]);
@@ -1367,7 +1366,7 @@ export default function BillingPage() {
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onFocus={() => { if(!historyDate) setHistoryDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>

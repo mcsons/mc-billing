@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -352,7 +351,6 @@ export default function HistoryPage() {
                     'w-full sm:w-[240px] justify-start text-left font-normal',
                     !date && 'text-muted-foreground'
                   )}
-                  onFocus={() => { if(!date) setDate(new Date()) }}
                   onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />

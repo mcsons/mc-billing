@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -642,7 +641,7 @@ export default function VehicleBillingPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onFocus={() => { if(!historyDate) setHistoryDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate)}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
