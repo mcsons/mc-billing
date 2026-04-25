@@ -63,6 +63,20 @@ export default function SalesReportPage() {
         }),
       };
 
+    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
+      if (!currentDate) return;
+      const current = new Date(currentDate);
+      if (e.key === 'ArrowUp') {
+        current.setDate(current.getDate() + 1);
+        setDateFn(new Date(current));
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        current.setDate(current.getDate() - 1);
+        setDateFn(new Date(current));
+        e.preventDefault();
+      }
+    };
+
     const handleGenerateReport = async () => {
         if (!selectedCustomerId || !fromDate || !toDate) {
             toast({ variant: 'destructive', title: 'Missing Information', description: 'Please select a customer and a date range.' });
@@ -112,6 +126,7 @@ export default function SalesReportPage() {
                                     id="from-date"
                                     variant={'outline'}
                                     className={cn('w-full justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
+                                    onKeyDown={(e) => handleDateKeyDown(e, fromDate, setFromDate)}
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {fromDate ? format(fromDate, 'PPP') : <span>Pick a date</span>}
@@ -130,6 +145,7 @@ export default function SalesReportPage() {
                                     id="to-date"
                                     variant={'outline'}
                                     className={cn('w-full justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
+                                    onKeyDown={(e) => handleDateKeyDown(e, toDate, setToDate)}
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {toDate ? format(toDate, 'PPP') : <span>Pick a date</span>}

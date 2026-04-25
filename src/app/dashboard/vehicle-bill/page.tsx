@@ -167,6 +167,20 @@ export default function VehicleBillingPage() {
     }),
   };
 
+  const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
+    if (!currentDate) return;
+    const current = new Date(currentDate);
+    if (e.key === 'ArrowUp') {
+      current.setDate(current.getDate() + 1);
+      setDateFn(new Date(current));
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown') {
+      current.setDate(current.getDate() - 1);
+      setDateFn(new Date(current));
+      e.preventDefault();
+    }
+  };
+
   // Load bill for editing from URL param
   useEffect(() => {
     const billIdFromParams = searchParams.get('billId');
@@ -479,7 +493,7 @@ export default function VehicleBillingPage() {
           <div className="flex flex-col items-stretch sm:items-end w-full sm:w-auto gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, 'PPP') : <span>Pick a date</span>}
                 </Button>
@@ -623,7 +637,7 @@ export default function VehicleBillingPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
@@ -709,7 +723,7 @@ export default function VehicleBillingPage() {
                     <Label>From Date</Label>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementFromDate && 'text-muted-foreground')}>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementFromDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, statementFromDate, setStatementFromDate)}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {statementFromDate ? format(statementFromDate, 'PPP') : <span>Pick a date</span>}
                             </Button>
@@ -721,7 +735,7 @@ export default function VehicleBillingPage() {
                     <Label>To Date</Label>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementToDate && 'text-muted-foreground')}>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementToDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, statementToDate, setStatementToDate)}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {statementToDate ? format(statementToDate, 'PPP') : <span>Pick a date</span>}
                             </Button>

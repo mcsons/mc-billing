@@ -1248,7 +1248,7 @@ export default function BillingPage() {
                   </div>
                 </div>
                 {/* Desktop totals — unchanged */}
-                <div className="hidden md:grid w-full max-w-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
+                <div className="hidden md:grid w-full max-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>

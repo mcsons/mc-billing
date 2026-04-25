@@ -98,6 +98,20 @@ export default function PaymentsPage() {
       }),
     };
 
+    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
+      if (!currentDate) return;
+      const current = new Date(currentDate);
+      if (e.key === 'ArrowUp') {
+        current.setDate(current.getDate() + 1);
+        setDateFn(new Date(current));
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        current.setDate(current.getDate() - 1);
+        setDateFn(new Date(current));
+        e.preventDefault();
+      }
+    };
+
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
     const newBalance = currentBalance - (parseFloat(amount) || 0);
@@ -281,6 +295,7 @@ export default function PaymentsPage() {
                                     <Button
                                         variant={'outline'}
                                         className={cn('w-full justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
+                                        onKeyDown={(e) => handleDateKeyDown(e, fromDate, setFromDate)}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {fromDate ? format(fromDate, 'PPP') : <span>Pick a date</span>}
@@ -298,6 +313,7 @@ export default function PaymentsPage() {
                                     <Button
                                         variant={'outline'}
                                         className={cn('w-full justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
+                                        onKeyDown={(e) => handleDateKeyDown(e, toDate, setToDate)}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {toDate ? format(toDate, 'PPP') : <span>Pick a date</span>}
