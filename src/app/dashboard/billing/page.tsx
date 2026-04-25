@@ -1425,14 +1425,14 @@ export default function BillingPage() {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                    <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-gray-500"></TableHead>
+                    <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground"></TableHead>
                   )}
-                  <TableHead className="w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Bill No</TableHead>
-                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Date</TableHead>
-                  <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Customer</TableHead>
-                  <TableHead className="w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Amt</TableHead>
-                  <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Final Bal</TableHead>
-                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-gray-500">Created By</TableHead>
+                  <TableHead className="w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Bill No</TableHead>
+                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
+                  <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Customer</TableHead>
+                  <TableHead className="w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Amt</TableHead>
+                  <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Final Bal</TableHead>
+                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Created By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody ref={historyTableBodyRef}>
@@ -1443,7 +1443,7 @@ export default function BillingPage() {
                     return (
                       <TableRow 
                         key={bill.billNo} 
-                        className="cursor-pointer hover:bg-gray-50 border-b border-gray-100" 
+                        className="cursor-pointer hover:bg-muted/50 border-b border-border" 
                         onDoubleClick={() => handleEditBill(bill.billNo)} 
                         tabIndex={0} 
                         onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}
@@ -1453,14 +1453,14 @@ export default function BillingPage() {
                             <Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} />
                           </TableCell>
                         )}
-                        <TableCell className="px-[10px] py-[12px] text-[14px] font-semibold text-gray-900 truncate">{bill.billNo}</TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-gray-900 truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-gray-900 truncate">{bill.customerName}</TableCell>
-                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-medium text-gray-900 font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-gray-900 font-mono">
+                        <TableCell className="px-[10px] py-[12px] text-[14px] font-semibold text-foreground truncate">{bill.billNo}</TableCell>
+                        <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                        <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bill.customerName}</TableCell>
+                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-medium text-foreground font-mono">₹{formatINR(bill.amount)}</TableCell>
+                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-foreground font-mono">
                         {`₹${formatINR(bill.computedFinalBalance)}`}
                       </TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-gray-600 truncate">{creator?.username || bill.createdBy || '--'}</TableCell>
+                        <TableCell className="px-[10px] py-[12px] text-[14px] text-muted-foreground truncate">{creator?.username || bill.createdBy || '--'}</TableCell>
                       </TableRow>
                     );
                   })
