@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -238,18 +239,22 @@ export default function PartyBillPage() {
         }
     }, [searchParams, partyBills, resetForm]);
 
-    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
-      if (!currentDate) return;
-      const current = new Date(currentDate);
+    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const baseDate = currentDate || new Date();
+      const current = new Date(baseDate);
+
       if (e.key === 'ArrowUp') {
         current.setDate(current.getDate() + 1);
-        setDateFn(new Date(current));
-        e.preventDefault();
       } else if (e.key === 'ArrowDown') {
         current.setDate(current.getDate() - 1);
-        setDateFn(new Date(current));
-        e.preventDefault();
       }
+      
+      setDateFn(new Date(current));
     };
 
 
@@ -652,7 +657,7 @@ export default function PartyBillPage() {
                     <div className="absolute top-0 right-0">
                          <Popover>
                             <PopoverTrigger asChild>
-                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, date, setDate as (d: Date) => void)}>
+                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => d && setDate(d))}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
                             </Button>
@@ -911,7 +916,7 @@ export default function PartyBillPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date) => void)}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onFocus={() => { if(!historyDate) setHistoryDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>

@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -262,18 +263,22 @@ export default function HistoryPage() {
     }
   };
 
-  const handleDateKeyDown = (e: React.KeyboardEvent) => {
-    if (!date) return;
-    const current = new Date(date);
+  const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const baseDate = currentDate || new Date();
+    const current = new Date(baseDate);
+
     if (e.key === 'ArrowUp') {
       current.setDate(current.getDate() + 1);
-      setDate(new Date(current));
-      e.preventDefault();
     } else if (e.key === 'ArrowDown') {
       current.setDate(current.getDate() - 1);
-      setDate(new Date(current));
-      e.preventDefault();
     }
+    
+    setDateFn(new Date(current));
   };
 
   const handleClearSearch = () => {
@@ -347,7 +352,8 @@ export default function HistoryPage() {
                     'w-full sm:w-[240px] justify-start text-left font-normal',
                     !date && 'text-muted-foreground'
                   )}
-                  onKeyDown={handleDateKeyDown}
+                  onFocus={() => { if(!date) setDate(new Date()) }}
+                  onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, 'dd-MM-yyyy') : <span>Pick a date</span>}

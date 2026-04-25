@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -168,17 +169,21 @@ export default function VehicleBillingPage() {
   };
 
   const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
-    if (!currentDate) return;
-    const current = new Date(currentDate);
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const baseDate = currentDate || new Date();
+    const current = new Date(baseDate);
+
     if (e.key === 'ArrowUp') {
       current.setDate(current.getDate() + 1);
-      setDateFn(new Date(current));
-      e.preventDefault();
     } else if (e.key === 'ArrowDown') {
       current.setDate(current.getDate() - 1);
-      setDateFn(new Date(current));
-      e.preventDefault();
     }
+    
+    setDateFn(new Date(current));
   };
 
   // Load bill for editing from URL param
@@ -493,7 +498,7 @@ export default function VehicleBillingPage() {
           <div className="flex flex-col items-stretch sm:items-end w-full sm:w-auto gap-2">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}>
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, 'PPP') : <span>Pick a date</span>}
                 </Button>
@@ -637,7 +642,7 @@ export default function VehicleBillingPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate)}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onFocus={() => { if(!historyDate) setHistoryDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
@@ -723,7 +728,7 @@ export default function VehicleBillingPage() {
                     <Label>From Date</Label>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementFromDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, statementFromDate, setStatementFromDate)}>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementFromDate && 'text-muted-foreground')} onFocus={() => { if(!statementFromDate) setStatementFromDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, statementFromDate, setStatementFromDate)}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {statementFromDate ? format(statementFromDate, 'PPP') : <span>Pick a date</span>}
                             </Button>
@@ -735,7 +740,7 @@ export default function VehicleBillingPage() {
                     <Label>To Date</Label>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementToDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, statementToDate, setStatementToDate)}>
+                            <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !statementToDate && 'text-muted-foreground')} onFocus={() => { if(!statementToDate) setStatementToDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, statementToDate, setStatementToDate)}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {statementToDate ? format(statementToDate, 'PPP') : <span>Pick a date</span>}
                             </Button>

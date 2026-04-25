@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useEffect } from 'react';
 import {
@@ -98,18 +99,22 @@ export default function PaymentsPage() {
       }),
     };
 
-    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
-      if (!currentDate) return;
-      const current = new Date(currentDate);
+    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const baseDate = currentDate || new Date();
+      const current = new Date(baseDate);
+
       if (e.key === 'ArrowUp') {
         current.setDate(current.getDate() + 1);
-        setDateFn(new Date(current));
-        e.preventDefault();
       } else if (e.key === 'ArrowDown') {
         current.setDate(current.getDate() - 1);
-        setDateFn(new Date(current));
-        e.preventDefault();
       }
+      
+      setDateFn(new Date(current));
     };
 
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
@@ -295,6 +300,7 @@ export default function PaymentsPage() {
                                     <Button
                                         variant={'outline'}
                                         className={cn('w-full justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
+                                        onFocus={() => { if(!fromDate) setFromDate(new Date()) }}
                                         onKeyDown={(e) => handleDateKeyDown(e, fromDate, setFromDate)}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -313,6 +319,7 @@ export default function PaymentsPage() {
                                     <Button
                                         variant={'outline'}
                                         className={cn('w-full justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
+                                        onFocus={() => { if(!toDate) setToDate(new Date()) }}
                                         onKeyDown={(e) => handleDateKeyDown(e, toDate, setToDate)}
                                     >
                                         <CalendarIcon className="mr-2 h-4 w-4" />
