@@ -38,9 +38,16 @@ import ReactSelect from 'react-select';
 import { Timestamp, collection, getDocs } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 
+// INR Currency Formatter Helper
+const formatINR = (value: number) => {
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(value);
+};
 
 export default function HistoryPage() {
-  const { liveBillSummaries, customers, users, deleteBills, currentUser, createOrUpdateLiveBill } = useData();
+  const { liveBillSummaries, customers, users, deleteBills, currentUser, createOrUpdateLiveBill, customerBalances } = useData();
   const router = useRouter();
   const showAlertDialog = useAlertDialog();
   const { toast } = useToast();
@@ -111,6 +118,26 @@ export default function HistoryPage() {
   useEffect(() => {
     setFilteredBills(sortBills(liveBillSummaries));
   }, [liveBillSummaries]);
+
+  // Enriched logic to compute final balance for each historical bill
+  const enrichedHistoryBills = useMemo(() => {
+    return filteredBills.map(bill => {
+      let finalBal = bill.finalBalance;
+      if (!finalBal) {
+        const dbBal = customerBalances[bill.customerId] || 0;
+        const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+        const isToday = bDate ? isSameDay(bDate, new Date()) : false;
+        let prev = 0;
+        if (isToday) {
+          prev = dbBal - bill.amount;
+        } else {
+          prev = bill.prevBalance !== undefined ? bill.prevBalance : (dbBal - bill.amount);
+        }
+        finalBal = prev + bill.amount + (bill.deliveryCharge || 0) - (bill.paidAmount || 0);
+      }
+      return { ...bill, computedFinalBalance: finalBal };
+    });
+  }, [filteredBills, customerBalances]);
 
 
   const handleEditBill = (billNo: string) => {
@@ -379,32 +406,29 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow>
-                {canDelete && (
-                  <TableHead className="w-[40px] text-center">
-                    {/* Removed Select All */}
-                  </TableHead>
-                )}
+              <TableRow className="bg-muted/50">
+                {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px] text-center"></TableHead>}
                 <TableHead>Bill No</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Amt</TableHead>
+                <TableHead className="text-right">Final Bal</TableHead>
                 <TableHead>Created By</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody ref={tableBodyRef}>
-              {filteredBills.length > 0 ? (
-                filteredBills.map((bill) => {
+              {enrichedHistoryBills.length > 0 ? (
+                enrichedHistoryBills.map((bill) => {
                   const creator = users.find((user) => user.id === bill.createdBy);
                   const billDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
 
                   return (
                     <TableRow
                       key={bill.billNo}
-                      className="cursor-pointer"
+                      className="cursor-pointer hover:bg-muted/50"
                       onDoubleClick={() => handleEditBill(bill.billNo)}
                       data-state={selectedBills.has(bill.billNo) && 'selected'}
                       tabIndex={0}
@@ -421,21 +445,24 @@ export default function HistoryPage() {
                           />
                         </TableCell>
                       )}
-                      <TableCell className="font-medium">{bill.billNo}</TableCell>
+                      <TableCell className="font-bold">{bill.billNo}</TableCell>
                       <TableCell>
                         {billDate ? format(billDate, 'dd-MM-yyyy') : 'N/A'}
                       </TableCell>
-                      <TableCell>{bill.customerName}</TableCell>
-                      <TableCell className="text-right">
-                        ₹{bill.amount.toFixed(2)}
+                      <TableCell className="whitespace-normal break-words max-w-[200px]">{bill.customerName}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        ₹{formatINR(bill.amount)}
                       </TableCell>
-                      <TableCell>{creator?.username || bill.createdBy}</TableCell>
+                      <TableCell className="text-right font-mono font-bold">
+                        ₹{formatINR(bill.computedFinalBalance)}
+                      </TableCell>
+                      <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
                     </TableRow>
                   );
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={canDelete ? 6 : 5} className="h-24 text-center">
+                  <TableCell colSpan={canDelete ? 7 : 6} className="h-24 text-center">
                     No results found.
                   </TableCell>
                 </TableRow>

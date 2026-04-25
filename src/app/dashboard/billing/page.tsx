@@ -1419,17 +1419,17 @@ export default function BillingPage() {
             <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
           </div>
 
-          <div className="overflow-x-auto rounded-md border min-w-full">
-            <Table className="w-full min-w-0 md:min-w-[700px] text-xs md:text-sm">
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
               <TableHeader>
-                <TableRow>
-                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
-                <TableHead className="px-1 md:px-4">Bill No</TableHead>
-                <TableHead className="px-1 md:px-4 hidden md:table-cell">Date</TableHead>
-                <TableHead className="px-1 md:px-4">Customer</TableHead>
-                <TableHead className="px-1 md:px-4 text-right">Amt</TableHead>
-                <TableHead className="px-1 md:px-4 text-right">Final Bal</TableHead>
-                <TableHead className="px-1 md:px-4 hidden md:table-cell">Created By</TableHead>
+                <TableRow className="bg-muted/50">
+                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px] text-center"></TableHead>}
+                <TableHead>Bill No</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Customer</TableHead>
+                <TableHead className="text-right">Amt</TableHead>
+                <TableHead className="text-right">Final Bal</TableHead>
+                <TableHead>Created By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody ref={historyTableBodyRef}>
@@ -1440,20 +1440,22 @@ export default function BillingPage() {
                     return (
                       <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
                         {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                          <TableCell className="w-[30px] md:w-[40px] px-1 md:px-4"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
+                          <TableCell className="w-[40px] text-center">
+                            <Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} />
+                          </TableCell>
                         )}
-                        <TableCell className="font-medium px-1 md:px-4">{bill.billNo}</TableCell>
-                        <TableCell className="px-1 md:px-4 hidden md:table-cell">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell className="px-1 md:px-4 whitespace-normal break-words max-w-[120px] md:max-w-none">{bill.customerName}</TableCell>
-                        <TableCell className="px-1 md:px-4 text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell className="px-1 md:px-4 text-right font-mono font-bold">
+                        <TableCell className="font-bold">{bill.billNo}</TableCell>
+                        <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                        <TableCell className="whitespace-normal break-words max-w-[200px]">{bill.customerName}</TableCell>
+                        <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
+                        <TableCell className="text-right font-mono font-bold">
                         {`₹${formatINR(bill.computedFinalBalance)}`}
                       </TableCell>
-                        <TableCell className="px-1 md:px-4 hidden md:table-cell">{creator?.username || bill.createdBy || '--'}</TableCell>
+                        <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
                       </TableRow>
                     );
                   })
-                ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
+                ) : <TableRow><TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
