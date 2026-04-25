@@ -51,6 +51,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
+import { useLoading } from '@/context/LoadingContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
@@ -65,6 +66,8 @@ export default function VehicleBillingPage() {
   const { toast } = useToast();
   const showAlertDialog = useAlertDialog();
   const { setIsDirty } = useNavigationGuard();
+  const { setLoading } = useLoading();
+  const [isSaving, setIsSaving] = useState(false);
 
   const {
     vehicles,
@@ -201,6 +204,7 @@ export default function VehicleBillingPage() {
   };
 
   const handleSaveBill = async () => {
+    if (isSaving) return null; // 🔒 prevents duplicate saves
     const validDriverIds = driverIds.filter(id => id);
     if (!date || !vehicleId || validDriverIds.length === 0 || !partyId || !currentUser) {
       toast({ variant: 'destructive', title: 'Missing Information', description: 'Please fill out Date, Vehicle, Driver, and Party.'});
@@ -228,6 +232,8 @@ export default function VehicleBillingPage() {
     };
     
     try {
+        setIsSaving(true);
+        setLoading(true, 'Saving vehicle bill...');
         const savedBill = await addOrUpdateVehicleBill(billData, editingBillId || undefined);
         if (savedBill) {
             toast({ title: editingBillId ? 'Bill Updated' : 'Bill Saved', description: `Vehicle bill for ${vehicleId} has been saved.`});
@@ -242,6 +248,9 @@ export default function VehicleBillingPage() {
         console.error('Vehicle bill save error:', e);
         toast({ variant: 'destructive', title: 'Save Failed', description: 'Could not save the vehicle bill.' });
         return null;
+    } finally {
+      setIsSaving(false);
+      setLoading(false);
     }
   };
 
@@ -252,6 +261,7 @@ export default function VehicleBillingPage() {
   };
 
   const handleSaveAndPrint = async () => {
+    if (isSaving) return; // 🔒 prevents duplicate saves
     const savedBill = await handleSaveBill();
     if (savedBill) {
       handlePrintBill(savedBill);
@@ -564,14 +574,14 @@ export default function VehicleBillingPage() {
             </div>
         </CardContent>
         <CardFooter className="flex flex-wrap justify-end gap-2">
-            <Button size="lg" variant="outline" onClick={handleSaveBill}>
-                <Save className="mr-2 h-4 w-4" /> Save Bill
+            <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={isSaving}>
+              <Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}
             </Button>
             <Button size="lg" variant="secondary" onClick={handleDirectPrint} disabled={!editingBillId}>
                 <Printer className="mr-2 h-4 w-4" /> Print Bill
             </Button>
-            <Button size="lg" onClick={handleSaveAndPrint}>
-                <Printer className="mr-2 h-4 w-4" /> Save &amp; Print
+            <Button size="lg" onClick={handleSaveAndPrint} disabled={isSaving}>
+                <Printer className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save & Print"}
             </Button>
             <Button size="lg" variant="outline" onClick={handleShareWhatsApp}>
                 <Share className="mr-2 h-4 w-4" /> Share

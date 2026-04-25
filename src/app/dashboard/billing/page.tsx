@@ -141,6 +141,7 @@ export default function BillingPage() {
   const [productSearchText, setProductSearchText] = useState('');
   const [activeBillNo, setActiveBillNo] = useState<string | null>(null);
   const [initialBillTotal, setInitialBillTotal] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
 
   const canEditBalances = currentUser?.role === 'ADMIN' || currentUser?.role === 'CREATOR';
 
@@ -235,11 +236,6 @@ export default function BillingPage() {
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
   const [filteredHistoryBills, setFilteredHistoryBills] = useState<LiveBillSummary[]>([]);
   const [historySearchText, setHistorySearchText] = useState('');
-
-  // Sync history filters when the main date picker changes (Isolation requirement)
-  useEffect(() => {
-    setHistoryDate(date);
-  }, [date]);
 
   // Refs
   const customerSelectRef = useRef<any>(null);
@@ -408,9 +404,18 @@ export default function BillingPage() {
             } catch (e) { console.error("Failed to load items", e); }
             setIsItemsLoading(false);
 
-            // Previous Balance Logic: "Always fetch customer.currentBalance"
+            // Previous Balance Logic: 
+            // Today -> customer live balance
+            // Past -> stored snapshot in bill
             const dbBal = billToLoad.customerId === 'WALK-IN' ? 0 : (customerBalances[billToLoad.customerId] || 0);
-            const prev = billToLoad.customerId === 'WALK-IN' ? 0 : (dbBal - billToLoad.amount);
+            const bDate = billToLoad.date ? (billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date)) : new Date();
+            const isToday = isSameDay(bDate, new Date());
+            let prev = 0;
+            if (isToday) {
+              prev = dbBal - billToLoad.amount;
+            } else {
+              prev = billToLoad.prevBalance !== undefined ? billToLoad.prevBalance : (dbBal - billToLoad.amount);
+            }
             setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
@@ -654,13 +659,16 @@ export default function BillingPage() {
         return null;
     }
 
-    // Persist Manual Balance Override if active
+    // Persist Manual Balance Override if active (Today Only)
     if (isPrevBalModified && selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
+      const isToday = isSameDay(date || new Date(), new Date());
+      if (isToday) {
         const delta = staticPrevBalance - originalPrevBalance;
         if (delta !== 0) {
-            const currentOpening = openingBalances[selectedCustomerId] || 0;
-            setOpeningBalance(selectedCustomerId, currentOpening + delta);
+          const currentOpening = openingBalances[selectedCustomerId] || 0;
+          setOpeningBalance(selectedCustomerId, currentOpening + delta);
         }
+      }
     }
 
     // Purge old items from DB if editing to ensure local state becomes the single source of truth
@@ -679,6 +687,7 @@ export default function BillingPage() {
       stall: '1',
       createdBy: activeBillNo ? getBill(activeBillNo)?.createdBy : undefined,
       description: description,
+      prevBalance: staticPrevBalance,
     };
     
     const { billNo, commitPromise } = createOrUpdateLiveBill(
@@ -708,12 +717,21 @@ export default function BillingPage() {
   };
 
   const handleSaveBill = async () => {
+    if (isSaving) return; // 🔒 prevents duplicate saves
     if (!selectedCustomerId) {
         toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer or confirm as walk-in to save.' });
         return;
     }
-    const savedData = await handleSaveAndGetData();
-    if (savedData) performReset();
+
+    try {
+      setIsSaving(true);
+      setLoading(true, 'Saving bill...');
+      const savedData = await handleSaveAndGetData();
+      setLoading(false);
+      if (savedData) performReset();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePrintBill = async (paper: 'thermal' | 'a4') => {
@@ -822,6 +840,20 @@ export default function BillingPage() {
     setHistorySearchText('');
   };
 
+  const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
+    if (!currentDate) return;
+    const current = new Date(currentDate);
+    if (e.key === 'ArrowUp') {
+      current.setDate(current.getDate() + 1);
+      setDateFn(new Date(current));
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown') {
+      current.setDate(current.getDate() - 1);
+      setDateFn(new Date(current));
+      e.preventDefault();
+    }
+  };
+
   // Keyboard navigation
   const handleQtyKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') { 
@@ -915,7 +947,7 @@ export default function BillingPage() {
               <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto sm:items-end">
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px] h-11 md:h-10', !date && 'text-muted-foreground')}>
+                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px]', !date && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, date, setDate as (d: Date) => void)}>
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {date ? format(date, 'dd-MM-yyyy') : <span>Pick a date</span>}
                     </Button>
@@ -1106,7 +1138,7 @@ export default function BillingPage() {
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[calc(100vh-32rem)] min-h-[16rem] md:min-h-[22rem] p-0 border-t overflow-y-auto overflow-x-auto">
+            <CardContent ref={billItemsContainerRef} className="max-h-[240px] p-0 border-t overflow-y-auto overflow-x-auto live-bill-container">
               <div className="min-w-[600px] w-full">
                 <Table className="w-full md:table-fixed border-collapse">
                   <TableHeader>
@@ -1251,7 +1283,7 @@ export default function BillingPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId}><Save className="mr-2 h-4 w-4" /> Save Bill</Button>
+                  <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
                   <Button onClick={() => handlePrintBill('thermal')}>Print Receipt</Button>
                   <Button variant="outline" onClick={() => handlePrintBill('a4')}>Print A4</Button>
                   <button 
@@ -1320,7 +1352,7 @@ export default function BillingPage() {
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal md:w-[200px] h-11 md:h-10', !historyDate && 'text-muted-foreground')}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -1377,8 +1409,8 @@ export default function BillingPage() {
           <span className="font-mono text-black dark:text-white font-bold">₹{finalBalance.toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-2 flex-1 justify-end">
-          <Button size="lg" className="flex-1 max-w-[150px]" onClick={handleSaveBill} disabled={!selectedCustomerId || (localBillItems.length === 0 && !activeBillNo)}>
-            <Save className="mr-2 h-5 w-5" /> Save
+        <Button size="lg" className="flex-1 max-w-[150px]" onClick={handleSaveBill} disabled={!selectedCustomerId || (localBillItems.length === 0 && !activeBillNo) || isSaving}>
+        <Save className="mr-2 h-5 w-5" /> {isSaving ? "Saving..." : "Save"}
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1479,4 +1511,3 @@ export default function BillingPage() {
     </div>
   );
 }
-

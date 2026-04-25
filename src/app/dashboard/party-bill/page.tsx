@@ -49,6 +49,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { format, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
+import { useLoading } from '@/context/LoadingContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
@@ -108,6 +109,8 @@ export default function PartyBillPage() {
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
     const { setIsDirty } = useNavigationGuard();
+    const { setLoading } = useLoading();
+    const [isSaving, setIsSaving] = useState(false);
 
     const {
         products,
@@ -391,14 +394,23 @@ export default function PartyBillPage() {
     };
     
     const onSaveClick = async () => {
-      const savedBill = await handleSave();
-      if (savedBill) {
-        if (!editingBillId) {
-            resetForm();
-        } else {
-            setBillOriginalState(savedBill);
+        if (isSaving) return;
+      
+        try {
+          setIsSaving(true);
+          setLoading(true, 'Saving party bill...');
+          const savedBill = await handleSave();
+          if (savedBill) {
+            if (!editingBillId) {
+                resetForm();
+            } else {
+                setBillOriginalState(savedBill);
+            }
+          }
+        } finally {
+          setIsSaving(false);
+          setLoading(false);
         }
-      }
     };
     
     const handleDelete = (billId: string) => {
@@ -495,17 +507,25 @@ export default function PartyBillPage() {
     };
 
     const handleSaveAndPrint = async () => {
+        if (isSaving) return;
         setShowPrintConfirm(false);
-        const savedBill = await handleSave();
-        if (savedBill) {
-            const printData = getPrintData();
-            // Use the savedBill id for printing, which might be new
-            proceedToPrint({ ...printData, id: savedBill.id });
-             if (!editingBillId) {
-                resetForm();
-            } else {
-                setBillOriginalState(savedBill);
+        try {
+            setIsSaving(true);
+            setLoading(true, 'Saving and printing...');
+            const savedBill = await handleSave();
+            if (savedBill) {
+                const printData = getPrintData();
+                // Use the savedBill id for printing, which might be new
+                proceedToPrint({ ...printData, id: savedBill.id });
+                if (!editingBillId) {
+                    resetForm();
+                } else {
+                    setBillOriginalState(savedBill);
+                }
             }
+        } finally {
+            setIsSaving(false);
+            setLoading(false);
         }
     };
 
@@ -825,7 +845,7 @@ export default function PartyBillPage() {
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
-                    <Button onClick={onSaveClick}><Save className="mr-2 h-4 w-4"/>{editingBillId ? 'Update' : 'Save'}</Button>
+                    <Button onClick={onSaveClick} disabled={isSaving}><Save className="mr-2 h-4 w-4"/>{isSaving ? "Saving..." : (editingBillId ? 'Update' : 'Save')}</Button>
                     <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
                     <Button variant="outline" onClick={handleShareWhatsApp}>
                         <Share className="mr-2 h-4 w-4" /> Share
@@ -934,7 +954,7 @@ export default function PartyBillPage() {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-2 pt-2">
-                <Button onClick={handleSaveAndPrint}>Save & Print</Button>
+            <Button onClick={handleSaveAndPrint} disabled={isSaving}>{isSaving ? "Saving..." : "Save & Print"}</Button>
                 <Button variant="outline" onClick={handlePrintWithoutSaving}>Print Without Saving</Button>
                 <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
             </div>

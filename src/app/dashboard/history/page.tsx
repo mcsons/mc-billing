@@ -262,6 +262,19 @@ export default function HistoryPage() {
     }
   };
 
+  const handleDateKeyDown = (e: React.KeyboardEvent) => {
+    if (!date) return;
+    const current = new Date(date);
+    if (e.key === 'ArrowUp') {
+      current.setDate(current.getDate() + 1);
+      setDate(new Date(current));
+      e.preventDefault();
+    } else if (e.key === 'ArrowDown') {
+      current.setDate(current.getDate() - 1);
+      setDate(new Date(current));
+      e.preventDefault();
+    }
+  };
 
   const handleClearSearch = () => {
     setDate(undefined);
@@ -334,9 +347,10 @@ export default function HistoryPage() {
                     'w-full sm:w-[240px] justify-start text-left font-normal',
                     !date && 'text-muted-foreground'
                   )}
+                  onKeyDown={handleDateKeyDown}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, 'PPP') : <span>Pick a date</span>}
+                  {date ? format(date, 'dd-MM-yyyy') : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">

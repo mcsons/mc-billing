@@ -134,6 +134,24 @@
   }
 }
 
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.save-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+
 /* Custom Qty/UOM Selection Highlights */
 .qty-option {
   transition: all 0.15s ease;

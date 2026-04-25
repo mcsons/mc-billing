@@ -1,4 +1,3 @@
-
 'use client';
 import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +19,7 @@ import {
   PartyBalance,
   SalesReportData,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -93,7 +92,7 @@ interface DataContextType {
   setOpeningBalance: (customerId: string, balance: number) => void;
   setPartyBalance: (partyId: string, balance: number) => void;
   createOrUpdateLiveBill: (
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance' | 'prevBalance'> & { prevBalance?: number },
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
@@ -713,7 +712,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
 
   const createOrUpdateLiveBill = useCallback((
-    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance'>,
+    summary: Omit<LiveBillSummary, 'billNo' | 'amount' | 'deliveryCharge' | 'paidAmount' | 'date' | 'createdBy' | 'stall' | 'finalBalance' | 'prevBalance'> & { prevBalance?: number },
     items: BillItem[],
     paidAmount: number,
     deliveryCharge: number,
@@ -759,10 +758,18 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       if (originalBill?.createdBy && !summaryPayload.createdBy) {
         summaryPayload.createdBy = originalBill.createdBy;
       }
+      // If editing existing, use the snapshot balance already on document (unless today)
+      if (!summaryPayload.prevBalance && originalBill?.prevBalance !== undefined) {
+        summaryPayload.prevBalance = originalBill.prevBalance;
+      }
       batch.set(billRef, summaryPayload, { merge: true }); 
     } else {
        summaryPayload.createdBy = currentUser.id;
        summaryPayload.createdAt = serverTimestamp();
+       // For new bills today, ensure snapshot is current customer balance
+       if (isSameDay(date, new Date()) && !summaryPayload.prevBalance) {
+         summaryPayload.prevBalance = customerBalances[summary.customerId] || 0;
+       }
        batch.set(billRef, summaryPayload);
       
       if (paidAmount > 0) {
@@ -787,7 +794,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return { billNo, commitPromise };
-  }, [firestore, currentUser, liveBillSummaries]);
+  }, [firestore, currentUser, liveBillSummaries, customerBalances]);
 
     const deleteBills = async (billNos: string[]) => {
       if (!firestore) return;
