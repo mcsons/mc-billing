@@ -87,6 +87,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 
+
 interface BillPrintData {
   billNo: string;
   date: string;
@@ -936,6 +937,25 @@ export default function BillingPage() {
 
   const selectedProduct = useMemo(() => products.find(p => p.id === selectedProductId), [products, selectedProductId]);
 
+  const enrichedHistoryBills = useMemo(() => {
+    return filteredHistoryBills.map(bill => {
+      let finalBal = bill.finalBalance;
+      if (!finalBal) {
+        const dbBal = customerBalances[bill.customerId] || 0;
+        const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+        const isToday = bDate ? isSameDay(bDate, new Date()) : false;
+        let prev = 0;
+        if (isToday) {
+          prev = dbBal - bill.amount;
+        } else {
+          prev = bill.prevBalance !== undefined ? bill.prevBalance : (dbBal - bill.amount);
+        }
+        finalBal = prev + bill.amount + (bill.deliveryCharge || 0) - (bill.paidAmount || 0);
+      }
+      return { ...bill, computedFinalBalance: finalBal };
+    });
+  }, [filteredHistoryBills, customerBalances]);
+
   return (
     <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full">
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
@@ -951,7 +971,7 @@ export default function BillingPage() {
               <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto sm:items-end">
                 <Popover>
                   <PopoverTrigger asChild>
-                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px]', !date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => {
+                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px] select-none', !date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => {
                       if (isDirty && d) {
                         showAlertDialog({
                            title: 'Unsaved Changes',
@@ -1019,10 +1039,19 @@ export default function BillingPage() {
                   }}
                   onKeyDown={handleCustomerKeyDown}
                   styles={reactSelectStyles}
-                  filterOption={(option, input) =>
-                      option.label.toLowerCase().includes(input.toLowerCase()) ||
-                      option.value.toLowerCase().includes(input.toLowerCase())
-                  }
+                  filterOption={(option, rawInput) => {
+                    if (!rawInput) return true;
+                    const searchInput = rawInput.trim();
+                    const isNumericSearch = /^\d+$/.test(searchInput);
+                    
+                    if (isNumericSearch) {
+                      return String(option.value) === searchInput || String(option.value) === String(Number(searchInput));
+                    } else {
+                      return option.label.toLowerCase().startsWith(searchInput.toLowerCase()) || 
+                             (option.value === 'WALK-IN' && option.label.toLowerCase().includes(searchInput.toLowerCase()));
+                    }
+                  }}
+                  noOptionsMessage={() => "No customer found"}
                 />
                 {selectedCustomerId === 'WALK-IN' && (
                   <div className="mt-2 grid gap-1.5">
@@ -1360,13 +1389,26 @@ export default function BillingPage() {
                 isClearable
                 placeholder="Filter by customer..."
                 styles={reactSelectStyles}
+                filterOption={(option, rawInput) => {
+                  if (!rawInput) return true;
+                  const searchInput = rawInput.trim();
+                  const isNumericSearch = /^\d+$/.test(searchInput);
+                  
+                  if (isNumericSearch) {
+                    return String(option.value) === searchInput || String(option.value) === String(Number(searchInput));
+                  } else {
+                    return option.label.toLowerCase().startsWith(searchInput.toLowerCase()) || 
+                           (option.value === 'WALK-IN' && option.label.toLowerCase().includes(searchInput.toLowerCase()));
+                  }
+                }}
+                noOptionsMessage={() => "No customer found"}
               />
             </div>
             <div className="grid gap-2">
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -1377,41 +1419,43 @@ export default function BillingPage() {
             <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
           </div>
 
-          <div className="overflow-x-auto rounded-md border">
-            <div className="min-w-[800px]">
-              <Table className="w-full">
-                <TableHeader>
-                  <TableRow>
-                    {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
-                    <TableHead>Bill No</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead className="text-right">Amt</TableHead>
-                    <TableHead>Created By</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody ref={historyTableBodyRef}>
-                  {filteredHistoryBills.length > 0 ? (
-                    filteredHistoryBills.map((bill) => {
-                      const creator = users.find((user) => user.id === bill.createdBy);
-                      const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
-                      return (
-                        <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
-                          {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                            <TableCell className="w-[40px]"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
-                          )}
-                          <TableCell className="font-medium">{bill.billNo}</TableCell>
-                          <TableCell>{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                          <TableCell className="font-medium">{bill.customerName}</TableCell>
-                          <TableCell className="text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
-                          <TableCell>{creator?.username || bill.createdBy || '--'}</TableCell>
-                        </TableRow>
-                      );
-                    })
-                  ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </div>
+          <div className="overflow-x-auto rounded-md border min-w-full">
+            <Table className="w-full min-w-0 md:min-w-[700px] text-xs md:text-sm">
+              <TableHeader>
+                <TableRow>
+                  {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && <TableHead className="w-[40px]"></TableHead>}
+                <TableHead className="px-1 md:px-4">Bill No</TableHead>
+                <TableHead className="px-1 md:px-4 hidden md:table-cell">Date</TableHead>
+                <TableHead className="px-1 md:px-4">Customer</TableHead>
+                <TableHead className="px-1 md:px-4 text-right">Amt</TableHead>
+                <TableHead className="px-1 md:px-4 text-right">Final Bal</TableHead>
+                <TableHead className="px-1 md:px-4 hidden md:table-cell">Created By</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody ref={historyTableBodyRef}>
+                {enrichedHistoryBills.length > 0 ? (
+                  enrichedHistoryBills.map((bill) => {
+                    const creator = users.find((user) => user.id === bill.createdBy);
+                    const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+                    return (
+                      <TableRow key={bill.billNo} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditBill(bill.billNo)} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}>
+                        {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
+                          <TableCell className="w-[30px] md:w-[40px] px-1 md:px-4"><Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} /></TableCell>
+                        )}
+                        <TableCell className="font-medium px-1 md:px-4">{bill.billNo}</TableCell>
+                        <TableCell className="px-1 md:px-4 hidden md:table-cell">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                        <TableCell className="px-1 md:px-4 whitespace-normal break-words max-w-[120px] md:max-w-none">{bill.customerName}</TableCell>
+                        <TableCell className="px-1 md:px-4 text-right font-mono">₹{formatINR(bill.amount)}</TableCell>
+                        <TableCell className="px-1 md:px-4 text-right font-mono font-bold">
+                        {`₹${formatINR(bill.computedFinalBalance)}`}
+                      </TableCell>
+                        <TableCell className="px-1 md:px-4 hidden md:table-cell">{creator?.username || bill.createdBy || '--'}</TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : <TableRow><TableCell colSpan={6} className="h-24 text-center">No results found.</TableCell></TableRow>}
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

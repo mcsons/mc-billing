@@ -130,9 +130,10 @@ export default function SalesReportPage() {
                                 <Button
                                     id="from-date"
                                     variant={'outline'}
-                                    className={cn('w-full justify-start text-left font-normal', !fromDate && 'text-muted-foreground')}
+                                    className={cn('w-full justify-start text-left font-normal select-none', !fromDate && 'text-muted-foreground')}
                                     onFocus={() => { if(!fromDate) setFromDate(new Date()) }}
                                     onKeyDown={(e) => handleDateKeyDown(e, fromDate, setFromDate)}
+                                    onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {fromDate ? format(fromDate, 'PPP') : <span>Pick a date</span>}
@@ -150,9 +151,10 @@ export default function SalesReportPage() {
                                 <Button
                                     id="to-date"
                                     variant={'outline'}
-                                    className={cn('w-full justify-start text-left font-normal', !toDate && 'text-muted-foreground')}
+                                    className={cn('w-full justify-start text-left font-normal select-none', !toDate && 'text-muted-foreground')}
                                     onFocus={() => { if(!toDate) setToDate(new Date()) }}
                                     onKeyDown={(e) => handleDateKeyDown(e, toDate, setToDate)}
+                                    onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
                                 >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {toDate ? format(toDate, 'PPP') : <span>Pick a date</span>}

@@ -656,7 +656,7 @@ export default function PartyBillPage() {
                     <div className="absolute top-0 right-0">
                          <Popover>
                             <PopoverTrigger asChild>
-                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => d && setDate(d))}>
+                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal',!date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => d && setDate(d))}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
                             </Button>
@@ -915,7 +915,7 @@ export default function PartyBillPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
