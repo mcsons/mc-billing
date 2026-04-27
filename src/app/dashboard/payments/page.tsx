@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Save, Search, X, Pencil, Trash2 } from 'lucide-react'
+import { Save, Search, X, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -21,7 +21,6 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon } from 'lucide-react';
 import { format, isSameDay, startOfDay } from 'date-fns';
 import {
     Table,
@@ -76,8 +75,6 @@ export default function PaymentsPage() {
     const isManager = currentUser?.role === 'MANAGER';
 
      // ── Reactive statement ───────────────────────────────────────────────────
-    // getCustomerLedger is a useCallback whose ref changes whenever `payments`
-    // changes in DataContext. So this memo auto-refreshes on every edit/delete.
     const { transactions: filteredTransactions, openingBalance: openingBalanceForLedger } =
         useMemo(() => {
             if (!hasSearched || !historySelectedCustomerId || !fromDate || !toDate) {
@@ -104,8 +101,6 @@ export default function PaymentsPage() {
     };
 
     const custOptions = customers.map(c => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }));
-
-    // ── Handlers ─────────────────────────────────────────────────────────────
 
     const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
@@ -137,7 +132,6 @@ export default function PaymentsPage() {
         setHistorySelectedCustomerId(''); setFromDate(undefined); setToDate(undefined); setHasSearched(false);
     };
 
-    // Edit
     const handleEditClick = (tx: Transaction) => {
         setEditingTx(tx);
         setEditAmount(String(tx.receivedAmount ?? ''));
@@ -156,7 +150,6 @@ export default function PaymentsPage() {
         setIsSaving(true);
         try {
             await updatePayment(editingTx.paymentId, { amount: newAmt, notes: editNotes });
-            // Statement auto-refreshes via the reactive useMemo above
             toast({ title: 'Payment Updated' });
             setEditModalOpen(false);
         } catch {
@@ -166,7 +159,6 @@ export default function PaymentsPage() {
         }
     };
 
-    // Delete
     const handleDeleteClick = (tx: Transaction) => {
         if (!tx.paymentId) return;
         showAlertDialog({
@@ -175,7 +167,6 @@ export default function PaymentsPage() {
             onConfirm: async () => {
                 try {
                     await softDeletePayment(tx.paymentId!);
-                    // Statement auto-refreshes via reactive useMemo
                     toast({ title: 'Payment Deleted', description: 'Entry removed and balances updated.' });
                 } catch {
                     toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete payment.' });
@@ -214,7 +205,6 @@ export default function PaymentsPage() {
         set(new Date(cur));
     };
 
-    // History section
     const historyPayments = useMemo(() =>
         (payments || [])
             .filter(p => {
@@ -234,19 +224,16 @@ export default function PaymentsPage() {
         [payments, historyFilterCustomerId, historyFilterDate]
     );
 
-    // Double-click history row → auto-load statement (no search button needed)
     const handleHistoryRowDoubleClick = (p: any) => {
         const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
         const day = startOfDay(pDate);
         setHistorySelectedCustomerId(p.customerId);
         setFromDate(day);
         setToDate(day);
-        setHasSearched(true); // ← triggers reactive memo immediately
+        setHasSearched(true);
         setTimeout(() => statementRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     };
 
-
-    const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
     const historyFilterCustomer = customers.find(c => c.id === historyFilterCustomerId);
 
     return (
@@ -309,7 +296,7 @@ export default function PaymentsPage() {
                     </Card>
                 </div>
 
-                <Card className="lg:row-span-2">
+                <Card className="lg:row-span-2" ref={statementRef}>
                     <CardHeader>
                         <CardTitle className="font-headline">Customer Statement</CardTitle>
                         <CardDescription>
@@ -321,7 +308,7 @@ export default function PaymentsPage() {
                         <Label>Customer</Label>
                                 <ReactSelect instanceId="history-customer-select" placeholder="Select customer..." isClearable
                                     options={custOptions}
-                                    value={historySelectedCustomer ? { value: historySelectedCustomer.id, label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})` } : null}
+                                    value={historySelectedCustomerId ? { value: historySelectedCustomerId.id, label: `${customers.find(c => c.id === historySelectedCustomerId)?.name_en} (${customers.find(c => c.id === historySelectedCustomerId)?.name_ta})` } : null}
                                     onChange={o => { setHistorySelectedCustomerId(o ? o.value : ''); setHasSearched(false); }}
                                     styles={rsStyles} filterOption={filterOption} />
                         </div>
@@ -392,8 +379,9 @@ export default function PaymentsPage() {
                                             filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                                 <>
                                                     <TableRow className="bg-muted/50">
-                                                        <TableCell colSpan={5} className="font-semibold">Opening Balance for Period</TableCell>
+                                                        <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
                                                         <TableCell className="text-right font-mono font-semibold">{formatINR(openingBalanceForLedger)}</TableCell>
+                                                        <TableCell></TableCell>
                                                     </TableRow>
                                                     {filteredTransactions.map((t, i) => (
                                                         <TableRow key={i}>
@@ -441,27 +429,38 @@ export default function PaymentsPage() {
 
             <Separator />
             
-            {/* ── Payment History ── */}
+            {/* ── Payment History Card ── */}
             <Card className="max-w-full overflow-hidden">
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
                     <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {/* Filter row */}
                     <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+                        {/* Customer — takes remaining space */}
                         <div className="grid flex-1 gap-2">
                             <Label>Customer</Label>
-                            <ReactSelect instanceId="history-filter-customer"
+                            <ReactSelect
+                                instanceId="history-filter-customer"
                                 options={custOptions}
                                 value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
                                 onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
-                                isClearable placeholder="Filter by customer..." styles={rsStyles} filterOption={filterOption} />
+                                isClearable
+                                placeholder="Filter by customer..."
+                                styles={rsStyles}
+                                filterOption={filterOption}
+                            />
                         </div>
+
+                        {/* Date picker — fixed width */}
                         <div className="grid gap-2">
                             <Label>Date</Label>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none', !historyFilterDate && 'text-muted-foreground')}>
+                                    <Button variant="outline"
+                                        className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none',
+                                            !historyFilterDate && 'text-muted-foreground')}>
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
                                     </Button>
@@ -471,11 +470,14 @@ export default function PaymentsPage() {
                                 </PopoverContent>
                             </Popover>
                         </div>
+
+                        {/* Clear button — self-aligns to bottom */}
                         <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }}>
                             <X className="mr-2 h-4 w-4" /> Clear
                         </Button>
                     </div>
 
+                    {/* Table */}
                     <div className="overflow-x-auto rounded-md border">
                         <Table className="table-fixed w-full">
                             <TableHeader>
@@ -487,21 +489,25 @@ export default function PaymentsPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {historyPayments.length > 0 ? (
-                                    historyPayments.map((p, i) => {
-                                        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                        const cust = customers.find(c => c.id === p.customerId);
-                                        return (
-                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50 border-b border-border" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate font-medium">{cust?.name_en || p.customerId}</TableCell>
-                                                <TableCell className="px-[10px] py-[12px] text-[14px] text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                                <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-red-600 font-mono">₹{formatINR(p.amount)}</TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                ) : (
-                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
+                                {historyPayments.length > 0 ? historyPayments.map((p, i) => {
+                                    const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                    const cust = customers.find(c => c.id === p.customerId);
+                                    return (
+                                        <TableRow key={i}
+                                            className="cursor-pointer hover:bg-muted/50 border-b border-border"
+                                            onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate font-medium">{cust?.name_en || p.customerId}</TableCell>
+                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                            <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-red-600 font-mono">
+                                                ₹{formatINR(p.amount)}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                }) : (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell>
+                                    </TableRow>
                                 )}
                             </TableBody>
                         </Table>
