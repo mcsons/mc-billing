@@ -259,8 +259,8 @@ export default function PaymentsPage() {
 
                             {recordSelectedCustomerId && (
                                 <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
-                                    <div><Label>Current Balance</Label><p className="text-2xl font-bold font-mono">₹{formatINR(currentBalance)}</p></div>
-                                    <div className="text-right"><Label>New Balance</Label><p className="text-2xl font-bold font-mono">₹{formatINR(newBalance)}</p></div>
+                                    <div><Label>Current Balance</Label><p className="text-2xl font-bold font-mono text-foreground">₹{formatINR(currentBalance)}</p></div>
+                                    <div className="text-right"><Label>New Balance</Label><p className="text-2xl font-bold font-mono text-foreground">₹{formatINR(newBalance)}</p></div>
                                 </div>
                             )}
 
@@ -379,17 +379,17 @@ export default function PaymentsPage() {
                                             filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                                 <>
                                                     <TableRow className="bg-muted/50">
-                                                        <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
-                                                        <TableCell className="text-right font-mono font-semibold">{formatINR(openingBalanceForLedger)}</TableCell>
+                                                        <TableCell colSpan={4} className="font-semibold text-foreground">Opening Balance for Period</TableCell>
+                                                        <TableCell className="text-right font-mono font-semibold text-foreground">{formatINR(openingBalanceForLedger)}</TableCell>
                                                         <TableCell></TableCell>
                                                     </TableRow>
                                                     {filteredTransactions.map((t, i) => (
                                                         <TableRow key={i}>
-                                                            <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
-                                                            <TableCell>{t.description}</TableCell>
+                                                            <TableCell className="text-foreground">{format(t.date, 'dd-MM-yy')}</TableCell>
+                                                            <TableCell className="text-foreground">{t.description}</TableCell>
                                                             <TableCell className="text-right font-mono text-green-600">{t.billedAmount != null ? formatINR(t.billedAmount) : ''}</TableCell>
                                                                 <TableCell className="text-right font-mono text-red-600">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
-                                                                <TableCell className="text-right font-mono">{formatINR(t.balance)}</TableCell>
+                                                                <TableCell className="text-right font-mono text-foreground">{formatINR(t.balance)}</TableCell>
                                                                 <TableCell className="text-right">
                                                                     {t.type === 'payment' && t.paymentId && (
                                                                         <div className="flex gap-1 justify-end">
@@ -407,12 +407,12 @@ export default function PaymentsPage() {
                                                 </>
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={6} className="h-24 text-center">No transactions found for this criteria.</TableCell>
+                                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No transactions found for this criteria.</TableCell>
                                                 </TableRow>
                                             )
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center">Select a customer and date range.</TableCell>
+                                                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Select a customer and date range.</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -430,90 +430,92 @@ export default function PaymentsPage() {
             <Separator />
             
             {/* ── Payment History Card ── */}
-            <Card className="max-w-full overflow-hidden">
-                <CardHeader>
-                    <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
-                    <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {/* Filter row */}
-                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
-                        {/* Customer — takes remaining space */}
-                        <div className="grid flex-1 gap-2">
-                            <Label>Customer</Label>
-                            <ReactSelect
-                                instanceId="history-filter-customer"
-                                options={custOptions}
-                                value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
-                                onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
-                                isClearable
-                                placeholder="Filter by customer..."
-                                styles={rsStyles}
-                                filterOption={filterOption}
-                            />
+            <div className="w-full">
+                <Card className="w-full">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
+                        <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-6 pb-6 pt-4">
+                        {/* Filter row */}
+                        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
+                            {/* Customer — takes remaining space */}
+                            <div className="grid flex-1 min-w-0 gap-2">
+                                <Label>Customer</Label>
+                                <ReactSelect
+                                    instanceId="history-filter-customer"
+                                    options={custOptions}
+                                    value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
+                                    onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
+                                    isClearable
+                                    placeholder="Filter by customer..."
+                                    styles={rsStyles}
+                                    filterOption={filterOption}
+                                />
+                            </div>
+
+                            {/* Date picker — fixed width */}
+                            <div className="grid gap-2">
+                                <Label>Date</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline"
+                                            className="w-full sm:w-[180px] justify-start text-left font-normal select-none"
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {historyFilterDate ? format(historyFilterDate, 'PPP') : <span className="text-muted-foreground">Pick a date</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+
+                            {/* Clear button — self-aligns to bottom */}
+                            <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }} className="h-10 shrink-0">
+                                <X className="mr-2 h-4 w-4" /> Clear
+                            </Button>
                         </div>
 
-                        {/* Date picker — fixed width */}
-                        <div className="grid gap-2">
-                            <Label>Date</Label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline"
-                                        className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none',
-                                            !historyFilterDate && 'text-muted-foreground')}>
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        {/* Clear button — self-aligns to bottom */}
-                        <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }}>
-                            <X className="mr-2 h-4 w-4" /> Clear
-                        </Button>
-                    </div>
-
-                    {/* Table */}
-                    <div className="overflow-x-auto rounded-md border">
-                        <Table className="table-fixed w-full">
-                            <TableHeader>
-                                <TableRow className="bg-muted/50 border-b border-border">
-                                    <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
-                                    <TableHead className="w-[200px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Customer</TableHead>
-                                    <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Notes</TableHead>
-                                    <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Received Amt</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {historyPayments.length > 0 ? historyPayments.map((p, i) => {
-                                    const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                    const cust = customers.find(c => c.id === p.customerId);
-                                    return (
-                                        <TableRow key={i}
-                                            className="cursor-pointer hover:bg-muted/50 border-b border-border"
-                                            onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate font-medium">{cust?.name_en || p.customerId}</TableCell>
-                                            <TableCell className="px-[10px] py-[12px] text-[14px] text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                            <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-red-600 font-mono">
-                                                ₹{formatINR(p.amount)}
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                }) : (
-                                    <TableRow>
-                                        <TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell>
+                        {/* Table container */}
+                        <div className="w-full overflow-x-auto rounded-md border border-border">
+                            <Table className="w-full table-fixed text-xs md:text-sm">
+                                <TableHeader>
+                                    <TableRow className="bg-muted/50 border-b border-border">
+                                        <TableHead className="w-[140px] px-4 py-3 text-sm font-semibold text-muted-foreground">Date</TableHead>
+                                        <TableHead className="w-[200px] px-4 py-3 text-sm font-semibold text-muted-foreground">Customer</TableHead>
+                                        <TableHead className="px-4 py-3 text-sm font-semibold text-muted-foreground">Notes</TableHead>
+                                        <TableHead className="text-right w-[160px] px-4 py-3 text-sm font-semibold text-muted-foreground">Received Amt</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
+                                </TableHeader>
+                                <TableBody>
+                                    {historyPayments.length > 0 ? historyPayments.map((p, i) => {
+                                        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                        const cust = customers.find(c => c.id === p.customerId);
+                                        return (
+                                            <TableRow key={i}
+                                                className="cursor-pointer hover:bg-muted/50 border-b border-border transition-colors"
+                                                onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                <TableCell className="px-4 py-3 text-foreground">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell className="px-4 py-3 text-foreground truncate font-medium">{cust?.name_en || p.customerId}</TableCell>
+                                                <TableCell className="px-4 py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                                <TableCell className="text-right px-4 py-3 font-mono text-red-600 font-semibold whitespace-nowrap">
+                                                    ₹{formatINR(p.amount)}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    }) : (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payment entries found.</TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* ── Edit Modal ── */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
