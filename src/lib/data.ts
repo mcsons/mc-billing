@@ -65,6 +65,7 @@ export type Payment = {
     amount: number;
     date: any;
     notes?: string;
+    isDeleted?: boolean;
 }
 
 export type Transaction = {
@@ -74,6 +75,7 @@ export type Transaction = {
   receivedAmount?: number;
   balance: number;
   type: 'bill' | 'payment';
+  paymentId?: string; // Only set for type === 'payment', links to Firestore doc
 };
 
 export type SalesReportData = {

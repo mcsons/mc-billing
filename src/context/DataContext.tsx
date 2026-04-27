@@ -103,6 +103,9 @@ interface DataContextType {
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
+  updatePayment: (paymentId: string, data: { amount: number; notes?: string }) => Promise<void>;
+  softDeletePayment: (paymentId: string) => Promise<void>;
+  updateBillPayment: (billNo: string, amountToAdd: number, notes?: string) => Promise<void>;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
   findBillForCustomerOnDate: (customerId: string, date: Date) => LiveBillSummary | undefined;
   getBill: (billNo: string) => LiveBillSummary | undefined;
@@ -266,7 +269,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             type: 'bill' as const,
             date: bill.date || new Date(0)
         })),
-        ...(payments || []).map(payment => ({
+        ...(payments || []).filter(payment => !payment.isDeleted).map(payment => ({
             customerId: payment.customerId,
             amount: payment.amount,
             type: 'payment' as const,
@@ -835,6 +838,69 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   }
 
+  const updatePayment = async (paymentId: string, data: { amount: number; notes?: string }) => {
+    if (!firestore) return;
+    const paymentRef = doc(firestore, 'payments', paymentId);
+    try {
+      await updateDoc(paymentRef, { amount: data.amount, notes: data.notes || '', updatedAt: serverTimestamp() });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path, requestResourceData: data }));
+      throw e;
+    }
+  };
+
+  const softDeletePayment = async (paymentId: string) => {
+    if (!firestore) return;
+    const paymentRef = doc(firestore, 'payments', paymentId);
+    try {
+      await updateDoc(paymentRef, { isDeleted: true, updatedAt: serverTimestamp() });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path }));
+      throw e;
+    }
+  };
+
+  const updateBillPayment = async (billNo: string, amountToAdd: number, notes?: string) => {
+    if (!firestore) return;
+    const billRef = doc(firestore, 'bills', billNo);
+    const billDoc = await getDoc(billRef);
+    if (!billDoc.exists()) return;
+    
+    const billData = billDoc.data() as LiveBillSummary;
+    const currentPaid = billData.paidAmount || 0;
+    const newPaid = currentPaid + amountToAdd;
+    
+    const prevBal = billData.prevBalance || 0;
+    const amount = billData.amount || 0;
+    const delivery = billData.deliveryCharge || 0;
+    const newFinalBalance = prevBal + amount + delivery - newPaid;
+
+    const batch = writeBatch(firestore);
+    batch.update(billRef, { 
+      paidAmount: newPaid, 
+      finalBalance: newFinalBalance,
+      updatedAt: serverTimestamp() 
+    });
+
+    if (amountToAdd > 0) {
+      const paymentsCol = collection(firestore, 'payments');
+      const paymentRef = doc(paymentsCol);
+      batch.set(paymentRef, {
+        customerId: billData.customerId,
+        amount: amountToAdd,
+        date: serverTimestamp(),
+        notes: notes || `Payment recorded for bill ${billNo}`
+      });
+    }
+
+    try {
+      await batch.commit();
+    } catch(e) {
+      console.error(e);
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to update payment.' });
+    }
+  };
+
   const setOpeningBalance = async (customerId: string, balance: number) => {
     if (!firestore) return;
     const balanceRef = doc(firestore, 'customerBalances', customerId);
@@ -874,7 +940,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const initialOpeningBalance = openingBalances[customerId] || 0;
 
     const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date && b.amount > 0);
-    const allPayments = (payments || []).filter(p => p.customerId === customerId);
+    const allPayments = (payments || []).filter(p => p.customerId === customerId && !p.isDeleted);
 
     const priorBills = allBills.filter(b => ((b.date as Timestamp).toDate()) < fromDateStart);
     const priorPayments = allPayments.filter(p => ((p.date as Timestamp).toDate()) < fromDateStart);
@@ -902,6 +968,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       receivedAmount: p.amount,
       balance: 0,
       type: 'payment',
+      paymentId: p.id,
     }));
 
     const sortedTransactions = [...mappedBills, ...mappedPayments].sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -1362,6 +1429,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         deleteBills,
         updateProductPrice,
         addPayment,
+        updatePayment,
+        softDeletePayment,
+        updateBillPayment,
         findBillForCustomerToday,
         findBillForCustomerOnDate,
         getBill,

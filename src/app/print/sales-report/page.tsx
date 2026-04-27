@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -27,14 +27,13 @@ const formatINR = (value: number) => {
 
 function PrintPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [printData, setPrintData] = useState<SalesReportPrintData | null>(null);
 
   useEffect(() => {
-    const data = searchParams.get('data');
-    if (data) {
+    const rawData = sessionStorage.getItem('salesReportData');
+    if (rawData)  {
       try {
-        const decodedData = JSON.parse(decodeURIComponent(data), (key, value) => {
+        const decodedData = JSON.parse(rawData, (key, value) => {
             if ((key === 'from' || key === 'to' || key === 'billDate') && value) {
                 return new Date(value);
             }
@@ -48,7 +47,11 @@ function PrintPageContent() {
     } else {
       router.push('/dashboard/sales-report');
     }
-  }, [searchParams, router]);
+  
+    return () => {
+      sessionStorage.removeItem('salesReportData');
+    };
+  }, [router]);
 
   if (!printData) {
     return (

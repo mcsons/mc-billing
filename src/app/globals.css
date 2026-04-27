@@ -58,6 +58,13 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* Custom Button Colors */
+    --btn-save-bg: #15803d; /* Darker green to contrast with teal */
+    --btn-save-hover: #166534;
+
+    --btn-print-bg: #2563eb;
+    --btn-print-hover: #1d4ed8;
   }
 
   .dark {
@@ -93,6 +100,13 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 215 28% 20%;
     --sidebar-ring: 174 58% 39%;
+
+     /* Custom Button Colors */
+     --btn-save-bg: #166534; /* Darker green */
+     --btn-save-hover: #14532d;
+ 
+     --btn-print-bg: #3b82f6;
+     --btn-print-hover: #2563eb;
   }
 }
 
@@ -149,6 +163,36 @@
   align-items: center;
   gap: 8px;
   margin-top: 8px;
+}
+
+@layer components {
+  /* Custom Button Styles */
+  .btn-save {
+    background-color: var(--btn-save-bg) !important;
+    color: white !important;
+    border-color: transparent !important;
+  }
+
+  .btn-save:hover {
+    background-color: var(--btn-save-hover) !important;
+  }
+
+  .btn-print {
+    background-color: var(--btn-print-bg) !important;
+    color: white !important;
+    border-color: transparent !important;
+  }
+
+  .btn-print:hover {
+    background-color: var(--btn-print-hover) !important;
+  }
+
+  .btn-save, .btn-print {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
 }
 
 

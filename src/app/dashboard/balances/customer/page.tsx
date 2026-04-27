@@ -161,6 +161,12 @@ export default function CustomerBalancePage() {
             isClearable
             placeholder="Search by name or ID..."
             styles={reactSelectStyles}
+            filterOption={(option, input) => {
+              if (!input) return true;
+              const isNumeric = /^\d+$/.test(input);
+              if (isNumeric) return option.value === input || option.value === String(parseInt(input, 10));
+              return option.label.toLowerCase().startsWith(input.toLowerCase());
+          }}
           />
         </div>
         {selectedCustomerId && (

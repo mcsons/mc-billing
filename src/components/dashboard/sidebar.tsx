@@ -73,6 +73,7 @@ const coreOperations: NavItem[] = [
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
   { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
+  { href: '/dashboard/received', label: 'Received', icon: IndianRupee },
 ];
 
 const balancesSubItems: NavItem[] = [

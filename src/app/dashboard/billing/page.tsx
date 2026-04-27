@@ -956,8 +956,29 @@ export default function BillingPage() {
     });
   }, [filteredHistoryBills, customerBalances]);
 
+  const handleGlobalTab = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    
+    const active = document.activeElement;
+    if (!active) return;
+
+    // Optional safety: Ignore if a modal/dialog is open
+    if (document.querySelector('[role="dialog"]')) return;
+
+    const isInsideProduct = document.getElementById('product-section')?.contains(active);
+    const isSaveBtn = active.id === 'save-bill-btn';
+    
+    const ignoreFields = ['TEXTAREA'];
+    if (ignoreFields.includes(active.tagName) || isSaveBtn) return;
+
+    if (!isInsideProduct) {
+      e.preventDefault();
+      document.getElementById('save-bill-btn')?.focus();
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full">
+    <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full" onKeyDown={handleGlobalTab}>
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
         <div className="grid auto-rows-max gap-4">
           <Card>
@@ -1071,7 +1092,7 @@ export default function BillingPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card id="product-section">
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent>
               <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-3">
@@ -1326,9 +1347,9 @@ export default function BillingPage() {
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <Button size="lg" variant="outline" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
+                  <Button id="save-bill-btn" size="lg" className="btn-save" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
                   <Button onClick={() => handlePrintBill('thermal')}>Print Receipt</Button>
-                  <Button variant="outline" onClick={() => handlePrintBill('a4')}>Print A4</Button>
+                  <Button className="btn-print" onClick={() => handlePrintBill('a4')}>Print A4</Button>
                   <button 
                     className="bg-[#1a222e] text-white p-2 rounded-md hover:bg-[#252f3f] disabled:opacity-50"
                     onClick={handleNextBill} 
@@ -1477,7 +1498,7 @@ export default function BillingPage() {
           <span className="font-mono text-black dark:text-white font-bold">₹{finalBalance.toFixed(2)}</span>
         </div>
         <div className="flex items-center gap-2 flex-1 justify-end">
-        <Button size="lg" className="flex-1 max-w-[150px]" onClick={handleSaveBill} disabled={!selectedCustomerId || (localBillItems.length === 0 && !activeBillNo) || isSaving}>
+        <Button size="lg" className="flex-1 max-w-[150px] btn-save" onClick={handleSaveBill} disabled={!selectedCustomerId || (localBillItems.length === 0 && !activeBillNo) || isSaving}>
         <Save className="mr-2 h-5 w-5" /> {isSaving ? "Saving..." : "Save"}
           </Button>
           <DropdownMenu>

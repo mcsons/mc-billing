@@ -95,8 +95,8 @@ export default function SalesReportPage() {
             return;
         }
 
-        const encodedData = encodeURIComponent(JSON.stringify(reportData));
-        window.open(`/print/sales-report?data=${encodedData}`, '_blank');
+        sessionStorage.setItem('salesReportData', JSON.stringify(reportData));
+        window.open('/print/sales-report', '_blank');
     };
 
     const selectedCustomerData = customers.find(c => c.id === selectedCustomerId);
@@ -119,7 +119,12 @@ export default function SalesReportPage() {
                         value={ selectedCustomerData ? { value: selectedCustomerData.id, label: `${selectedCustomerData.name_en} (${selectedCustomerData.name_ta})` } : null }
                         onChange={(option) => setSelectedCustomerId(option ? option.value : '')}
                         styles={reactSelectStyles}
-                        filterOption={(option, input) => option.label.toLowerCase().includes(input.toLowerCase()) || option.value.toLowerCase().includes(input.toLowerCase()) }
+                        filterOption={(option, input) => {
+                          if (!input) return true;
+                          const isNumeric = /^\d+$/.test(input);
+                          if (isNumeric) return option.value === input || option.value === String(parseInt(input, 10));
+                          return option.label.toLowerCase().startsWith(input.toLowerCase());
+                      }}
                     />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

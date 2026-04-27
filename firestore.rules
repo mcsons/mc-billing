@@ -155,6 +155,7 @@ service cloud.firestore {
      */
     match /payments/{paymentId} {
       allow read, create: if isSignedIn();
+      allow update: if isCreatorOrAdmin();
     }
 
     /**
