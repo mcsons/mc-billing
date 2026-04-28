@@ -106,6 +106,8 @@ export default function PaymentsPage() {
     const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
     const newBalance = currentBalance - (parseFloat(amount) || 0);
 
+    const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
+
     const handleSubmitPayment = () => {
         const paymentAmount = parseFloat(amount);
         if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
@@ -194,7 +196,8 @@ export default function PaymentsPage() {
             dateRange: { from: fromDate?.toISOString(), to: toDate?.toISOString() },
         };
         
-        window.open(`/print/payments?data=${encodeURIComponent(JSON.stringify(printData))}&paper=${paper}`, '_blank');
+        sessionStorage.setItem('paymentsReportData', JSON.stringify(printData));
+        window.open(`/print/payments?paper=${paper}`, '_blank');
     };
 
     const handleDateKeyDown = (e: React.KeyboardEvent, d: Date | undefined, set: (d: Date) => void) => {
@@ -308,7 +311,7 @@ export default function PaymentsPage() {
                         <Label>Customer</Label>
                                 <ReactSelect instanceId="history-customer-select" placeholder="Select customer..." isClearable
                                     options={custOptions}
-                                    value={historySelectedCustomerId ? { value: historySelectedCustomerId.id, label: `${customers.find(c => c.id === historySelectedCustomerId)?.name_en} (${customers.find(c => c.id === historySelectedCustomerId)?.name_ta})` } : null}
+                                    value={historySelectedCustomer ? { value: historySelectedCustomer.id, label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})` } : null}
                                     onChange={o => { setHistorySelectedCustomerId(o ? o.value : ''); setHasSearched(false); }}
                                     styles={rsStyles} filterOption={filterOption} />
                         </div>
