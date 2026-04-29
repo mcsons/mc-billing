@@ -1429,7 +1429,7 @@ export default function BillingPage() {
               <Label>Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -1443,7 +1443,7 @@ export default function BillingPage() {
           <div className="overflow-x-auto rounded-md border">
             <Table className="table-fixed w-full">
               <TableHeader>
-                <TableRow className="bg-muted/50">
+                <TableRow className="bg-muted/50 border-b border-border">
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
                     <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground"></TableHead>
                   )}

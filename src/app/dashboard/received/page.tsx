@@ -231,9 +231,9 @@ export default function ReceivedPage() {
             currentCustomerBalance: customerBalances[historySelectedCustomerId] || 0
         };
 
-        const encodedData = encodeURIComponent(JSON.stringify(printData));
+        sessionStorage.setItem('receivedReportData', JSON.stringify(printData));
         window.open(
-            `/print/received?data=${encodedData}&paper=${paper}`,
+            `/print/received?paper=${paper}`,
             '_blank'
         );
     };
@@ -418,7 +418,7 @@ export default function ReceivedPage() {
 
                         <Separator />
 
-                        <div className="max-h-60 overflow-y-auto">
+                        <div className="hidden md:block overflow-x-auto rounded-md border">
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
@@ -537,15 +537,15 @@ export default function ReceivedPage() {
                         <Button variant="ghost" onClick={handleGlobalClearSearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
                     </div>
 
-                    <div className="overflow-x-auto rounded-md border min-w-full">
-                        <Table className="w-full min-w-[600px] text-xs md:text-sm">
+                    <div className="hidden md:block overflow-x-auto rounded-md border">
+                        <Table className="w-full min-w-[600px] text-sm">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="px-1 md:px-4">Rec. Date</TableHead>
-                                    <TableHead className="px-1 md:px-4">Bill Date</TableHead>
-                                    <TableHead className="px-1 md:px-4">Customer</TableHead>
-                                    <TableHead className="px-1 md:px-4 text-right">Received Amt</TableHead>
-                                    <TableHead className="px-1 md:px-4 text-right">Final Balance</TableHead>
+                                    <TableHead className="px-4">Rec. Date</TableHead>
+                                    <TableHead className="px-4">Bill Date</TableHead>
+                                    <TableHead className="px-4">Customer</TableHead>
+                                    <TableHead className="px-4 text-right">Received Amt</TableHead>
+                                    <TableHead className="px-4 text-right">Final Balance</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -560,11 +560,11 @@ export default function ReceivedPage() {
                                         const prevBalance = finalBalance + receivedAmount;
                                         return (
                                             <TableRow key={index} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => onRowDoubleClick(bill)}>
-                                                <TableCell className="px-1 md:px-4">{rDate && !isNaN(rDate.getTime()) ? format(rDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="px-1 md:px-4">{bDate && !isNaN(bDate.getTime()) ? format(bDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="px-1 md:px-4 whitespace-normal break-words">{bill.customerName}</TableCell>
-                                                <TableCell className="px-1 md:px-4 text-right font-mono text-green-600 font-semibold">₹{receivedAmount.toFixed(2)}</TableCell>
-                                                <TableCell className="px-1 md:px-4 text-right font-mono font-bold">₹{finalBalance.toFixed(2)}</TableCell>
+                                                <TableCell className="px-4">{rDate && !isNaN(rDate.getTime()) ? format(rDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell className="px-4">{bDate && !isNaN(bDate.getTime()) ? format(bDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell className="px-4 whitespace-normal break-words">{bill.customerName}</TableCell>
+                                                <TableCell className="px-4 text-right font-mono text-green-600 font-semibold">₹{receivedAmount.toFixed(2)}</TableCell>
+                                                <TableCell className="px-4 text-right font-mono font-bold">₹{finalBalance.toFixed(2)}</TableCell>
                                             </TableRow>
                                         );
                                     })
@@ -575,6 +575,53 @@ export default function ReceivedPage() {
                                 )}
                             </TableBody>
                         </Table>
+                    </div>
+
+                    {/* Mobile Card List */}
+                    <div className="block md:hidden space-y-3">
+                        {globalHistoryBills.length > 0 ? (
+                            globalHistoryBills.map((bill, index) => {
+                                const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date((bill.date as any).seconds ? (bill.date as any).seconds * 1000 : bill.date)) : null;
+                                const rDateRaw = (bill as any).updatedAt || (bill as any).createdAt || bill.date;
+                                const rDate = rDateRaw ? (rDateRaw.toDate ? rDateRaw.toDate() : new Date(rDateRaw.seconds ? rDateRaw.seconds * 1000 : rDateRaw)) : null;
+                                const receivedAmount = bill.paidAmount || 0;
+                                const finalBalance = customerBalances[bill.customerId] || 0;
+                                return (
+                                    <div
+                                        key={index}
+                                        className="rounded-lg border p-3 shadow-sm bg-card cursor-pointer active:opacity-70"
+                                        style={{ minHeight: '80px', padding: '12px' }}
+                                        onDoubleClick={() => onRowDoubleClick(bill)}
+                                    >
+                                        {/* Top Row: Customer + Rec Date */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-semibold text-sm">{bill.customerName}</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {rDate && !isNaN(rDate.getTime()) ? format(rDate, 'dd-MM-yyyy') : '-'}
+                                            </span>
+                                        </div>
+                                        {/* Bill Date */}
+                                        <div className="mt-1 text-xs text-muted-foreground">
+                                            Bill: {bDate && !isNaN(bDate.getTime()) ? format(bDate, 'dd-MM-yyyy') : '-'}
+                                        </div>
+                                        {/* Received Amount */}
+                                        <div className="mt-2 flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Received:</span>
+                                            <span className="font-mono font-semibold text-green-600">₹{receivedAmount.toFixed(2)}</span>
+                                        </div>
+                                        {/* Final Balance */}
+                                        <div className="flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Final Bal:</span>
+                                            <span className="font-mono font-bold">₹{finalBalance.toFixed(2)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
+                                No results found.
+                            </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>

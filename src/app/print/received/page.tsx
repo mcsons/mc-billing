@@ -29,11 +29,10 @@ function PrintReceivedContent() {
   const [printData, setPrintData] = useState<PrintData | null>(null);
 
   useEffect(() => {
-    const data = searchParams.get('data');
-    if (data) {
+    const stored = sessionStorage.getItem('receivedReportData');
+    if (stored) {
       try {
-        const decodedData = decodeURIComponent(data);
-        const parsedData = JSON.parse(decodedData, (key, value) => {
+        const parsedData = JSON.parse(stored, (key, value) => {
             if ((key === 'from' || key === 'to' || key === 'date') && value) {
                 return new Date(value);
             }
@@ -47,7 +46,10 @@ function PrintReceivedContent() {
     } else {
       router.push('/dashboard/received');
     }
-  }, [searchParams, router]);
+    return () => {
+      sessionStorage.removeItem('receivedReportData');
+    };
+  }, [router]);
 
   if (!printData) {
     return (

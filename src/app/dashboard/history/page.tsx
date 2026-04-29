@@ -375,7 +375,7 @@ export default function HistoryPage() {
                   id="date-search-trigger"
                   variant={'outline'}
                   className={cn(
-                    'w-full sm:w-[240px] justify-start text-left font-normal',
+                    'w-full sm:w-[240px] justify-start text-left font-normal select-none',
                     !date && 'text-muted-foreground'
                   )}
                   onKeyDown={(e) => handleDateKeyDown(e, date, setDate)}

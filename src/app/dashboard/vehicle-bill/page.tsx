@@ -579,11 +579,11 @@ export default function VehicleBillingPage() {
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="advance">Advance (₹)</Label>
-                    <Input id="advance" type="number" value={advance} onChange={(e) => setAdvance(e.target.value)} />
+                    <Input id="advance" type="password" value={advance} onChange={(e) => setAdvance(e.target.value)} />
                 </div>
                 <div className="grid gap-2">
                     <Label htmlFor="expenses">Expenses (₹)</Label>
-                    <Input id="expenses" type="number" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
+                    <Input id="expenses" type="password" value={expenses} onChange={(e) => setExpenses(e.target.value)} />
                 </div>
             </div>
              <div className="mt-6 border-t pt-4">

@@ -481,9 +481,9 @@ export default function PaymentsPage() {
                             </Button>
                         </div>
 
-                        {/* Table container */}
-                        <div className="w-full overflow-x-auto rounded-md border border-border">
-                            <Table className="w-full table-fixed text-xs md:text-sm">
+                        {/* Desktop Table */}
+                        <div className="hidden md:block w-full overflow-x-auto rounded-md border border-border">
+                            <Table className="w-full table-fixed text-sm">
                                 <TableHeader>
                                     <TableRow className="bg-muted/50 border-b border-border">
                                         <TableHead className="w-[140px] px-4 py-3 text-sm font-semibold text-muted-foreground">Date</TableHead>
@@ -515,6 +515,45 @@ export default function PaymentsPage() {
                                     )}
                                 </TableBody>
                             </Table>
+                        </div>
+
+                        {/* Mobile Card List */}
+                        <div className="block md:hidden space-y-3">
+                            {historyPayments.length > 0 ? (
+                                historyPayments.map((p, i) => {
+                                    const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                    const cust = customers.find(c => c.id === p.customerId);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="rounded-lg border p-3 shadow-sm bg-card cursor-pointer active:opacity-70"
+                                            style={{ minHeight: '80px', padding: '12px' }}
+                                            onDoubleClick={() => handleHistoryRowDoubleClick(p)}
+                                        >
+                                            {/* Top Row: Customer + Date */}
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
+                                                </span>
+                                            </div>
+                                            {/* Notes */}
+                                            {p.notes && (
+                                                <div className="mt-1 text-xs text-muted-foreground">{p.notes}</div>
+                                            )}
+                                            {/* Amount */}
+                                            <div className="mt-2 flex justify-between text-sm">
+                                                <span className="text-muted-foreground">Received:</span>
+                                                <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
+                                    No payment entries found.
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
