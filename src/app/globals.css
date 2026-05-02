@@ -119,6 +119,7 @@
     background-color: hsl(var(--shell-background));
     color: hsl(var(--shell-foreground));
     font-family: var(--font-body), sans-serif;
+    overflow-x: hidden; /* prevent horizontal scroll on mobile */
   }
 }
 
@@ -213,4 +214,20 @@
   color: #ffffff !important;
   border-color: #2563eb !important;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+/* ── Payments page: Customer Statement responsive visibility ── */
+.payments-desktop-table {
+  display: none;
+}
+.payments-mobile-cards {
+  display: block;
+}
+@media (min-width: 768px) {
+  .payments-desktop-table {
+    display: block;
+  }
+  .payments-mobile-cards {
+    display: none;
+  }
 }

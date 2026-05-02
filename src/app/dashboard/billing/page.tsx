@@ -296,11 +296,16 @@ export default function BillingPage() {
   };
 
   const reactSelectStyles = {
+    container: (baseStyles: any) => ({
+      ...baseStyles,
+      width: '100%',
+    }),
     control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
       boxShadow: state.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
+      minHeight: '44px',
       '&:hover': {
         borderColor: 'hsl(var(--ring))',
       },
@@ -1032,7 +1037,7 @@ export default function BillingPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 md:p-6">
               <div className="grid gap-2">
                 <Label htmlFor="customer">Customer</Label>
                 <ReactSelect
@@ -1094,7 +1099,7 @@ export default function BillingPage() {
 
           <Card id="product-section">
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
-            <CardContent>
+            <CardContent className="p-4 md:p-6">
               <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-3">
                 <div className="grid w-full md:flex-[4] min-w-0 gap-1.5" onClick={handleProductSelectInteraction}>
                   <Label htmlFor="product" className="text-xs">Product</Label>
@@ -1132,7 +1137,7 @@ export default function BillingPage() {
                 </div>
                 <div className="grid w-full md:w-24 shrink-0 gap-1.5">
                   <Label htmlFor="qty" className="text-xs">Qty</Label>
-                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 md:h-10" />
+                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 md:h-10 w-full" />
                 </div>
                 <div className="grid w-full md:flex-1 shrink-0 gap-1.5 min-w-0 md:min-w-[100px]">
                   <Label className="text-xs">UOM</Label>
@@ -1149,7 +1154,7 @@ export default function BillingPage() {
                     onChange={(option: any) => {
                       setUom(option ? option.value : 'KGS');
                       setTimeout(() => rateInputRef.current?.focus(), 50);
-                    }}
+                    } }
                     onKeyDown={(e) => {
                       if (e.key === 'Tab') {
                         // Confirm selection and move to Rate
@@ -1160,6 +1165,7 @@ export default function BillingPage() {
                     tabSelectsValue={true}
                     openMenuOnFocus={true}
                     isSearchable={false}
+                    className="h-11 md:h-10" // ManualEdits
                   />
                 </div>
                 <div className="grid w-full md:w-24 shrink-0 gap-1.5">
@@ -1173,7 +1179,7 @@ export default function BillingPage() {
                     ref={rateInputRef} 
                     onKeyDown={handleRateKeyDown} 
                     onFocus={(e) => e.target.select()}
-                    className="h-11 md:h-10"
+                    className="h-11 md:h-10 w-full" 
                   />
                 </div>
                 <div className="w-full md:w-auto shrink-0"><Button onClick={handleAddItem} className="h-11 md:h-10 w-full md:w-10 p-0" size={null as any}><PlusCircle className="h-5 w-5 mr-2 md:mr-0" /><span className="md:hidden">Add Item</span></Button></div>
@@ -1440,8 +1446,9 @@ export default function BillingPage() {
             <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
           </div>
 
-          <div className="overflow-x-auto rounded-md border">
-            <Table className="table-fixed w-full">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto rounded-md border">
+            <Table className="w-full table-fixed text-sm">
               <TableHeader>
                 <TableRow className="bg-muted/50 border-b border-border">
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
@@ -1490,6 +1497,57 @@ export default function BillingPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Card List */}
+      <div className="block md:hidden space-y-3">
+            {enrichedHistoryBills.length > 0 ? (
+              enrichedHistoryBills.map((bill) => {
+                const creator = users.find((u) => u.id === bill.createdBy);
+                const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+                return (
+                  <div
+                    key={bill.billNo}
+                    className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
+                    style={{ minHeight: '80px' }}
+                    onDoubleClick={() => handleEditBill(bill.billNo)}
+                  >
+                    {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
+                      <div className="flex justify-end mb-1">
+                        <Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} />
+                      </div>
+                    )}
+                    {/* Top Row: Bill No + Date */}
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-sm">{bill.billNo}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}
+                      </span>
+                    </div>
+                    {/* Customer */}
+                    <div className="mt-1 text-sm font-medium">{bill.customerName}</div>
+                    {/* Amount Row */}
+                    <div className="mt-2 flex justify-between text-sm">
+                      <span className="text-muted-foreground">Amt:</span>
+                      <span className="font-mono">₹{bill.amount.toFixed(2)}</span>
+                    </div>
+                    {/* Final Balance */}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Final Bal:</span>
+                      <span className="font-mono font-semibold">₹{formatINR(bill.computedFinalBalance)}</span>
+                    </div>
+                    {/* Created By */}
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {creator?.username || bill.createdBy}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
+                No results found.
+              </div>
+            )}
+          </div>
 
       {/* Sticky Mobile Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-10 h-[72px] border-t bg-background/95 px-4 py-2 md:hidden flex items-center justify-between gap-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">

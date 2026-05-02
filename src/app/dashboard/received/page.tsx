@@ -589,7 +589,7 @@ export default function ReceivedPage() {
                                 return (
                                     <div
                                         key={index}
-                                        className="rounded-lg border p-3 shadow-sm bg-card cursor-pointer active:opacity-70"
+                                        className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
                                         style={{ minHeight: '80px', padding: '12px' }}
                                         onDoubleClick={() => onRowDoubleClick(bill)}
                                     >

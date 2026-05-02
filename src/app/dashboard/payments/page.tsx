@@ -74,7 +74,7 @@ export default function PaymentsPage() {
 
     const isManager = currentUser?.role === 'MANAGER';
 
-     // ── Reactive statement ───────────────────────────────────────────────────
+    // ── Reactive statement ───────────────────────────────────────────────────
     const { transactions: filteredTransactions, openingBalance: openingBalanceForLedger } =
         useMemo(() => {
             if (!hasSearched || !historySelectedCustomerId || !fromDate || !toDate) {
@@ -92,7 +92,8 @@ export default function PaymentsPage() {
     };
 
     const rsStyles = {
-        control: (b: any, s: any) => ({ ...b, backgroundColor: 'hsl(var(--background))', borderColor: s.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))', boxShadow: s.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none', '&:hover': { borderColor: 'hsl(var(--ring))' } }),
+        container: (b: any) => ({ ...b, width: '100%' }),
+        control: (b: any, s: any) => ({ ...b, backgroundColor: 'hsl(var(--background))', borderColor: s.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))', boxShadow: s.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none', '&:hover': { borderColor: 'hsl(var(--ring))' }, minHeight: '44px' }),
         menu: (b: any) => ({ ...b, backgroundColor: 'hsl(var(--card))', zIndex: 50 }),
         option: (b: any, s: any) => ({ ...b, backgroundColor: s.isSelected ? 'hsl(var(--accent))' : s.isFocused ? 'hsl(var(--muted))' : 'transparent', color: s.isSelected ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))', '&:active': { backgroundColor: 'hsl(var(--accent))' } }),
         singleValue: (b: any) => ({ ...b, color: 'hsl(var(--foreground))' }),
@@ -195,7 +196,7 @@ export default function PaymentsPage() {
             openingBalance: openingBalanceForLedger,
             dateRange: { from: fromDate?.toISOString(), to: toDate?.toISOString() },
         };
-        
+
         sessionStorage.setItem('paymentsReportData', JSON.stringify(printData));
         window.open(`/print/payments?paper=${paper}`, '_blank');
     };
@@ -240,30 +241,30 @@ export default function PaymentsPage() {
     const historyFilterCustomer = customers.find(c => c.id === historyFilterCustomerId);
 
     return (
-        <div className="flex flex-col gap-6 md:gap-8 pb-24 md:pb-8 w-full max-w-full overflow-x-hidden">
+        <div className="flex flex-col gap-6 md:gap-8 w-full max-w-full overflow-x-hidden">
             <div className="grid auto-rows-max items-start gap-4 md:gap-8 lg:grid-cols-2">
                 <div className="grid auto-rows-max items-start gap-4 md:gap-8">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="font-headline">Record Payment</CardTitle>
+                            <CardTitle className="font-headline text-xl md:text-2xl">Record Payment</CardTitle>
                             <CardDescription>
                                 Record a payment received from a customer to update their balance.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="p-4 md:p-6 space-y-5">
                             <div className="grid gap-2">
-                            <Label>Customer</Label>
-                                    <ReactSelect instanceId="record-customer-select" placeholder="Select customer..." isClearable
-                                        options={custOptions}
-                                        value={recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null}
-                                        onChange={o => setRecordSelectedCustomerId(o ? o.value : '')}
-                                        styles={rsStyles} filterOption={filterOption} isDisabled={isManager} />
+                                <Label>Customer</Label>
+                                <ReactSelect instanceId="record-customer-select" placeholder="Select customer..." isClearable
+                                    options={custOptions}
+                                    value={recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null}
+                                    onChange={o => setRecordSelectedCustomerId(o ? o.value : '')}
+                                    styles={rsStyles} filterOption={filterOption} isDisabled={isManager} />
                             </div>
 
                             {recordSelectedCustomerId && (
                                 <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
-                                    <div><Label>Current Balance</Label><p className="text-2xl font-bold font-mono text-foreground">₹{formatINR(currentBalance)}</p></div>
-                                    <div className="text-right"><Label>New Balance</Label><p className="text-2xl font-bold font-mono text-foreground">₹{formatINR(newBalance)}</p></div>
+                                    <div><Label>Current Balance</Label><p className="text-xl md:text-2xl font-bold font-mono">₹{formatINR(currentBalance)}</p></div>
+                                    <div className="text-right"><Label>New Balance</Label><p className="text-xl md:text-2xl font-bold font-mono">₹{formatINR(newBalance)}</p></div>
                                 </div>
                             )}
 
@@ -276,6 +277,7 @@ export default function PaymentsPage() {
                                     value={amount}
                                     onChange={e => setAmount(e.target.value)}
                                     disabled={!recordSelectedCustomerId || isManager}
+                                    className="w-full h-11 text-base"
                                 />
                             </div>
                             <div className="grid gap-2">
@@ -286,12 +288,13 @@ export default function PaymentsPage() {
                                     value={notes}
                                     onChange={e => setNotes(e.target.value)}
                                     disabled={!recordSelectedCustomerId || isManager}
+                                    className="w-full text-base"
                                 />
                             </div>
 
                         </CardContent>
-                        <CardFooter>
-                            <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager}>
+                        <CardFooter className="p-4 md:p-6 pt-0">
+                            <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager} className="w-full h-12 text-base">
                                 <Save className="mr-2 h-4 w-4" />
                                 Record Payment
                             </Button>
@@ -301,29 +304,29 @@ export default function PaymentsPage() {
 
                 <Card className="lg:row-span-2" ref={statementRef}>
                     <CardHeader>
-                        <CardTitle className="font-headline">Customer Statement</CardTitle>
+                        <CardTitle className="font-headline text-xl md:text-2xl">Customer Statement</CardTitle>
                         <CardDescription>
                             View a customer's transaction history for a date range.
                         </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-6">
+                    <CardContent className="p-4 md:p-6 space-y-5">
                         <div className="grid gap-2">
-                        <Label>Customer</Label>
-                                <ReactSelect instanceId="history-customer-select" placeholder="Select customer..." isClearable
-                                    options={custOptions}
-                                    value={historySelectedCustomer ? { value: historySelectedCustomer.id, label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})` } : null}
-                                    onChange={o => { setHistorySelectedCustomerId(o ? o.value : ''); setHasSearched(false); }}
-                                    styles={rsStyles} filterOption={filterOption} />
+                            <Label>Customer</Label>
+                            <ReactSelect instanceId="history-customer-select" placeholder="Select customer..." isClearable
+                                options={custOptions}
+                                value={historySelectedCustomer ? { value: historySelectedCustomer.id, label: `${historySelectedCustomer.name_en} (${historySelectedCustomer.name_ta})` } : null}
+                                onChange={o => { setHistorySelectedCustomerId(o ? o.value : ''); setHasSearched(false); }}
+                                styles={rsStyles} filterOption={filterOption} />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="grid gap-2">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                            <div className="grid flex-1 gap-2">
                                 <Label htmlFor="from-date">From Date</Label>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
                                             variant={'outline'}
-                                            className={cn('w-full justify-start text-left font-normal select-none', !fromDate && 'text-muted-foreground')}
-                                            onFocus={() => { if(!fromDate) setFromDate(new Date()) }}
+                                            className={cn('w-full justify-start text-left font-normal select-none h-11', !fromDate && 'text-muted-foreground')}
+                                            onFocus={() => { if (!fromDate) setFromDate(new Date()) }}
                                             onKeyDown={e => handleDateKeyDown(e, fromDate, d => { setFromDate(d); setHasSearched(false); })}
                                             onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}>
 
@@ -336,17 +339,17 @@ export default function PaymentsPage() {
                                     </PopoverContent>
                                 </Popover>
                             </div>
-                            <div className="grid gap-2">
+                            <div className="grid flex-1 gap-2">
                                 <Label htmlFor="to-date">To Date</Label>
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button
                                             variant={'outline'}
-                                            className={cn('w-full justify-start text-left font-normal select-none', !toDate && 'text-muted-foreground')}
-                                            onFocus={() => { if(!toDate) setToDate(new Date()) }}
+                                            className={cn('w-full justify-start text-left font-normal select-none h-11', !toDate && 'text-muted-foreground')}
+                                            onFocus={() => { if (!toDate) setToDate(new Date()) }}
                                             onKeyDown={e => handleDateKeyDown(e, toDate, d => { setToDate(d); setHasSearched(false); })}
                                             onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}>
-                        
+
                                             <CalendarIcon className="mr-2 h-4 w-4" />
                                             {toDate ? format(toDate, 'PPP') : <span>Pick a date</span>}
                                         </Button>
@@ -357,15 +360,17 @@ export default function PaymentsPage() {
                                 </Popover>
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <Button onClick={handleSearchPayments}><Search className="mr-2 h-4 w-4" /> Search</Button>
-                            <Button variant="ghost" onClick={handleClearSearch}><X className="mr-2 h-4 w-4" /> Clear</Button>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <Button onClick={handleSearchPayments} className="w-full sm:w-auto h-11 text-base"><Search className="mr-2 h-4 w-4" /> Search</Button>
+                            <Button variant="ghost" onClick={handleClearSearch} className="w-full sm:w-auto h-11"><X className="mr-2 h-4 w-4" /> Clear</Button>
                         </div>
 
                         <Separator />
 
                         <div className="max-h-72 overflow-y-auto">
-                            <div className="overflow-x-auto">
+
+                            {/* Desktop Table */}
+                            <div className="payments-desktop-table overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -382,56 +387,112 @@ export default function PaymentsPage() {
                                             filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                                 <>
                                                     <TableRow className="bg-muted/50">
-                                                        <TableCell colSpan={4} className="font-semibold text-foreground">Opening Balance for Period</TableCell>
-                                                        <TableCell className="text-right font-mono font-semibold text-foreground">{formatINR(openingBalanceForLedger)}</TableCell>
+                                                        <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
+                                                        <TableCell className="text-right font-mono font-semibold">{formatINR(openingBalanceForLedger)}</TableCell>
                                                         <TableCell></TableCell>
                                                     </TableRow>
                                                     {filteredTransactions.map((t, i) => (
                                                         <TableRow key={i}>
-                                                            <TableCell className="text-foreground">{format(t.date, 'dd-MM-yy')}</TableCell>
-                                                            <TableCell className="text-foreground">{t.description}</TableCell>
+                                                            <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
+                                                            <TableCell>{t.description}</TableCell>
                                                             <TableCell className="text-right font-mono text-green-600">{t.billedAmount != null ? formatINR(t.billedAmount) : ''}</TableCell>
-                                                                <TableCell className="text-right font-mono text-red-600">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
-                                                                <TableCell className="text-right font-mono text-foreground">{formatINR(t.balance)}</TableCell>
-                                                                <TableCell className="text-right">
-                                                                    {t.type === 'payment' && t.paymentId && (
-                                                                        <div className="flex gap-1 justify-end">
-                                                                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEditClick(t)} title="Edit">
-                                                                                <Pencil className="h-3 w-3" />
-                                                                            </Button>
-                                                                            <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(t)} title="Delete">
-                                                                                <Trash2 className="h-3 w-3" />
-                                                                            </Button>
-                                                                        </div>
-                                                                    )}
-                                                                </TableCell>
+                                                            <TableCell className="text-right font-mono text-red-600">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
+                                                            <TableCell className="text-right font-mono">{formatINR(t.balance)}</TableCell>
+                                                            <TableCell className="text-right">
+                                                                {t.type === 'payment' && t.paymentId && (
+                                                                    <div className="flex gap-1 justify-end">
+                                                                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEditClick(t)} title="Edit">
+                                                                            <Pencil className="h-3 w-3" />
+                                                                        </Button>
+                                                                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(t)} title="Delete">
+                                                                            <Trash2 className="h-3 w-3" />
+                                                                        </Button>
+                                                                    </div>
+                                                                )}
+                                                            </TableCell>
                                                         </TableRow>
                                                     ))}
                                                 </>
                                             ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">No transactions found for this criteria.</TableCell>
-                                                </TableRow>
+                                                <TableRow><TableCell colSpan={6} className="h-24 text-center">No transactions found for this criteria.</TableCell></TableRow>
                                             )
                                         ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">Select a customer and date range.</TableCell>
-                                            </TableRow>
+                                            <TableRow><TableCell colSpan={6} className="h-24 text-center">Select a customer and date range.</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
                             </div>
+
+                            {/* Mobile Card List */}
+                            <div className="payments-mobile-cards space-y-2">
+                                {hasSearched && historySelectedCustomerId ? (
+                                    filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
+                                        <>
+                                            <div className="rounded-md bg-muted/60 px-3 py-2 flex justify-between items-center text-sm">
+                                                <span className="font-semibold text-muted-foreground">Opening Balance</span>
+                                                <span className="font-mono font-semibold">{formatINR(openingBalanceForLedger)}</span>
+                                            </div>
+                                            {filteredTransactions.map((t, i) => (
+                                                <div key={i} className="rounded-lg border bg-card text-card-foreground p-3 space-y-1.5">
+                                                    <div className="flex justify-between items-start gap-2">
+                                                        <span className="text-xs text-muted-foreground whitespace-nowrap">{format(t.date, 'dd-MM-yy')}</span>
+                                                        <span className="text-sm font-medium text-right leading-tight">{t.description}</span>
+                                                    </div>
+                                                    <div className="flex justify-between gap-2 text-sm">
+                                                        {t.billedAmount != null && (
+                                                            <div className="flex flex-col items-start">
+                                                                <span className="text-xs text-muted-foreground">Billed (+)</span>
+                                                                <span className="font-mono text-green-600 font-semibold">{formatINR(t.billedAmount)}</span>
+                                                            </div>
+                                                        )}
+                                                        {t.receivedAmount != null && (
+                                                            <div className="flex flex-col items-start">
+                                                                <span className="text-xs text-muted-foreground">Received (-)</span>
+                                                                <span className="font-mono text-red-600 font-semibold">{formatINR(t.receivedAmount)}</span>
+                                                            </div>
+                                                        )}
+                                                        <div className="flex flex-col items-end ml-auto">
+                                                            <span className="text-xs text-muted-foreground">Balance</span>
+                                                            <span className="font-mono font-bold">{formatINR(t.balance)}</span>
+                                                        </div>
+                                                    </div>
+                                                    {t.type === 'payment' && t.paymentId && (
+                                                        <div className="flex gap-2 justify-end pt-1">
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEditClick(t)} title="Edit">
+                                                                <Pencil className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteClick(t)} title="Delete">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
+                                            No transactions found for this criteria.
+                                        </div>
+                                    )
+                                ) : (
+                                    <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">
+                                        Select a customer and date range.
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
+
                     </CardContent>
                     <CardFooter className="flex-wrap gap-2">
-                    <Button onClick={() => openPaymentsPrint('thermal')}>🧾 Print Receipt (106mm)</Button>
-                            <Button variant="outline" onClick={() => openPaymentsPrint('a4')}>📄 Print A4 Statement</Button>
+                        <Button onClick={() => openPaymentsPrint('thermal')}>🧾 Print Receipt (106mm)</Button>
+                        <Button variant="outline" onClick={() => openPaymentsPrint('a4')}>📄 Print A4 Statement</Button>
                     </CardFooter>
                 </Card>
             </div>
 
             <Separator />
-            
+
             {/* ── Payment History Card ── */}
             <div className="w-full">
                 <Card className="w-full">
@@ -463,14 +524,16 @@ export default function PaymentsPage() {
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline"
-                                            className="w-full sm:w-[180px] justify-start text-left font-normal select-none"
+                                            className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none h-11',
+                                                !historyFilterDate && 'text-muted-foreground')}
+                                            onKeyDown={e => handleDateKeyDown(e, historyFilterDate, d => setHistoryFilterDate(d))}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {historyFilterDate ? format(historyFilterDate, 'PPP') : <span className="text-muted-foreground">Pick a date</span>}
+                                            {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
+                                        <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} initialFocus />
                                     </PopoverContent>
                                 </Popover>
                             </div>
@@ -481,79 +544,43 @@ export default function PaymentsPage() {
                             </Button>
                         </div>
 
-                        {/* Desktop Table */}
-                        <div className="hidden md:block w-full overflow-x-auto rounded-md border border-border">
-                            <Table className="w-full table-fixed text-sm">
+                        {/* Table */}
+                        <div className="w-full overflow-x-auto rounded-md border border-border">
+                            <Table className="w-full table-fixed text-xs md:text-sm">
                                 <TableHeader>
-                                    <TableRow className="bg-muted/50 border-b border-border">
-                                        <TableHead className="w-[140px] px-4 py-3 text-sm font-semibold text-muted-foreground">Date</TableHead>
-                                        <TableHead className="w-[200px] px-4 py-3 text-sm font-semibold text-muted-foreground">Customer</TableHead>
-                                        <TableHead className="px-4 py-3 text-sm font-semibold text-muted-foreground">Notes</TableHead>
-                                        <TableHead className="text-right w-[160px] px-4 py-3 text-sm font-semibold text-muted-foreground">Received Amt</TableHead>
+                                    <TableRow>
+                                        <TableHead className="w-[140px]">Date</TableHead>
+                                        <TableHead className="w-[200px]">Customer</TableHead>
+                                        <TableHead>Notes</TableHead>
+                                        <TableHead className="text-right w-[160px]">Received Amt</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {historyPayments.length > 0 ? historyPayments.map((p, i) => {
-                                        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                        const cust = customers.find(c => c.id === p.customerId);
-                                        return (
-                                            <TableRow key={i}
-                                                className="cursor-pointer hover:bg-muted/50 border-b border-border transition-colors"
-                                                onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                <TableCell className="px-4 py-3 text-foreground">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="px-4 py-3 text-foreground truncate font-medium">{cust?.name_en || p.customerId}</TableCell>
-                                                <TableCell className="px-4 py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                                <TableCell className="text-right px-4 py-3 font-mono text-red-600 font-semibold whitespace-nowrap">
-                                                    ₹{formatINR(p.amount)}
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    }) : (
+                                    {historyPayments.length > 0 ? (
+                                        historyPayments.map((p, i) => {
+                                            const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                            const customer = customers.find(c => c.id === p.customerId);
+                                            const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Unknown';
+                                            return (
+                                                <TableRow key={p.id || i}
+                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                                    onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                    <TableCell className="py-3">{format(pDate, 'dd-MM-yyyy')}</TableCell>
+                                                    <TableCell className="py-3 truncate">{customerName}</TableCell>
+                                                    <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                                    <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">
+                                                        ₹{formatINR(p.amount)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    ) : (
                                         <TableRow>
                                             <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payment entries found.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>
                             </Table>
-                        </div>
-
-                        {/* Mobile Card List */}
-                        <div className="block md:hidden space-y-3">
-                            {historyPayments.length > 0 ? (
-                                historyPayments.map((p, i) => {
-                                    const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                    const cust = customers.find(c => c.id === p.customerId);
-                                    return (
-                                        <div
-                                            key={i}
-                                            className="rounded-lg border p-3 shadow-sm bg-card cursor-pointer active:opacity-70"
-                                            style={{ minHeight: '80px', padding: '12px' }}
-                                            onDoubleClick={() => handleHistoryRowDoubleClick(p)}
-                                        >
-                                            {/* Top Row: Customer + Date */}
-                                            <div className="flex justify-between items-center">
-                                                <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
-                                                </span>
-                                            </div>
-                                            {/* Notes */}
-                                            {p.notes && (
-                                                <div className="mt-1 text-xs text-muted-foreground">{p.notes}</div>
-                                            )}
-                                            {/* Amount */}
-                                            <div className="mt-2 flex justify-between text-sm">
-                                                <span className="text-muted-foreground">Received:</span>
-                                                <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>
-                                            </div>
-                                        </div>
-                                    );
-                                })
-                            ) : (
-                                <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
-                                    No payment entries found.
-                                </div>
-                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -580,7 +607,7 @@ export default function PaymentsPage() {
                         </Button>
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>                           
+            </Dialog>
         </div>
     );
 }
