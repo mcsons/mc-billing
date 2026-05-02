@@ -1,3 +1,4 @@
+
 'use client';
 import React, { useState, useRef, useMemo } from 'react';
 import {
@@ -423,21 +424,24 @@ export default function PaymentsPage() {
                                 </Table>
                             </div>
 
-                            {/* Mobile Card List */}
+                            {/* Mobile Card List - hidden on desktop via style tag below */}
                             <div className="payments-mobile-cards space-y-2">
                                 {hasSearched && historySelectedCustomerId ? (
                                     filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                         <>
+                                            {/* Opening Balance Banner */}
                                             <div className="rounded-md bg-muted/60 px-3 py-2 flex justify-between items-center text-sm">
                                                 <span className="font-semibold text-muted-foreground">Opening Balance</span>
                                                 <span className="font-mono font-semibold">{formatINR(openingBalanceForLedger)}</span>
                                             </div>
                                             {filteredTransactions.map((t, i) => (
                                                 <div key={i} className="rounded-lg border bg-card text-card-foreground p-3 space-y-1.5">
+                                                    {/* Top: Date + Description */}
                                                     <div className="flex justify-between items-start gap-2">
                                                         <span className="text-xs text-muted-foreground whitespace-nowrap">{format(t.date, 'dd-MM-yy')}</span>
                                                         <span className="text-sm font-medium text-right leading-tight">{t.description}</span>
                                                     </div>
+                                                    {/* Amounts row */}
                                                     <div className="flex justify-between gap-2 text-sm">
                                                         {t.billedAmount != null && (
                                                             <div className="flex flex-col items-start">
@@ -456,6 +460,7 @@ export default function PaymentsPage() {
                                                             <span className="font-mono font-bold">{formatINR(t.balance)}</span>
                                                         </div>
                                                     </div>
+                                                    {/* Edit/Delete actions for payment entries */}
                                                     {t.type === 'payment' && t.paymentId && (
                                                         <div className="flex gap-2 justify-end pt-1">
                                                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEditClick(t)} title="Edit">
@@ -544,44 +549,73 @@ export default function PaymentsPage() {
                             </Button>
                         </div>
 
-                        {/* Table */}
-                        <div className="w-full overflow-x-auto rounded-md border border-border">
-                            <Table className="w-full table-fixed text-xs md:text-sm">
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[140px]">Date</TableHead>
-                                        <TableHead className="w-[200px]">Customer</TableHead>
-                                        <TableHead>Notes</TableHead>
-                                        <TableHead className="text-right w-[160px]">Received Amt</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {historyPayments.length > 0 ? (
-                                        historyPayments.map((p, i) => {
-                                            const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                            const customer = customers.find(c => c.id === p.customerId);
-                                            const customerName = customer ? `${customer.name_en} (${customer.name_ta})` : 'Unknown';
-                                            return (
-                                                <TableRow key={p.id || i}
-                                                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                                    onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                    <TableCell className="py-3">{format(pDate, 'dd-MM-yyyy')}</TableCell>
-                                                    <TableCell className="py-3 truncate">{customerName}</TableCell>
-                                                    <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                                    <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">
-                                                        ₹{formatINR(p.amount)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">No payment entries found.</TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+                        {/* Desktop Table */}
+                    <div className="payments-history-desktop w-full overflow-x-auto rounded-md border border-border">
+                        <Table className="w-full table-fixed text-xs md:text-sm">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[140px]">Date</TableHead>
+                                    <TableHead className="w-[200px]">Customer</TableHead>
+                                    <TableHead>Notes</TableHead>
+                                    <TableHead className="text-right w-[160px]">Received Amt</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {historyPayments.length > 0 ? (
+                                    historyPayments.map((p, i) => {
+                                        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                        const cust = customers.find(c => c.id === p.customerId);
+                                        return (
+                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50 transition-colors" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                <TableCell className="py-3">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell className="py-3 truncate">{cust?.name_en || p.customerId}</TableCell>
+                                                <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                                <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">₹{formatINR(p.amount)}</TableCell>
+                                            </TableRow>
+                                        );
+                                    })
+                                ) : (
+                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    {/* Mobile Card List */}
+                    <div className="payments-history-mobile space-y-3">
+                        {historyPayments.length > 0 ? (
+                            historyPayments.map((p, i) => {
+                                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                const cust = customers.find(c => c.id === p.customerId);
+                                return (
+                                    <div
+                                        key={i}
+                                        className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
+                                        onDoubleClick={() => handleHistoryRowDoubleClick(p)}
+                                    >
+                                        {/* Top Row: Customer + Date */}
+                                        <div className="flex justify-between items-center">
+                                            <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
+                                            <span className="text-xs text-muted-foreground">
+                                                {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
+                                            </span>
+                                        </div>
+                                        {/* Notes - always visible */}
+                                        <div className="mt-1 text-xs text-muted-foreground">{p.notes || '-'}</div>
+                                        {/* Amount */}
+                                        <div className="mt-2 flex justify-between text-sm">
+                                            <span className="text-muted-foreground">Received:</span>
+                                            <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
+                                No payment entries found.
+                            </div>
+                        )}
+                    </div>
                     </CardContent>
                 </Card>
             </div>

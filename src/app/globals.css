@@ -231,3 +231,19 @@
     display: none;
   }
 }
+
+/* ── Payments page: Payment History responsive visibility ── */
+.payments-history-desktop {
+  display: none;
+}
+.payments-history-mobile {
+  display: block;
+}
+@media (min-width: 768px) {
+  .payments-history-desktop {
+    display: block;
+  }
+  .payments-history-mobile {
+    display: none;
+  }
+}
