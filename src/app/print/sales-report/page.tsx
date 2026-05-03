@@ -99,7 +99,7 @@ function PrintPageContent() {
             <header className="text-center">
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,<br />
+                No. 1, Fish Market, Palladam Road,
                 Tiruppur - 641604
               </p>
               <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
@@ -217,120 +217,128 @@ function PrintPageContent() {
                 color: black;
                 margin: 2rem auto;
                 width: 106mm;
+                padding: 1rem;
             }
         }
 
-        /* --- Global Print Reset --- */
+        /* ===============================
+          GLOBAL PRINT CORRECTIONS
+        ================================ */
         @media print {
-          * { color: #000 !important; -webkit-font-smoothing: none; font-smoothing: none; text-rendering: optimizeSpeed; }
-          body { margin: 0; padding: 0; background: white !important; print-color-adjust: exact; }
-          #print-area { margin: 0; padding: 0; }
+          * { 
+            color: #000 !important; 
+            -webkit-font-smoothing: none; 
+            font-smoothing: none; 
+            text-rendering: optimizeSpeed;
+            page-break-before: auto !important;
+            page-break-after: auto !important;
+          }
+          
+          html, body { 
+            height: auto !important; 
+            min-height: 0 !important;
+            overflow: visible !important;
+            margin: 0 !important; 
+            padding: 0 !important; 
+            background: white !important; 
+            print-color-adjust: exact; 
+          }
+
+          /* CRITICAL: Force thead to not repeat on every page for thermal roll */
+          thead {
+            display: table-row-group !important;
+          }
+
+          /* Prevent splitting a single row across pages */
+          tr {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          #print-area { 
+            margin: 0 !important; 
+            padding: 2mm 4mm 18mm 4mm !important; 
+            width: 106mm !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
           .print\\:hidden { display: none !important; }
+          
+          @page {
+            size: 106mm auto;
+            margin: 0;
+          }
         }
 
         /* ===============================
-          THERMAL (106mm)
+          THERMAL STYLING (106mm)
         ================================ */
-        @media print {
-          #print-area {
-             padding: 2mm 4mm 18mm 4mm;
-          }
-          /* --- Base styles copied from Main Bill Print --- */
-          .print-root.thermal { width: 106mm; max-width: 106mm; margin: 0 auto; font-family: 'Courier New', 'Lucida Console', monospace !important; }
-          .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
-          .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
-          .header-sub .city { display: block; }
-          .header-phone { margin-top: 4px; }
-          .hr-line { border-top: 2px solid #000; margin: 6px 0; }
-          .table-header-line { border-top: 2px solid #000; margin: 0; }
-          .qty-uom {
-            display: inline-flex;
-            justify-content: flex-end;
-            align-items: center;
-          }
-
-          .uom-text {
-            margin-left: 3px;
-          }
-
-          /* --- Customer Name Highlight --- */
-          .cust-name-highlight {
-            font-size: 16px !important;
-            font-weight: bold !important;
-          }
-
-          /* --- Sales Report Table Layout --- */
-          .print-table { 
-            width: 100%; 
-            border-collapse: collapse; 
-            table-layout: fixed; 
-          }
-          .print-table tr, .print-table th, .print-table td { 
-            border: none; 
-            vertical-align: top;
-          }
-          
-          .print-table thead th { 
-            font-weight: 800 !important; 
-            font-size: 14px !important; 
-            padding: 2px 1px; 
-            color: #000; 
-            white-space: nowrap;
-            text-align: left;
-          }
-          .print-table thead th.text-right { text-align: right; }
-          .print-table thead th.text-center { text-align: center; }
-          
-          .print-table tbody td { 
-            padding: 2px 1px; 
-            font-size: 13px;
-            font-weight: 700 !important;
-          }
-          .print-table td.col-qty,
-          .print-table th.col-qty {
-            text-align: right !important;
-            padding-right: 4px;
-          }
-          
-          /* --- Column Specific Styles (Adjusted for Alignment) --- */
-          .col-billdate { 
-            width: 15%; 
-            white-space: nowrap;
-          }
-          .col-itemname { 
-            width: 49%; 
-            white-space: normal;
-            font-size: 10px !important; 
-            padding-right: 4px;
-            word-break: keep-all; 
-          }
-          .col-qty { 
-            width: 12%; 
-            white-space: nowrap;
-            font-size: 14px !important;
-          }
-          .col-rate { 
-            width: 10%; 
-            text-align: right; 
-            white-space: nowrap;
-            font-size: 14px !important;
-            font-family: "Courier New", monospace;
-          }
-          .col-amount { 
-            width: 14%; 
-            text-align: right; 
-            white-space: nowrap;
-            font-size: 14px !important;
-            font-family: "Courier New", monospace;
-          }
-
-          /* --- Totals and Footer --- */
-          .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
-          .qty-summary-text { white-space: nowrap; }
-          .totals-section .hr-line { margin: 2px 0; }
-          .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
-          .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
+        .print-root.thermal { 
+          width: 106mm; 
+          max-width: 106mm; 
+          margin: 0 auto; 
+          font-family: 'Courier New', 'Lucida Console', monospace !important; 
         }
+        
+        .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
+        .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
+        .header-phone { margin-top: 4px; }
+        .hr-line { border-top: 2px solid #000; margin: 6px 0; }
+        .table-header-line { border-top: 2px solid #000; margin: 0; }
+        
+        .qty-uom {
+          display: inline-flex;
+          justify-content: flex-end;
+          align-items: center;
+        }
+
+        .uom-text {
+          margin-left: 3px;
+        }
+
+        .cust-name-highlight {
+          font-size: 16px !important;
+          font-weight: bold !important;
+        }
+
+        .print-table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          table-layout: fixed; 
+        }
+        .print-table tr, .print-table th, .print-table td { 
+          border: none; 
+          vertical-align: top;
+        }
+        
+        .print-table thead th { 
+          font-weight: 800 !important; 
+          font-size: 14px !important; 
+          padding: 2px 1px; 
+          color: #000; 
+          white-space: nowrap;
+          text-align: left;
+        }
+        .print-table thead th.text-right { text-align: right; }
+        .print-table thead th.text-center { text-align: center; }
+        
+        .print-table tbody td { 
+          padding: 2px 1px; 
+          font-size: 13px;
+          font-weight: 700 !important;
+        }
+        
+        .col-billdate { width: 15%; white-space: nowrap; }
+        .col-itemname { width: 49%; white-space: normal; font-size: 10px !important; padding-right: 4px; word-break: keep-all; }
+        .col-qty { width: 12%; white-space: nowrap; font-size: 14px !important; text-align: right !important; padding-right: 4px; }
+        .col-rate { width: 10%; text-align: right; white-space: nowrap; font-size: 14px !important; font-family: "Courier New", monospace; }
+        .col-amount { width: 14%; text-align: right; white-space: nowrap; font-size: 14px !important; font-family: "Courier New", monospace; }
+
+        .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
+        .qty-summary-text { white-space: nowrap; }
+        .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
+        .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
       `}</style>
     </div>
   );

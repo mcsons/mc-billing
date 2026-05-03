@@ -39,13 +39,22 @@ function PrintPageContent() {
   const autoShare = searchParams.get('share') === 'pdf';
 
   useEffect(() => {
+    const sessionData = sessionStorage.getItem('billPrintData');
+    if (sessionData) {
+      try {
+        setBillData(JSON.parse(sessionData));
+        return; // Success from sessionStorage
+      } catch (error) {
+        console.error('Failed to parse bill data from sessionStorage:', error);
+      }
+    }
     const data = searchParams.get('data');
     if (data) {
       try {
         const decodedData = decodeURIComponent(data);
         setBillData(JSON.parse(decodedData));
       } catch (error) {
-        console.error('Failed to parse bill data:', error);
+        console.error('Failed to parse bill data from URL:', error);
         router.push('/dashboard');
       }
     } else {

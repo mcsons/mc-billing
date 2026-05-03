@@ -73,6 +73,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import { useLoading } from '@/context/LoadingContext';
+import { FishLoader } from '@/components/ui/fish-loader';
 import ReactSelect from 'react-select';
 import {
   collection,
@@ -164,6 +165,9 @@ export default function BillingPage() {
   const [paidAmount, setPaidAmount] = useState('');
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
+
+  const [isSavingAndPrinting, setIsSavingAndPrinting] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Walk-in mode state
   const [showWalkInConfirm, setShowWalkInConfirm] = useState(false);
@@ -767,10 +771,73 @@ export default function BillingPage() {
     setLoading(false);
     if (!savedData) return;
     // Open the A4 print page with share=pdf flag — it auto-triggers the Web Share API
-    const encoded = encodeURIComponent(JSON.stringify(savedData));
-    window.open(`/print/bill?data=${encoded}&paper=a4&share=pdf`, '_blank');
+    sessionStorage.setItem('billPrintData', JSON.stringify(savedData));
+    window.open(`/print/bill?paper=a4&share=pdf`, '_blank');
     performReset();
   };
+
+  const handlePrintModalAction = async (action: string) => {
+    if (action === "save") {
+      if (isSavingAndPrinting) return;
+      setIsSavingAndPrinting(true);
+      setLoading(true, "Saving & Printing...");
+      try {
+        const d = await handleSaveAndGetData();
+        if (d) {
+          sessionStorage.setItem('billPrintData', JSON.stringify(d));
+          window.open(`/print/bill?paper=${printPaperType}`, '_blank');
+          performReset();
+          setShowPrintConfirm(false);
+        }
+      } finally {
+        setLoading(false);
+        setIsSavingAndPrinting(false);
+      }
+    } else if (action === "printWithoutSave") {
+      const d = getBillPrintData();
+      if (d) {
+        sessionStorage.setItem('billPrintData', JSON.stringify(d));
+        window.open(`/print/bill?paper=${printPaperType}`, '_blank');
+      }
+      setShowPrintConfirm(false);
+    } else if (action === "cancel") {
+      setShowPrintConfirm(false);
+    }
+  };
+
+  const handlePrintModalActionRef = useRef(handlePrintModalAction);
+  handlePrintModalActionRef.current = handlePrintModalAction;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!showPrintConfirm || isSavingAndPrinting) return;
+
+      const options = ["save", "printWithoutSave", "cancel"];
+
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev + 1) % options.length);
+      } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev - 1 + options.length) % options.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        handlePrintModalActionRef.current(options[selectedIndex]);
+      } else if (e.key === "Escape") {
+        setShowPrintConfirm(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedIndex, showPrintConfirm, isSavingAndPrinting]);
+
+  useEffect(() => {
+    if (showPrintConfirm) {
+      setSelectedIndex(0);
+    }
+  }, [showPrintConfirm]);
+
 
   const handleDeleteSelected = async () => {
     if (selectedBills.size === 0) return;
@@ -1578,12 +1645,32 @@ export default function BillingPage() {
 
       {/* Dialogs */}
       <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
-        <AlertDialogContent>
+      <AlertDialogContent className="modal-overlay pointer-events-auto">
           <AlertDialogHeader><AlertDialogTitle>Confirm Printing</AlertDialogTitle><AlertDialogDescription>Do you want to save this bill before printing?</AlertDialogDescription></AlertDialogHeader>
           <div className="flex flex-col gap-2 pt-2">
-            <Button onClick={async () => { setShowPrintConfirm(false); const d = await handleSaveAndGetData(); if (d) { window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); performReset(); } }} disabled={!selectedCustomerId}>Save & Print</Button>
-            <Button variant="outline" onClick={() => { setShowPrintConfirm(false); const d = getBillPrintData(); if (d) window.open(`/print/bill?data=${encodeURIComponent(JSON.stringify(d))}&paper=${printPaperType}`, '_blank'); }}>Print Without Saving</Button>
-            <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
+          <Button
+              className={selectedIndex === 0 ? "ring-2 ring-primary ring-offset-2" : ""}
+              onClick={() => handlePrintModalAction('save')}
+              disabled={!selectedCustomerId || isSavingAndPrinting}
+            >
+              {isSavingAndPrinting ? "Saving & Printing..." : "Save & Print"}
+            </Button>
+            <Button
+              variant="outline"
+              className={selectedIndex === 1 ? "ring-2 ring-primary ring-offset-2" : ""}
+              onClick={() => handlePrintModalAction('printWithoutSave')}
+              disabled={isSavingAndPrinting}
+            >
+              Print Without Saving
+            </Button>
+            <Button
+              variant="ghost"
+              className={selectedIndex === 2 ? "ring-2 ring-primary ring-offset-2" : ""}
+              onClick={() => handlePrintModalAction('cancel')}
+              disabled={isSavingAndPrinting}
+            >
+              Cancel
+            </Button>
           </div>
         </AlertDialogContent>
       </AlertDialog>
