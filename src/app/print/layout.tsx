@@ -10,12 +10,19 @@ export default function PrintLayout({
 }) {
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="print-layout-wrapper bg-background text-foreground">
       {/* This style block ensures the print preview has a dark background, matching the app shell, without affecting the printed output. */}
       <style jsx global>{`
         @media screen {
           body {
             background-color: hsl(215 28% 12%) !important;
+          }
+        }
+        @media print {
+          .print-layout-wrapper {
+             min-height: 0 !important;
+             height: auto !important;
+             display: block !important;
           }
         }
       `}</style>

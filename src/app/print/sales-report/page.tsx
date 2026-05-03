@@ -73,7 +73,6 @@ function PrintPageContent() {
 
   const totalQtyString = Object.entries(totalQty)
     .map(([uom, qty]) => {
-        // Apply unit-specific formatting: BOX as whole numbers, others with decimals
         const uomUpper = uom.toUpperCase();
         if (uomUpper === 'BOX') {
             return `${Math.round(qty)} BOX`;
@@ -128,7 +127,6 @@ function PrintPageContent() {
                 </p>
             </div>
             
-            {/* Blank line for spacing */}
             <div className="py-1"></div>
 
             <Table className="print-table">
@@ -223,61 +221,62 @@ function PrintPageContent() {
         }
 
         /* ===============================
-          GLOBAL PRINT CORRECTIONS (FORCE CONTINUOUS ROLL)
+          FORCE CONTINUOUS ROLL (NO BREAKS)
         ================================ */
         @media print {
-          * { 
-            color: #000 !important; 
-            -webkit-font-smoothing: none; 
-            font-smoothing: none; 
-            text-rendering: optimizeSpeed;
-            page-break-before: auto !important;
-            page-break-after: auto !important;
-          }
-          
-          html, body { 
-            height: auto !important; 
-            min-height: 0 !important;
-            overflow: visible !important;
-            margin: 0 !important; 
-            padding: 0 !important; 
-            background: white !important; 
-            print-color-adjust: exact; 
-            width: 106mm !important;
-          }
-
-          /* Force browser to treat content as a single long roll */
           @page {
-            size: 106mm auto;
+            size: 106mm auto; /* INDEFINITE HEIGHT */
             margin: 0;
           }
 
-          /* Stop standard pagination logic */
-          div, section, header, footer {
-            page-break-inside: auto !important;
-            break-inside: auto !important;
+          html, body {
+            height: auto !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            background: white !important;
+            width: 106mm !important;
           }
 
-          /* CRITICAL: Force thead to not repeat on every page for thermal roll */
+          /* Strip layout containers that cause pagination gaps */
+          .print-layout-wrapper, 
+          div[class*="min-h-screen"],
+          main {
+            height: auto !important;
+            min-height: 0 !important;
+            display: block !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* FORCE CONTENT AS SINGLE INDIVISIBLE UNIT */
+          .print-root, #print-area {
+            display: inline-block !important; /* CRITICAL: prevents page splitting */
+            width: 106mm !important;
+            height: auto !important;
+            overflow: visible !important;
+            position: relative !important;
+            break-inside: avoid-page !important;
+            page-break-inside: avoid !important;
+            margin: 0 !important;
+            padding: 5mm 4mm 15mm 4mm !important; /* bottom padding ensures roll cut space */
+          }
+
+          .print-table {
+            page-break-inside: auto !important; /* allow content to flow, but keep wrapper together */
+          }
+
           thead {
-            display: table-row-group !important;
+            display: table-row-group !important; /* prevent header repeating */
           }
 
-          /* Prevent splitting a single row across pages */
           tr {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
 
-          #print-area { 
-            margin: 0 !important; 
-            padding: 2mm 4mm 10mm 4mm !important; 
-            width: 106mm !important;
-            display: block !important;
-            position: relative !important;
-          }
-
-          .print\\:hidden { display: none !important; }
+          .print\:hidden { display: none !important; }
         }
 
         /* ===============================
