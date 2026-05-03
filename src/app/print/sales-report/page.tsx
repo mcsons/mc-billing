@@ -218,11 +218,12 @@ function PrintPageContent() {
                 margin: 2rem auto;
                 width: 106mm;
                 padding: 1rem;
+                box-shadow: 0 0 10px rgba(0,0,0,0.1);
             }
         }
 
         /* ===============================
-          GLOBAL PRINT CORRECTIONS
+          GLOBAL PRINT CORRECTIONS (FORCE CONTINUOUS ROLL)
         ================================ */
         @media print {
           * { 
@@ -242,6 +243,19 @@ function PrintPageContent() {
             padding: 0 !important; 
             background: white !important; 
             print-color-adjust: exact; 
+            width: 106mm !important;
+          }
+
+          /* Force browser to treat content as a single long roll */
+          @page {
+            size: 106mm auto;
+            margin: 0;
+          }
+
+          /* Stop standard pagination logic */
+          div, section, header, footer {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
           }
 
           /* CRITICAL: Force thead to not repeat on every page for thermal roll */
@@ -257,18 +271,13 @@ function PrintPageContent() {
 
           #print-area { 
             margin: 0 !important; 
-            padding: 2mm 4mm 18mm 4mm !important; 
+            padding: 2mm 4mm 10mm 4mm !important; 
             width: 106mm !important;
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
+            display: block !important;
+            position: relative !important;
           }
 
           .print\\:hidden { display: none !important; }
-          
-          @page {
-            size: 106mm auto;
-            margin: 0;
-          }
         }
 
         /* ===============================
