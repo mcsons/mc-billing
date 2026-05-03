@@ -1,4 +1,3 @@
-
 'use client';
 import React, { useState, useRef, useMemo } from 'react';
 import {
@@ -22,7 +21,7 @@ import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay, startOfDay } from 'date-fns';
+import { format, isSameDay, startOfDay, addDays, subDays } from 'date-fns';
 import {
     Table,
     TableBody,
@@ -49,6 +48,7 @@ export default function PaymentsPage() {
 
     // ── Record Payment form ──────────────────────────────────────────────────
     const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState('');
+    const [recordDate, setRecordDate] = useState<Date>(new Date());
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
 
@@ -121,9 +121,9 @@ export default function PaymentsPage() {
             return;
         }
 
-        addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes });
-        toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en}.` });
-        setRecordSelectedCustomerId(''); setAmount(''); setNotes('');
+        addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, date: recordDate });
+        toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en} on ${format(recordDate, 'dd-MM-yyyy')}.` });
+        setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setRecordDate(new Date());
     };
 
     const handleSearchPayments = () => {
@@ -253,13 +253,50 @@ export default function PaymentsPage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="p-4 md:p-6 space-y-5">
-                            <div className="grid gap-2">
-                                <Label>Customer</Label>
-                                <ReactSelect instanceId="record-customer-select" placeholder="Select customer..." isClearable
-                                    options={custOptions}
-                                    value={recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null}
-                                    onChange={o => setRecordSelectedCustomerId(o ? o.value : '')}
-                                    styles={rsStyles} filterOption={filterOption} isDisabled={isManager} />
+                            <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+                                <div className="grid flex-1 gap-2">
+                                    <Label>Customer</Label>
+                                    <ReactSelect instanceId="record-customer-select" placeholder="Select customer..." isClearable
+                                        options={custOptions}
+                                        value={recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null}
+                                        onChange={o => setRecordSelectedCustomerId(o ? o.value : '')}
+                                        styles={rsStyles} filterOption={filterOption} isDisabled={isManager} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Date</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                className={cn(
+                                                    "w-full sm:w-[180px] justify-start text-left font-normal h-11",
+                                                    !recordDate && "text-muted-foreground"
+                                                )}
+                                                onKeyDown={(e) => {
+                                                    if (!recordDate) return;
+                                                    if (e.key === "ArrowUp") {
+                                                        e.preventDefault();
+                                                        setRecordDate(addDays(recordDate, 1));
+                                                    } else if (e.key === "ArrowDown") {
+                                                        e.preventDefault();
+                                                        setRecordDate(subDays(recordDate, 1));
+                                                    }
+                                                }}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {recordDate ? format(recordDate, "dd-MM-yyyy") : "Pick a date"}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0">
+                                            <Calendar
+                                                mode="single"
+                                                selected={recordDate}
+                                                onSelect={(d) => d && setRecordDate(d)}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
                             </div>
 
                             {recordSelectedCustomerId && (
@@ -514,7 +551,7 @@ export default function PaymentsPage() {
                                 <ReactSelect
                                     instanceId="history-filter-customer"
                                     options={custOptions}
-                                    value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
+                                    value={historyFilterCustomerId ? { value: historyFilterCustomerId, label: customers.find(c => c.id === historyFilterCustomerId)?.name_en } : null}
                                     onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
                                     isClearable
                                     placeholder="Filter by customer..."

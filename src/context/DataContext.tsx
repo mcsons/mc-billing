@@ -102,7 +102,7 @@ interface DataContextType {
   ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
-  addPayment: (payment: Omit<Payment, 'id' | 'date'>) => void;
+  addPayment: (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => void;
   updatePayment: (paymentId: string, data: { amount: number; notes?: string }) => Promise<void>;
   softDeletePayment: (paymentId: string) => Promise<void>;
   updateBillPayment: (billNo: string, amountToAdd: number, notes?: string) => Promise<void>;
@@ -776,7 +776,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
        batch.set(billRef, summaryPayload);
       
       if (paidAmount > 0) {
-        addPayment({ customerId: summary.customerId, amount: Number(paidAmount.toFixed(2)), notes: `Payment for new bill ${billNo}` });
+        addPayment({ customerId: summary.customerId, amount: Number(paidAmount.toFixed(2)), notes: `Payment for new bill ${billNo}`, date: date });
       }
     }
 
@@ -829,10 +829,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
     };
 
-  const addPayment = async (payment: Omit<Payment, 'id' | 'date'>) => {
+  const addPayment = async (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => {
       if (!firestore) return;
       const paymentsCol = collection(firestore, 'payments');
-      const normalizedPayment = { ...payment, amount: Number(payment.amount.toFixed(2)), date: serverTimestamp() };
+      const paymentDate = payment.date ? Timestamp.fromDate(payment.date) : serverTimestamp();
+      const normalizedPayment = { 
+        customerId: payment.customerId,
+        amount: Number(payment.amount.toFixed(2)),
+        notes: payment.notes || '',
+        date: paymentDate,
+        createdAt: serverTimestamp()
+      };
       addDoc(paymentsCol, normalizedPayment).catch(e => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: paymentsCol.path, requestResourceData: normalizedPayment }));
       });
@@ -888,7 +895,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       batch.set(paymentRef, {
         customerId: billData.customerId,
         amount: amountToAdd,
-        date: serverTimestamp(),
+        date: billData.date || serverTimestamp(),
         notes: notes || `Payment recorded for bill ${billNo}`
       });
     }
