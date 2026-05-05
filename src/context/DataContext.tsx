@@ -19,7 +19,7 @@ import {
   PartyBalance,
   SalesReportData,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay, parseISO } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -969,34 +969,60 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billsInRange = allBills.filter(b => isWithinInterval(getSafeDate(b.date), interval));
     const paymentsInRange = allPayments.filter(p => isWithinInterval(getSafeDate(p.date), interval));
 
-    const mappedBills: Transaction[] = billsInRange.map(b => ({
-      date: getSafeDate(b.date),
-      description: `Bill No: ${b.billNo}`,
-      billedAmount: b.amount,
-      balance: 0,
-      type: 'bill',
-    }));
+    const groupedByDate: Record<string, { bills: typeof billsInRange, payments: typeof paymentsInRange }> = {};
 
-    const mappedPayments: Transaction[] = paymentsInRange.map(p => ({
-      date: getSafeDate(p.date),
-      description: p.notes || `${p.paymentMode || 'Cash'} Payment`,
-      paymentMode: p.paymentMode || 'Cash',
-      receivedAmount: p.amount,
-      balance: 0,
-      type: 'payment',
-      paymentId: p.id,
-    }));
+    billsInRange.forEach(b => {
+      const dateStr = format(getSafeDate(b.date), 'yyyy-MM-dd');
+      if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { bills: [], payments: [] };
+      groupedByDate[dateStr].bills.push(b);
+    });
 
-    const sortedTransactions = [...mappedBills, ...mappedPayments].sort((a, b) => a.date.getTime() - b.date.getTime());
+    paymentsInRange.forEach(p => {
+      const dateStr = format(getSafeDate(p.date), 'yyyy-MM-dd');
+      if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { bills: [], payments: [] };
+      groupedByDate[dateStr].payments.push(p);
+    });
+
+    const combinedTransactions: Transaction[] = [];
+
+    Object.keys(groupedByDate).sort().forEach(dateStr => {
+      const { bills, payments } = groupedByDate[dateStr];
+      const maxRows = Math.max(bills.length, payments.length);
+      
+      for (let i = 0; i < maxRows; i++) {
+        const b = bills[i];
+        const p = payments[i];
+        
+        let desc = [];
+        if (b) desc.push(`Bill No: ${b.billNo}`);
+        if (p) desc.push(p.notes || `${p.paymentMode || 'Cash'} Payment`);
+        
+        const tx: Transaction = {
+          date: parseISO(dateStr),
+          description: desc.join(' | '),
+          balance: 0,
+          type: (b && p) ? ('both' as any) : (b ? 'bill' : 'payment'),
+        };
+        
+        if (b) {
+          tx.billedAmount = b.amount;
+        }
+        if (p) {
+          tx.receivedAmount = p.amount;
+          tx.paymentMode = p.paymentMode || 'Cash';
+          tx.paymentId = p.id;
+        }
+        
+        combinedTransactions.push(tx);
+      }
+    });
 
     let currentBalance = openingBalanceForPeriod;
-    const finalTransactions = sortedTransactions.map(t => {
-      if (t.type === 'bill') {
+    const finalTransactions = combinedTransactions.map(t => {
+  
         currentBalance += t.billedAmount || 0;
-      } else {
         currentBalance -= t.receivedAmount || 0;
-      }
-      currentBalance = Number(currentBalance.toFixed(2));
+        currentBalance = Number(currentBalance.toFixed(2));
       return { ...t, balance: currentBalance };
     });
 

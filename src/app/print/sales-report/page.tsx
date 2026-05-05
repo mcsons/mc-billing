@@ -228,34 +228,32 @@ function PrintPageContent() {
         }
 
         /* --- Global Print Reset --- */
-        @page {
-          margin: 0;
-          size: 106mm auto;
-        }
 
         @media print {
           * { 
             color: #000 !important; 
-            -webkit-font-smoothing: none; 
-            font-smoothing: none; 
-            text-rendering: optimizeSpeed; 
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
             page-break-before: auto !important;
             page-break-after: auto !important;
           }
           html, body {
+            margin: 0 !important;
+            padding: 0 !important;
             height: auto !important;
+            min-height: 0 !important;
+            background: white !important;
             overflow: visible !important;
-            min-height: 100vh;
-          }
-          body { 
-            margin: 0; 
-            padding: 0; 
-            background: white !important; 
-            print-color-adjust: exact; 
-            width: 106mm; 
+            min-height: 100vh; 
           }
           #print-area { margin: 0; padding: 0; }
           .print\:hidden { display: none !important; }
+
+          @page {
+            size: 106mm auto;
+            margin: 0;
+          }
           
           thead {
             display: table-row-group !important;
@@ -275,12 +273,18 @@ function PrintPageContent() {
         /* ===============================
           THERMAL STYLING (106mm)
         ================================ */
-        .print-root.thermal { 
-          width: 106mm; 
-          max-width: 106mm; 
-          margin: 0 auto; 
-          font-family: 'Courier New', 'Lucida Console', monospace !important; 
-        }
+         @media print {
+          .print-root.thermal {
+            width: 106mm;
+            margin: 0 auto;
+            display: block;
+            font-family: 'Courier New', 'Lucida Console', monospace !important;
+          }
+
+          .print-root.thermal #print-area {
+             padding: 1.5cm 4mm 10mm 4mm;
+             margin: 0 !important;
+          }
         
         .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
         .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
@@ -368,6 +372,7 @@ function PrintPageContent() {
             font-weight: 800 !important;
           }
         .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
+        }
       `}</style>
     </div>
   );

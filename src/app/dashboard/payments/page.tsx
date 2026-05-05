@@ -497,7 +497,7 @@ export default function PaymentsPage() {
                                             filteredTransactions.length > 0 || openingBalanceForLedger !== 0 ? (
                                                 <>
                                                     <TableRow className="bg-muted/50">
-                                                        <TableCell colSpan={4} className="font-semibold">Opening Balance for Period</TableCell>
+                                                        <TableCell colSpan={5} className="font-semibold text-right pr-6">Opening Balance for Period</TableCell>
                                                         <TableCell className="text-right font-mono font-semibold">{formatINR(openingBalanceForLedger)}</TableCell>
                                                         <TableCell></TableCell>
                                                     </TableRow>
@@ -510,7 +510,7 @@ export default function PaymentsPage() {
                                                             <TableCell className="text-right font-mono text-red-600">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
                                                             <TableCell className="text-right font-mono">{formatINR(t.balance)}</TableCell>
                                                             <TableCell className="text-right">
-                                                                {t.type === 'payment' && t.paymentId && (
+                                                                {(t.type === 'payment' || t.type === 'both') && t.paymentId && (
                                                                     <div className="flex gap-1 justify-end">
                                                                         <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => handleEditClick(t)} title="Edit">
                                                                             <Pencil className="h-3 w-3" />
@@ -525,10 +525,10 @@ export default function PaymentsPage() {
                                                     ))}
                                                 </>
                                             ) : (
-                                                <TableRow><TableCell colSpan={6} className="h-24 text-center">No transactions found for this criteria.</TableCell></TableRow>
+                                                <TableRow><TableCell colSpan={7} className="h-24 text-center">No transactions found for this criteria.</TableCell></TableRow>
                                             )
                                         ) : (
-                                            <TableRow><TableCell colSpan={6} className="h-24 text-center">Select a customer and date range.</TableCell></TableRow>
+                                            <TableRow><TableCell colSpan={7} className="h-24 text-center">Select a customer and date range.</TableCell></TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
@@ -574,7 +574,7 @@ export default function PaymentsPage() {
                                                         </div>
                                                     </div>
                                                     {/* Edit/Delete actions for payment entries */}
-                                                    {t.type === 'payment' && t.paymentId && (
+                                                    {(t.type === 'payment' || t.type === 'both') && t.paymentId && (
                                                         <div className="flex gap-2 justify-end pt-1">
                                                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEditClick(t)} title="Edit">
                                                                 <Pencil className="h-3.5 w-3.5" />

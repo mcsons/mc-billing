@@ -72,7 +72,7 @@ export default function PartyBalancePage() {
   };
 
   const reactSelectStyles = {
-    control: (baseStyles, state) => ({
+    control: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--background))',
       borderColor: state.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
@@ -81,12 +81,12 @@ export default function PartyBalancePage() {
         borderColor: 'hsl(var(--ring))',
       },
     }),
-    menu: (baseStyles) => ({
+    menu: (baseStyles: any) => ({
       ...baseStyles,
       backgroundColor: 'hsl(var(--card))',
       zIndex: 50,
     }),
-    option: (baseStyles, state) => ({
+    option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected
         ? 'hsl(var(--accent))'
@@ -100,15 +100,15 @@ export default function PartyBalancePage() {
         backgroundColor: 'hsl(var(--accent))',
       },
     }),
-    singleValue: (baseStyles) => ({
+    singleValue: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-    input: (baseStyles) => ({
+    input: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--foreground))',
     }),
-     placeholder: (baseStyles) => ({
+     placeholder: (baseStyles: any) => ({
       ...baseStyles,
       color: 'hsl(var(--muted-foreground))',
     }),
@@ -134,7 +134,7 @@ export default function PartyBalancePage() {
             styles={reactSelectStyles}
           />
         </div>
-        {selectedCustomerId && (
+        {selectedPartyId && (
           <div className="space-y-4 pt-4 border-t">
             <h3 className="font-medium text-lg">{selectedParty?.name}</h3>
             <div className="flex items-center gap-4">

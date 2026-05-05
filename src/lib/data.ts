@@ -75,8 +75,8 @@ export type Transaction = {
   billedAmount?: number;
   receivedAmount?: number;
   balance: number;
-  type: 'bill' | 'payment';
-  paymentId?: string; // Only set for type === 'payment', links to Firestore doc
+  type: 'bill' | 'payment' | 'both';
+  paymentId?: string; // Only set for type === 'payment' or 'both, links to Firestore doc
   paymentMode?: "Cash" | "ACC" | "UPI";
 };
 
