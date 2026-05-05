@@ -33,7 +33,7 @@ import {
 import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
 import { useLoading } from '@/context/LoadingContext';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectValue, SelectTrigger } from '@/components/ui/select';
 
 // Indian number format helper
 const formatINR = (n: number) =>
@@ -612,110 +612,114 @@ export default function PaymentsPage() {
             <Separator />
 
             {/* ── Payment History Card ── */}
-            <Card className="w-full">
-                <CardHeader>
-                    <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
-                    <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
-                </CardHeader>
-                <CardContent className="px-6 pb-6 pt-4">
-                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
-                        <div className="grid flex-1 min-w-0 gap-2">
-                            <Label>Customer</Label>
-                            <ReactSelect instanceId="history-filter-customer"
-                                options={custOptions}
-                                value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
-                                onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
-                                isClearable placeholder="Filter by customer..." styles={rsStyles} filterOption={filterOption} />
-                        </div>
-                        <div className="grid gap-2">
-                            <Label>Date</Label>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none', !historyFilterDate && 'text-muted-foreground')}>
-                                        <CalendarIcon className="mr-2 h-4 w-4" />
-                                        {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }} className="h-10 shrink-0">
-                            <X className="mr-2 h-4 w-4" /> Clear
-                        </Button>
-                    </div>
-
-                    {/* Desktop Table */}
-                    <div className="payments-history-desktop w-full overflow-x-auto rounded-md border border-border">
-                        <Table className="w-full table-fixed text-xs md:text-sm">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[140px]">Date</TableHead>
-                                    <TableHead className="w-[200px]">Customer</TableHead>
-                                    <TableHead>Notes</TableHead>
-                                    <TableHead className="text-right w-[160px]">Received Amt</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {historyPayments.length > 0 ? (
-                                    historyPayments.map((p, i) => {
-                                        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                        const cust = customers.find(c => c.id === p.customerId);
-                                        return (
-                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50 transition-colors" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                <TableCell className="py-3">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="py-3 truncate">{cust?.name_en || p.customerId}</TableCell>
-                                                <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                                <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">₹{formatINR(p.amount)}</TableCell>
-                                            </TableRow>
-                                        );
-                                    })
-                                ) : (
-                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-
-                    {/* Mobile Card List */}
-                    <div className="payments-history-mobile space-y-3">
-                        {historyPayments.length > 0 ? (
-                            historyPayments.map((p, i) => {
-                                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                const cust = customers.find(c => c.id === p.customerId);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
-                                        style={{ minHeight: '80px', padding: '12px' }}
-                                        onDoubleClick={() => handleHistoryRowDoubleClick(p)}
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex flex-col items-start gap-1.5">
-                                                <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
-                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{p.paymentMode || 'Cash'}</span>
-                                            </div>
-                                            <span className="text-xs text-muted-foreground mt-0.5">
-                                                {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
-                                            </span>
-                                        </div>
-                                        <div className="mt-1 text-xs text-muted-foreground">{p.notes || '-'}</div>
-                                        <div className="mt-2 flex justify-between text-sm">
-                                            <span className="text-muted-foreground">Received:</span>
-                                            <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
-                                No payment entries found.
+            <div className="w-full">
+                <Card className="w-full">
+                    <CardHeader>
+                        <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
+                        <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="px-6 pb-6 pt-4">
+                        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
+                            <div className="grid flex-1 min-w-0 gap-2">
+                                <Label>Customer</Label>
+                                <ReactSelect instanceId="history-filter-customer"
+                                    options={custOptions}
+                                    value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
+                                    onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
+                                    isClearable placeholder="Filter by customer..." styles={rsStyles} filterOption={filterOption} />
                             </div>
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
+                            <div className="grid gap-2">
+                                <Label>Date</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none', !historyFilterDate && 'text-muted-foreground')}>
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }} className="h-10 shrink-0">
+                                <X className="mr-2 h-4 w-4" /> Clear
+                            </Button>
+                        </div>
+
+                        {/* Desktop Table */}
+                        <div className="payments-history-desktop w-full overflow-x-auto rounded-md border border-border">
+                            <Table className="w-full table-fixed text-xs md:text-sm">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[120px]">Date</TableHead>
+                                        <TableHead className="w-[200px]">Customer</TableHead>
+                                        <TableHead className="w-[100px]">Mode</TableHead>
+                                        <TableHead>Notes</TableHead>
+                                        <TableHead className="text-right w-[160px]">Received Amt</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {historyPayments.length > 0 ? (
+                                        historyPayments.map((p, i) => {
+                                            const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                            const cust = customers.find(c => c.id === p.customerId);
+                                            return (
+                                                <TableRow key={i} className="cursor-pointer hover:bg-muted/50 transition-colors" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                    <TableCell className="py-3">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                    <TableCell className="py-3 truncate">{cust?.name_en || p.customerId}</TableCell>
+                                                    <TableCell className="py-3 font-semibold text-muted-foreground">{p.paymentMode || 'Cash'}</TableCell>
+                                                    <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                                    <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">₹{formatINR(p.amount)}</TableCell>
+                                                </TableRow>
+                                            )
+                                        })
+                                    ) : (
+                                        <TableRow><TableCell colSpan={5} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {/* Mobile Card List */}
+                        <div className="payments-history-mobile space-y-3">
+                            {historyPayments.length > 0 ? (
+                                historyPayments.map((p, i) => {
+                                    const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                                    const cust = customers.find(c => c.id === p.customerId);
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
+                                            style={{ minHeight: '80px', padding: '12px' }}
+                                            onDoubleClick={() => handleHistoryRowDoubleClick(p)}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex flex-col items-start gap-1.5">
+                                                    <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
+                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{p.paymentMode || 'Cash'}</span>
+                                                </div>
+                                                <span className="text-xs text-muted-foreground mt-0.5">
+                                                    {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
+                                                </span>
+                                            </div>
+                                            <div className="mt-1 text-xs text-muted-foreground">{p.notes || '-'}</div>
+                                            <div className="mt-2 flex justify-between text-sm">
+                                                <span className="text-muted-foreground">Received:</span>
+                                                <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="h-24 flex items-center justify-center text-sm text-muted-foreground rounded-lg border">
+                                    No payment entries found.
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* ── Edit Modal ── */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
