@@ -132,7 +132,7 @@ export default function PaymentsPage() {
 
         try {
             await addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, paymentMode, date: recordDate });
-            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en} on ${format(recordDate, 'dd-MM-yyyy')}.` });
+            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en} on ${format(recordDate || new Date(), 'dd-MM-yyyy')}.` });
             setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment.' });
@@ -614,14 +614,14 @@ export default function PaymentsPage() {
             <Separator />
 
             {/* ── Payment History Card ── */}
-            <Card>
+            <Card className="w-full">
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
                     <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
                 </CardHeader>
-                <CardContent>
-                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
-                        <div className="grid flex-1 gap-2">
+                <CardContent className="px-6 pb-6 pt-4">
+                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
+                        <div className="grid flex-1 min-w-0 gap-2">
                             <Label>Customer</Label>
                             <ReactSelect instanceId="history-filter-customer"
                                 options={custOptions}
@@ -633,7 +633,7 @@ export default function PaymentsPage() {
                             <Label>Date</Label>
                             <Popover>
                                 <PopoverTrigger asChild>
-                                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none h-11', !historyFilterDate && 'text-muted-foreground')}>
+                                    <Button variant="outline" className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none', !historyFilterDate && 'text-muted-foreground')}>
                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                         {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
                                     </Button>
@@ -643,21 +643,20 @@ export default function PaymentsPage() {
                                 </PopoverContent>
                             </Popover>
                         </div>
-                        <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }}>
+                        <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }} className="h-10 shrink-0">
                             <X className="mr-2 h-4 w-4" /> Clear
                         </Button>
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="payments-history-desktop overflow-x-auto rounded-md border">
-                        <Table className="w-full min-w-[500px] text-sm">
+                    <div className="payments-history-desktop w-full overflow-x-auto rounded-md border border-border">
+                        <Table className="w-full table-fixed text-xs md:text-sm">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead>Mode</TableHead>
+                                    <TableHead className="w-[140px]">Date</TableHead>
+                                    <TableHead className="w-[200px]">Customer</TableHead>
                                     <TableHead>Notes</TableHead>
-                                    <TableHead className="text-right">Received Amt</TableHead>
+                                    <TableHead className="text-right w-[160px]">Received Amt</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -666,21 +665,16 @@ export default function PaymentsPage() {
                                         const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
                                         const cust = customers.find(c => c.id === p.customerId);
                                         return (
-                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                <TableCell>{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell>{cust?.name_en || p.customerId}</TableCell>
-                                                <TableCell>
-                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
-                                                        {p.paymentMode || 'Cash'}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="text-muted-foreground">{p.notes || '-'}</TableCell>
-                                                <TableCell className="text-right font-mono text-red-600 font-semibold">₹{formatINR(p.amount)}</TableCell>
+                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50 transition-colors" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                <TableCell className="py-3">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell className="py-3 truncate">{cust?.name_en || p.customerId}</TableCell>
+                                                <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
+                                                <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">₹{formatINR(p.amount)}</TableCell>
                                             </TableRow>
                                         );
                                     })
                                 ) : (
-                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -699,7 +693,6 @@ export default function PaymentsPage() {
                                         style={{ minHeight: '80px', padding: '12px' }}
                                         onDoubleClick={() => handleHistoryRowDoubleClick(p)}
                                     >
-                                        {/* Top Row: Customer + Date */}
                                         <div className="flex justify-between items-start">
                                             <div className="flex flex-col items-start gap-1.5">
                                                 <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
@@ -709,9 +702,7 @@ export default function PaymentsPage() {
                                                 {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
                                             </span>
                                         </div>
-                                        {/* Notes - always visible */}
                                         <div className="mt-1 text-xs text-muted-foreground">{p.notes || '-'}</div>
-                                        {/* Amount */}
                                         <div className="mt-2 flex justify-between text-sm">
                                             <span className="text-muted-foreground">Received:</span>
                                             <span className="font-mono font-semibold text-red-600">₹{formatINR(p.amount)}</span>

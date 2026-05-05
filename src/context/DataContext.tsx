@@ -103,7 +103,7 @@ interface DataContextType {
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => void;
-  updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI"; date?: Date }) => Promise<void>;
+  updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI", date?: Date }) => Promise<void>;
   softDeletePayment: (paymentId: string) => Promise<void>;
   updateBillPayment: (billNo: string, amountToAdd: number, notes?: string) => Promise<void>;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
