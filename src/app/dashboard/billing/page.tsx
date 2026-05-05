@@ -65,7 +65,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfWeek, endOfWeek  } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -134,6 +134,7 @@ export default function BillingPage() {
     deleteBills,
     openingBalances,
     setOpeningBalance,
+    payments,
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -287,6 +288,30 @@ export default function BillingPage() {
     }
   };
 
+  const goToFirstBillOfDay = () => {
+    if (!date) return;
+    const billsOfDay = sortedBills.filter(b => {
+      const bDate = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date)) : new Date(0);
+      return isSameDay(bDate, date);
+    });
+    // sortedBills is descending, so oldest is at the end
+    if (billsOfDay.length > 0) {
+      router.push(`/dashboard/billing?billNo=${billsOfDay[billsOfDay.length - 1].billNo}`);
+    }
+  };
+
+  const goToLastBillOfDay = () => {
+    if (!date) return;
+    const billsOfDay = sortedBills.filter(b => {
+      const bDate = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date)) : new Date(0);
+      return isSameDay(bDate, date);
+    });
+    // sortedBills is descending, so newest is at the beginning
+    if (billsOfDay.length > 0) {
+      router.push(`/dashboard/billing?billNo=${billsOfDay[0].billNo}`);
+    }
+  };
+
   const handleSelectBill = (billNo: string, checked: boolean) => {
     setSelectedBills((prev) => {
       const newSelection = new Set(prev);
@@ -402,7 +427,7 @@ export default function BillingPage() {
             setActiveBillNo(billToLoad.billNo);
             setInitialBillTotal(billToLoad.amount);
             setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
-            setPaidAmount('');
+            setPaidAmount(billToLoad.paidAmount?.toString() || '');
             setDescription(billToLoad.description || '');
 
             // Fetch items from Firestore once
@@ -444,6 +469,7 @@ export default function BillingPage() {
             setActiveBillNo(null);
             setInitialBillTotal(0);
             setDeliveryCharge('');
+            setPaidAmount('');
             setLocalBillItems([]);
             setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
@@ -451,7 +477,7 @@ export default function BillingPage() {
             setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
-        }
+        } 
     };
 
     initializeSession();
@@ -505,6 +531,18 @@ export default function BillingPage() {
         );
       });
     }
+
+    if (!historySelectedCustomer && !historyDate) {
+      const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+      const end = endOfWeek(new Date(), { weekStartsOn: 1 });
+      
+      results = results.filter(bill => {
+        if (!bill.date) return false;
+        const d = (bill.date as Timestamp).toDate ? (bill.date as Timestamp).toDate() : new Date(bill.date as any);
+        return d >= start && d <= end;
+      });
+    }
+
     setFilteredHistoryBills(sortBills(results));
   }, [liveBillSummaries, historySelectedCustomer, historyDate, historySearchText, sortBills]);
 
@@ -699,6 +737,11 @@ export default function BillingPage() {
       description: description,
       prevBalance: staticPrevBalance,
     };
+
+    const parsedPaid = parseFloat(paidAmount) || 0;
+    const parsedDelivery = parseFloat(deliveryCharge) || 0;
+    const itemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
+    const finalBalanceCalc = staticPrevBalance + itemsTotal + parsedDelivery - parsedPaid;
     
     const { billNo, commitPromise } = createOrUpdateLiveBill(
       billSummary,
@@ -1011,6 +1054,31 @@ export default function BillingPage() {
 
   const enrichedHistoryBills = useMemo(() => {
     return filteredHistoryBills.map(bill => {
+      let prevBalForHistory = 0;
+      if (bill.customerId !== 'WALK-IN') {
+        const initialBalance = openingBalances[bill.customerId] || 0;
+        const bDateObj = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : new Date();
+        const bTime = bDateObj.getTime();
+
+        const priorBills = liveBillSummaries
+          .filter(b => b.customerId === bill.customerId && b.billNo !== bill.billNo)
+          .filter(b => {
+             const d = b.date ? ((b.date as any).toDate ? (b.date as any).toDate() : new Date(b.date)) : new Date();
+             return d.getTime() < bTime;
+          })
+          .reduce((sum, b) => sum + b.amount + (b.deliveryCharge || 0), 0);
+
+        const priorPayments = payments
+          .filter(p => p.customerId === bill.customerId && !p.isDeleted)
+          .filter(p => {
+             const d = p.date ? ((p.date as any).toDate ? (p.date as any).toDate() : new Date(p.date)) : new Date();
+             return d.getTime() < bTime;
+          })
+          .reduce((sum, p) => sum + p.amount, 0);
+
+        prevBalForHistory = initialBalance + priorBills - priorPayments;
+      }
+
       let finalBal = bill.finalBalance;
       if (!finalBal) {
         const dbBal = customerBalances[bill.customerId] || 0;
@@ -1024,9 +1092,9 @@ export default function BillingPage() {
         }
         finalBal = prev + bill.amount + (bill.deliveryCharge || 0) - (bill.paidAmount || 0);
       }
-      return { ...bill, computedFinalBalance: finalBal };
+      return { ...bill, computedFinalBalance: finalBal, prevBalForHistory };
     });
-  }, [filteredHistoryBills, customerBalances]);
+  }, [filteredHistoryBills, openingBalances, liveBillSummaries, payments]);
 
   const handleGlobalTab = (e: React.KeyboardEvent) => {
     if (e.key !== 'Tab') return;
@@ -1052,8 +1120,8 @@ export default function BillingPage() {
   return (
     <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full" onKeyDown={handleGlobalTab}>
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
-        <div className="grid auto-rows-max gap-4">
-          <Card>
+      <div className="grid auto-rows-max gap-4 section-box">
+        <Card className="border-none shadow-none bg-transparent">
             <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between pb-2">
               <div>
                 <CardTitle className="font-headline">
@@ -1164,7 +1232,7 @@ export default function BillingPage() {
             </CardContent>
           </Card>
 
-          <Card id="product-section">
+          <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t">
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent className="p-4 md:p-6">
               <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-3">
@@ -1270,7 +1338,7 @@ export default function BillingPage() {
         </div>
 
         <div className="lg:sticky lg:top-20">
-          <Card>
+          <Card className="section-box">
             <CardHeader className="pb-2">
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
@@ -1351,7 +1419,6 @@ export default function BillingPage() {
                 </div>
               )}
             </CardContent>
-            {(localBillItems.length > 0 || selectedCustomerId) && (
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 {/* Mobile totals — compact two-column grid, full width */}
                 <div className="w-full md:hidden rounded-lg bg-muted/40 border p-4 space-y-4">
@@ -1412,42 +1479,45 @@ export default function BillingPage() {
                     ₹{formatINR(finalBalance)}
                   </span>
                 </div>
+
                 <div className="hidden flex-wrap justify-end gap-2 md:flex">
-                  <button 
-                    className="bg-[#1a222e] text-white p-2 rounded-md hover:bg-[#252f3f] disabled:opacity-50"
-                    onClick={handlePrevBill} 
-                    disabled={currentBillIndex <= 0}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
+                  <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0}>{"<<"}</Button>
+                  <Button variant="outline" className="nav-btn" onClick={() => {
+                    if (currentBillIndex === -1 && sortedBills.length > 0) {
+                      router.push(`/dashboard/billing?billNo=${sortedBills[0].billNo}`);
+                    } else if (currentBillIndex >= 0 && currentBillIndex < sortedBills.length - 1) {
+                      router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex + 1].billNo}`);
+                    }
+                  }} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1}>{"<"}</Button>
                   <Button id="save-bill-btn" size="lg" className="btn-save" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
-                  <Button onClick={() => handlePrintBill('thermal')}>Print Receipt</Button>
-                  <Button className="btn-print" onClick={() => handlePrintBill('a4')}>Print A4</Button>
-                  <button 
-                    className="bg-[#1a222e] text-white p-2 rounded-md hover:bg-[#252f3f] disabled:opacity-50"
-                    onClick={handleNextBill} 
-                    disabled={currentBillIndex === -1 || currentBillIndex >= sortedBills.length - 1}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                  <Button variant="outline" onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /> Share</Button>
+                  <Button onClick={() => handlePrintBill('thermal')} disabled={!selectedCustomerId}>Print Receipt</Button>
+                  <Button className="btn-print" onClick={() => handlePrintBill('a4')} disabled={!selectedCustomerId}>Print A4</Button>
+                  <Button variant="outline" className="nav-btn" onClick={() => {
+                    if (currentBillIndex > 0) {
+                      router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex - 1].billNo}`);
+                    } else if (currentBillIndex === 0) {
+                      router.push(`/dashboard/billing`);
+                    }
+                  }} disabled={currentBillIndex === -1}>{">"}</Button>
+                  <Button variant="outline" className="nav-btn" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0}>{">>"}</Button>
+                  <Button variant="outline" onClick={handleShareWhatsApp} disabled={!selectedCustomerId}><Share className="mr-2 h-4 w-4" /> Share</Button>
                   <Button
                     variant="outline"
                     onClick={handleSharePDF}
+                    disabled={!selectedCustomerId}
                     className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
                   >
                     <Share className="mr-2 h-4 w-4" /> Share (PDF)
                   </Button>
                 </div>
               </CardFooter>
-            )}
           </Card>
         </div>
       </div>
 
       <Separator />
 
-      <Card className="max-w-full overflow-hidden">
+      <Card className="max-w-full overflow-hidden section-box">
         <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="font-headline text-xl md:text-2xl">Bill History</CardTitle>
@@ -1524,6 +1594,7 @@ export default function BillingPage() {
                   <TableHead className="w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Bill No</TableHead>
                   <TableHead className="w-[150px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
                   <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Customer</TableHead>
+                  <TableHead className="w-32 px-4 text-right">Prev Bal</TableHead>
                   <TableHead className="w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Amt</TableHead>
                   <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Final Bal</TableHead>
                   <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Created By</TableHead>
@@ -1550,6 +1621,7 @@ export default function BillingPage() {
                         <TableCell className="px-[10px] py-[12px] text-[14px] font-semibold text-foreground truncate">{bill.billNo}</TableCell>
                         <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
                         <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bill.customerName}</TableCell>
+                        <TableCell className="px-4 text-right font-mono font-bold whitespace-nowrap">₹{formatINR(bill.prevBalForHistory)}</TableCell>
                         <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-medium text-foreground font-mono">₹{formatINR(bill.amount)}</TableCell>
                         <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-foreground font-mono">
                         {`₹${formatINR(bill.computedFinalBalance)}`}
@@ -1594,6 +1666,10 @@ export default function BillingPage() {
                     <div className="mt-1 text-sm font-medium">{bill.customerName}</div>
                     {/* Amount Row */}
                     <div className="mt-2 flex justify-between text-sm">
+                    <span className="text-muted-foreground">Prev Bal:</span>
+                      <span className="font-mono font-semibold">₹{formatINR(bill.prevBalForHistory)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Amt:</span>
                       <span className="font-mono">₹{bill.amount.toFixed(2)}</span>
                     </div>
@@ -1742,6 +1818,35 @@ export default function BillingPage() {
             </div>
         </AlertDialogContent>
       </AlertDialog>
+      <style jsx global>{`
+      .nav-btn {
+        width: 40px;
+        padding: 0;
+        background-color: hsl(var(--foreground)) !important;
+        color: hsl(var(--background)) !important;
+        border: none !important;
+      }
+      .nav-btn:hover:not(:disabled) {
+        background-color: var(--btn-save-bg) !important;
+        color: white !important;
+        opacity: 1;
+      }
+      .nav-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .section-box {
+        border: 2px solid hsl(var(--border));
+        border-radius: 12px;
+        padding: 16px;
+        background-color: hsl(var(--card));
+        box-shadow: 0 2px 4px 0 rgb(0 0 0 / 0.05), 0 1px 2px -1px rgb(0 0 0 / 0.05);
+        transition: border-color 0.2s ease-in-out;
+      }
+      .section-box:hover {
+        border-color: hsl(var(--primary) / 0.5);
+      }
+    `}</style>
     </div>
   );
 }

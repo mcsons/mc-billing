@@ -190,16 +190,23 @@ function PrintPageContent() {
                         {formatINR(totalAmount)}
                     </div>
                 </div>
-                <div className="hr-line"></div>
-                <div className="flex justify-between mt-2">
-                    <span className="font-bold">PREVIOUS BALANCE</span>
-                    <span className="font-bold">{previousBalance.toFixed(2)}</span>
+                <div className="hr-line my-1"></div>
+                <div className="flex justify-end mt-1">
+                    <table className="summary-table">
+                        <tbody>
+                        <tr>
+                                <td className="summary-label font-bold">PREVIOUS BALANCE</td>
+                                <td className="summary-colon">:</td> 
+                                <td className="summary-value font-bold">{previousBalance.toFixed(2)}</td>
+                            </tr>
+                            <tr className="summary-divider-row summary-final-balance">
+                                <td className="summary-label font-bold">NETT AMT</td>
+                                <td className="summary-colon">:</td>
+                                <td className="summary-value font-bold">{netAmount.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div className="flex justify-between mt-1 final-balance">
-                    <span className="font-bold">NETT AMT</span>
-                    <span className="font-bold">{netAmount.toFixed(2)}</span>
-                </div>
-                <div className="hr-line"></div>
             </div>
 
             <footer className="print-footer">Developed by MC & SONS</footer>
@@ -220,64 +227,50 @@ function PrintPageContent() {
             }
         }
 
-        /* ===============================
-          FORCE CONTINUOUS ROLL (NO BREAKS)
-        ================================ */
-        @media print {
-          @page {
-            size: 106mm auto; /* INDEFINITE HEIGHT */
-            margin: 0;
-          }
+        /* --- Global Print Reset --- */
+        @page {
+          margin: 0;
+          size: 106mm auto;
+        }
 
+        @media print {
+          * { 
+            color: #000 !important; 
+            -webkit-font-smoothing: none; 
+            font-smoothing: none; 
+            text-rendering: optimizeSpeed; 
+            page-break-before: auto !important;
+            page-break-after: auto !important;
+          }
           html, body {
             height: auto !important;
-            min-height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
             overflow: visible !important;
-            background: white !important;
-            width: 106mm !important;
+            min-height: 100vh;
           }
-
-          /* Strip layout containers that cause pagination gaps */
-          .print-layout-wrapper, 
-          div[class*="min-h-screen"],
-          main {
-            height: auto !important;
-            min-height: 0 !important;
-            display: block !important;
-            padding: 0 !important;
-            margin: 0 !important;
+          body { 
+            margin: 0; 
+            padding: 0; 
+            background: white !important; 
+            print-color-adjust: exact; 
+            width: 106mm; 
           }
-
-          /* FORCE CONTENT AS SINGLE INDIVISIBLE UNIT */
-          .print-root, #print-area {
-            display: inline-block !important; /* CRITICAL: prevents page splitting */
-            width: 106mm !important;
-            height: auto !important;
-            overflow: visible !important;
-            position: relative !important;
-            break-inside: avoid-page !important;
-            page-break-inside: avoid !important;
-            margin: 0 !important;
-            padding: 5mm 4mm 15mm 4mm !important; /* bottom padding ensures roll cut space */
-          }
-
-          .print-table {
-            page-break-inside: auto !important; /* allow content to flow, but keep wrapper together */
-          }
-
+          #print-area { margin: 0; padding: 0; }
+          .print\:hidden { display: none !important; }
+          
           thead {
-            display: table-row-group !important; /* prevent header repeating */
+            display: table-row-group !important;
           }
-
-          tr {
+          .print-root, #print-area {
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
-
-          .print\:hidden { display: none !important; }
-        }
+          table {
+            page-break-inside: auto;
+          }
+          tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
 
         /* ===============================
           THERMAL STYLING (106mm)
@@ -345,7 +338,35 @@ function PrintPageContent() {
 
         .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
         .qty-summary-text { white-space: nowrap; }
-        .final-balance, .final-balance span { font-size: 16px !important; font-weight: 800 !important; }
+        .summary-table {
+            width: 100%;
+            max-width: 280px;
+            border-collapse: collapse;
+            font-size: 15px;
+            font-weight: 700;
+          }
+          .summary-table td {
+            padding: 1px 4px;
+          }
+          .summary-label {
+            text-align: left;
+            white-space: nowrap;
+          }
+          .summary-colon {
+            width: 10px;
+            text-align: center;
+          }
+          .summary-value {
+            text-align: right;
+            white-space: nowrap;
+          }
+          .summary-divider-row td {
+            border-top: 1px solid black;
+          }
+          .summary-final-balance td {
+            font-size: 16px !important;
+            font-weight: 800 !important;
+          }
         .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
       `}</style>
     </div>

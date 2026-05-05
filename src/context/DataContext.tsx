@@ -103,7 +103,7 @@ interface DataContextType {
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
   addPayment: (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => void;
-  updatePayment: (paymentId: string, data: { amount: number; notes?: string }) => Promise<void>;
+  updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI"; date?: Date }) => Promise<void>;
   softDeletePayment: (paymentId: string) => Promise<void>;
   updateBillPayment: (billNo: string, amountToAdd: number, notes?: string) => Promise<void>;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
@@ -845,11 +845,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   }
 
-  const updatePayment = async (paymentId: string, data: { amount: number; notes?: string }) => {
+  const updatePayment = async (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI"; date?: Date }) => {
     if (!firestore) return;
     const paymentRef = doc(firestore, 'payments', paymentId);
     try {
-      await updateDoc(paymentRef, { amount: data.amount, notes: data.notes || '', updatedAt: serverTimestamp() });
+      const updatePayload: any = { amount: data.amount, notes: data.notes || '', updatedAt: serverTimestamp() };
+      if (data.paymentMode) updatePayload.paymentMode = data.paymentMode;
+      if (data.date) updatePayload.date = Timestamp.fromDate(data.date);
+      await updateDoc(paymentRef, updatePayload);
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path, requestResourceData: data }));
       throw e;
@@ -936,6 +939,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const getSafeDate = (dateField: any): Date => {
+    if (!dateField) return new Date(0);
+    return dateField.toDate ? dateField.toDate() : new Date(dateField);
+};
+
   const getCustomerLedger = useCallback((
     customerId: string, 
     dateRange: { from: Date, to: Date }
@@ -949,8 +957,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const allBills = (liveBillSummaries || []).filter(b => b.customerId === customerId && b.date && b.amount > 0);
     const allPayments = (payments || []).filter(p => p.customerId === customerId && !p.isDeleted);
 
-    const priorBills = allBills.filter(b => ((b.date as Timestamp).toDate()) < fromDateStart);
-    const priorPayments = allPayments.filter(p => ((p.date as Timestamp).toDate()) < fromDateStart);
+    const priorBills = allBills.filter(b => getSafeDate(b.date) < fromDateStart);
+    const priorPayments = allPayments.filter(p => getSafeDate(p.date) < fromDateStart);
 
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
@@ -958,11 +966,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const interval = { start: fromDateStart, end: toDateEnd };
     
-    const billsInRange = allBills.filter(b => isWithinInterval((b.date as Timestamp).toDate(), interval));
-    const paymentsInRange = allPayments.filter(p => isWithinInterval((p.date as Timestamp).toDate(), interval));
+    const billsInRange = allBills.filter(b => isWithinInterval(getSafeDate(b.date), interval));
+    const paymentsInRange = allPayments.filter(p => isWithinInterval(getSafeDate(p.date), interval));
 
     const mappedBills: Transaction[] = billsInRange.map(b => ({
-      date: (b.date as Timestamp).toDate(),
+      date: getSafeDate(b.date),
       description: `Bill No: ${b.billNo}`,
       billedAmount: b.amount,
       balance: 0,
@@ -970,8 +978,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }));
 
     const mappedPayments: Transaction[] = paymentsInRange.map(p => ({
-      date: (p.date as Timestamp).toDate(),
-      description: p.notes || 'Payment Received',
+      date: getSafeDate(p.date),
+      description: p.notes || `${p.paymentMode || 'Cash'} Payment`,
+      paymentMode: p.paymentMode || 'Cash',
       receivedAmount: p.amount,
       balance: 0,
       type: 'payment',
@@ -1011,21 +1020,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       (b) => b.customerId === customerId && b.date && b.amount > 0
     );
     const allPayments = (payments || []).filter(
-      (p) => p.customerId === customerId
+      (p) => p.customerId === customerId && !p.isDeleted
     );
 
     const priorBills = allBills.filter(
-      (b) => (b.date as Timestamp).toDate() < fromDateStart
+      (b) => getSafeDate(b.date) < fromDateStart
     );
     const priorPayments = allPayments.filter(
-      (p) => (p.date as Timestamp).toDate() < fromDateStart
+      (p) => getSafeDate(p.date) < fromDateStart
     );
     const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
     const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
     const previousBalance = Number((initialOpeningBalance + totalPriorBilled - totalPriorPaid).toFixed(2));
 
     const billsInRange = allBills.filter((b) =>
-      isWithinInterval((b.date as Timestamp).toDate(), {
+      isWithinInterval(getSafeDate(b.date), {
         start: fromDateStart,
         end: toDateEnd,
       })

@@ -11,33 +11,30 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Customer, Transaction } from '@/lib/data';
+import { Customer } from '@/lib/data';
 import { X, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface PrintData {
     customer?: Customer;
-    transactions: Transaction[];
-    openingBalance: number;
-    dateRange: { from?: string, to?: string };
+    receivedDate: string;
+    receivedCash: number;
+    prevBalance: number;
+    finalBalance: number;
 }
 
-function PrintPaymentsContent() {
+function PrintPaymentReceiptContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'thermal';
   const [printData, setPrintData] = useState<PrintData | null>(null);
+  const [printedDate, setPrintedDate] = useState<Date>(new Date());
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('paymentsReportData');
+    const stored = sessionStorage.getItem('paymentReceiptData');
     if (stored) {
       try {
-        const parsedData = JSON.parse(stored, (key, value) => {
-            if ((key === 'from' || key === 'to' || key === 'date') && value) {
-                return new Date(value);
-            }
-            return value;
-        });
+        const parsedData = JSON.parse(stored);
         setPrintData(parsedData);
       } catch (error) {
         console.error('Failed to parse print data:', error);
@@ -47,7 +44,7 @@ function PrintPaymentsContent() {
       router.push('/dashboard/payments');
     }
     return () => {
-      sessionStorage.removeItem('paymentsReportData');
+      sessionStorage.removeItem('paymentReceiptData');
     };
   }, [router]);
 
@@ -61,18 +58,14 @@ function PrintPaymentsContent() {
 
   const {
     customer,
-    transactions,
-    openingBalance,
-    dateRange,
+    receivedDate,
+    receivedCash,
+    prevBalance,
+    finalBalance
   } = printData;
 
-  const totalBilled = transactions.reduce((sum, t) => sum + (t.billedAmount || 0), 0);
-  const totalReceived = transactions.reduce((sum, t) => sum + (t.receivedAmount || 0), 0);
-
-  const prevBalance = openingBalance;
-  const nettAmount = prevBalance + totalBilled;
-  const finalBalance = nettAmount - totalReceived;
-
+  const bDate = new Date(receivedDate);
+  const isValidDate = !isNaN(bDate.getTime());
 
   return (
     <div>
@@ -91,13 +84,13 @@ function PrintPaymentsContent() {
             <header className="text-center">
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,<br />
-                Tiruppur - 641604
+                No. 1, Fish Market, Palladam Road,
+                <span className="city">Tiruppur - 641604</span>
               </p>
-              <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
+              <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
             </header>
             <div className="hr-line"></div>
-            <h2 className="text-lg font-semibold my-1 text-center">Customer Statement</h2>
+            <h2 className="text-lg font-semibold my-1 text-center">Received Amount</h2>
 
             <div className="grid grid-cols-2 gap-4 mb-2 text-sm">
                 <div>
@@ -105,66 +98,42 @@ function PrintPaymentsContent() {
                     <p className="cust-name">{customer?.name_ta || '-'}</p>
                 </div>
                 <div className="text-right">
-                    {dateRange.from && (
-                         <p className="bill-date"><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
-                    )}
-                    {dateRange.to && (
-                         <p className="bill-date"><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
-                    )}
+                     <p className="bill-date">
+                         <span className="font-semibold block">Date:</span> 
+                         <strong>{format(printedDate, 'dd-MM-yyyy')}</strong>
+                     </p>
                 </div>
             </div>
 
             <Table className="print-table">
               <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={3} className="p-0">
+                  <TableCell colSpan={2} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableHead className="col-date">Date</TableHead>
-                  <TableHead className="col-billed text-right">Billed (₹)</TableHead>
-                  <TableHead className="col-received text-right">Received (₹)</TableHead>
+                  <TableHead className="col-date">Received Date</TableHead>
+                  <TableHead className="col-received text-right">Received Cash</TableHead>
                 </TableRow>
                  <TableRow>
-                  <TableCell colSpan={3} className="p-0">
+                  <TableCell colSpan={2} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? (
-                  transactions.map((t, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
-                      <TableCell className="col-billed text-right">
-                        {t.billedAmount ? t.billedAmount.toFixed(2) : '-'}
-                      </TableCell>
-                      <TableCell className="col-received text-right">
-                        {t.receivedAmount ? t.receivedAmount.toFixed(2) : '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center py-4">No transactions</TableCell>
-                  </TableRow>
-                )}
                  <TableRow>
-                  <TableCell colSpan={3} className="p-0">
-                    <div className="table-header-line"></div>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                    <TableCell className="col-date font-bold">Total</TableCell>
-                    <TableCell className="col-billed text-right font-bold">{totalBilled.toFixed(2)}</TableCell>
-                    <TableCell className="col-received text-right font-bold">{totalReceived.toFixed(2)}</TableCell>
+                    <TableCell className="col-date">{isValidDate ? format(bDate, 'dd-MM-yy') : '-'}</TableCell>
+                    <TableCell className="col-received text-right">
+                        {receivedCash > 0 ? receivedCash.toFixed(2) : '-'}
+                    </TableCell>
                 </TableRow>
               </TableBody>
             </Table>
             
             <div className="flex justify-end mt-2">
-            <div className="w-full max-w-[300px] totals-section">
+                 <div className="w-full max-w-[300px] totals-section">
                     <table className="summary-table">
                         <tbody>
                             <tr>
@@ -173,19 +142,9 @@ function PrintPaymentsContent() {
                                 <td className="summary-value font-mono">₹{prevBalance.toFixed(2)}</td>
                             </tr>
                             <tr>
-                                <td className="summary-label">Bill Amount (+)</td>
+                                <td className="summary-label">Cash Received (-)</td>
                                 <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{totalBilled.toFixed(2)}</td>
-                            </tr>
-                            <tr className="summary-divider-row">
-                                <td className="summary-label">NETT Amount</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{nettAmount.toFixed(2)}</td>
-                            </tr>
-                            <tr>
-                                <td className="summary-label">Received (-)</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{totalReceived.toFixed(2)}</td>
+                                <td className="summary-value font-mono">₹{receivedCash.toFixed(2)}</td>
                             </tr>
                             <tr className="summary-divider-row summary-final-balance">
                                 <td className="summary-label">Final Balance</td>
@@ -327,7 +286,7 @@ function PrintPaymentsContent() {
 
           .print-table thead th {
             font-weight: 800 !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
             padding: 2px 4px;
             color: #000;
             vertical-align: middle;
@@ -340,16 +299,8 @@ function PrintPaymentsContent() {
             vertical-align: top;
           }
           
-          /* Opening Balance Custom Styles */
-          .opening-value {
-            text-align: center !important;
-            font-size: 14.5px !important; /* 13px base + 1.5px */
-            font-weight: 800 !important;
-          }
-          
-          .col-date { width: 40%; text-align: left; }
-          .col-billed { width: 30%; text-align: right; }
-          .col-received { width: 30%; text-align: right; }
+          .col-date { width: 50%; text-align: left; }
+          .col-received { width: 50%; text-align: right; }
 
           .summary-table {
             width: 100%;
@@ -360,7 +311,6 @@ function PrintPaymentsContent() {
           .summary-table td {
             padding: 1px 4px;
           }
-          
           .summary-label {
             text-align: left;
             white-space: nowrap;
@@ -434,10 +384,10 @@ function PrintPaymentsContent() {
 }
 
 
-export default function PrintPaymentsPage() {
+export default function PrintPaymentReceiptPage() {
     return (
       <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
-        <PrintPaymentsContent />
+        <PrintPaymentReceiptContent />
       </Suspense>
     );
   }

@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Card,
   CardContent,
@@ -24,6 +24,7 @@ export default function PricesPage() {
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [localPrices, setLocalPrices] = useState<LocalPrices>({});
+  const productSearchRef = useRef<any>(null);
 
   const selectedProduct = products.find((p) => p.id.toLowerCase() === selectedProductId.toLowerCase());
 
@@ -101,6 +102,16 @@ export default function PricesPage() {
       title: "Prices Updated",
       description: `Prices for ${selectedProduct.name_en} have been saved.`,
     });
+
+    setSelectedProductId('');
+    setLocalPrices({});
+    if (productSearchRef.current) {
+        productSearchRef.current.clearValue();
+    }
+
+    setTimeout(() => {
+      productSearchRef.current?.focus();
+    }, 0);
   };
 
   return (
@@ -116,6 +127,7 @@ export default function PricesPage() {
           <div className="grid gap-2">
             <Label htmlFor="product-search">Product</Label>
             <ReactSelect
+              ref={productSearchRef}
               instanceId="price-product-select"
               placeholder="Select product..."
               isClearable

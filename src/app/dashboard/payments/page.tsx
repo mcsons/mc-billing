@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Save, Search, X, Pencil, Trash2, Calendar as CalendarIcon } from 'lucide-react'
+import { Save, Search, X, Pencil, Trash2, Calendar as CalendarIcon, Printer } from 'lucide-react'
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/table';
 import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
+import { useLoading } from '@/context/LoadingContext';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Indian number format helper
 const formatINR = (n: number) =>
@@ -45,12 +47,14 @@ export default function PaymentsPage() {
     } = useData();
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
+    const { setLoading } = useLoading();
 
     // ── Record Payment form ──────────────────────────────────────────────────
     const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState('');
-    const [recordDate, setRecordDate] = useState<Date>(new Date());
+    const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
+    const [paymentMode, setPaymentMode] = useState<"Cash" | "ACC" | "UPI">('Cash');
 
     // ── Customer Statement ───────────────────────────────────────────────────
     const [historySelectedCustomerId, setHistorySelectedCustomerId] = useState('');
@@ -66,6 +70,8 @@ export default function PaymentsPage() {
     const [editAmount, setEditAmount] = useState('');
     const [editNotes, setEditNotes] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [editPaymentMode, setEditPaymentMode] = useState<"Cash" | "ACC" | "UPI">('Cash');
+    const [editRecordDate, setEditRecordDate] = useState<Date | undefined>(new Date());
 
     // ── History filters ──────────────────────────────────────────────────────
     const [historyFilterCustomerId, setHistoryFilterCustomerId] = useState('');
@@ -110,7 +116,7 @@ export default function PaymentsPage() {
 
     const historySelectedCustomer = customers.find(c => c.id === historySelectedCustomerId);
 
-    const handleSubmitPayment = () => {
+    const handleSubmitPayment = async () => {
         const paymentAmount = parseFloat(amount);
         if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
             toast({
@@ -121,9 +127,54 @@ export default function PaymentsPage() {
             return;
         }
 
-        addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, date: recordDate });
-        toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en} on ${format(recordDate, 'dd-MM-yyyy')}.` });
-        setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setRecordDate(new Date());
+        setIsSaving(true);
+        setLoading(true, 'Recording Payment...');
+
+        try {
+            await addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, paymentMode, date: recordDate });
+            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en} on ${format(recordDate, 'dd-MM-yyyy')}.` });
+            setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment.' });
+        } finally {
+            setIsSaving(false);
+            setLoading(false);
+        }
+    };
+
+    const handleRecordAndPrint = async () => {
+        const paymentAmount = parseFloat(amount);
+        if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
+            toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a customer and enter a valid amount.' });
+            return;
+        }
+
+        setIsSaving(true);
+        setLoading(true, 'Recording & Preparing Print...');
+
+        try {
+            await addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, paymentMode, date: recordDate });
+
+            const printData = {
+                customer: recordSelectedCustomer,
+                receivedDate: recordDate ? recordDate.toISOString() : new Date().toISOString(),
+                receivedCash: paymentAmount,
+                paymentMode: paymentMode,
+                prevBalance: currentBalance,
+                finalBalance: newBalance
+            };
+
+            sessionStorage.setItem('paymentReceiptData', JSON.stringify(printData));
+            window.open('/print/payment-receipt?paper=thermal', '_blank');
+
+            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en}.` });
+            setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment.' });
+        } finally {
+            setIsSaving(false);
+            setLoading(false);
+        }
     };
 
     const handleSearchPayments = () => {
@@ -139,7 +190,12 @@ export default function PaymentsPage() {
     const handleEditClick = (tx: Transaction) => {
         setEditingTx(tx);
         setEditAmount(String(tx.receivedAmount ?? ''));
-        setEditNotes(tx.description === 'Payment Received' ? '' : tx.description);
+        const desc = tx.description || '';
+        setEditNotes(desc === 'Payment Received' || desc.endsWith('Payment') ? '' : desc);
+        let modeToSet: string = tx.paymentMode || 'Cash';
+        if (modeToSet === 'Bank') modeToSet = 'ACC';
+        setEditPaymentMode(modeToSet as "Cash" | "ACC" | "UPI");
+        setEditRecordDate(tx.date);
         setEditModalOpen(true);
     };
 
@@ -153,7 +209,7 @@ export default function PaymentsPage() {
 
         setIsSaving(true);
         try {
-            await updatePayment(editingTx.paymentId, { amount: newAmt, notes: editNotes });
+            await updatePayment(editingTx.paymentId, { amount: newAmt, notes: editNotes, paymentMode: editPaymentMode, date: editRecordDate });
             toast({ title: 'Payment Updated' });
             setEditModalOpen(false);
         } catch {
@@ -272,6 +328,7 @@ export default function PaymentsPage() {
                                                     "w-full sm:w-[180px] justify-start text-left font-normal h-11",
                                                     !recordDate && "text-muted-foreground"
                                                 )}
+                                                onFocus={() => { if (!recordDate) setRecordDate(new Date()); }}
                                                 onKeyDown={(e) => {
                                                     if (!recordDate) return;
                                                     if (e.key === "ArrowUp") {
@@ -319,6 +376,17 @@ export default function PaymentsPage() {
                                 />
                             </div>
                             <div className="grid gap-2">
+                                <Label htmlFor="payment-mode">Payment Mode</Label>
+                                <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} disabled={!recordSelectedCustomerId || isManager}>
+                                    <SelectTrigger id="payment-mode" className="h-11 text-base"><SelectValue placeholder="Select Mode" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="Cash">Cash</SelectItem>
+                                        <SelectItem value="ACC">ACC</SelectItem>
+                                        <SelectItem value="UPI">UPI</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid gap-2">
                                 <Label htmlFor="notes">Notes (Optional)</Label>
                                 <Textarea
                                     id="notes"
@@ -332,10 +400,15 @@ export default function PaymentsPage() {
 
                         </CardContent>
                         <CardFooter className="p-4 md:p-6 pt-0">
-                            <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager} className="w-full h-12 text-base">
+                        <div className="flex w-full gap-3">
+                            <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
                                 <Save className="mr-2 h-4 w-4" />
                                 Record Payment
                             </Button>
+                            <Button size="lg" variant="secondary" onClick={handleRecordAndPrint} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
+                                    <Printer className="mr-2 h-4 w-4" /> Record & Print
+                                </Button>
+                        </div>
                         </CardFooter>
                     </Card>
                 </div>
@@ -414,6 +487,7 @@ export default function PaymentsPage() {
                                         <TableRow>
                                             <TableHead>Date</TableHead>
                                             <TableHead>Description</TableHead>
+                                            <TableHead>Mode</TableHead>
                                             <TableHead className="text-right">Billed (+)</TableHead>
                                             <TableHead className="text-right">Received (-)</TableHead>
                                             <TableHead className="text-right">Balance</TableHead>
@@ -433,6 +507,7 @@ export default function PaymentsPage() {
                                                         <TableRow key={i}>
                                                             <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
                                                             <TableCell>{t.description}</TableCell>
+                                                            <TableCell>{t.paymentMode || '-'}</TableCell>
                                                             <TableCell className="text-right font-mono text-green-600">{t.billedAmount != null ? formatINR(t.billedAmount) : ''}</TableCell>
                                                             <TableCell className="text-right font-mono text-red-600">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
                                                             <TableCell className="text-right font-mono">{formatINR(t.balance)}</TableCell>
@@ -475,7 +550,10 @@ export default function PaymentsPage() {
                                                 <div key={i} className="rounded-lg border bg-card text-card-foreground p-3 space-y-1.5">
                                                     {/* Top: Date + Description */}
                                                     <div className="flex justify-between items-start gap-2">
-                                                        <span className="text-xs text-muted-foreground whitespace-nowrap">{format(t.date, 'dd-MM-yy')}</span>
+                                                        <div className="flex flex-col items-start gap-1">
+                                                            <span className="text-xs text-muted-foreground whitespace-nowrap">{format(t.date, 'dd-MM-yy')}</span>
+                                                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{t.paymentMode || 'Cash'}</span>
+                                                        </div>
                                                         <span className="text-sm font-medium text-right leading-tight">{t.description}</span>
                                                     </div>
                                                     {/* Amounts row */}
@@ -536,65 +614,50 @@ export default function PaymentsPage() {
             <Separator />
 
             {/* ── Payment History Card ── */}
-            <div className="w-full">
-                <Card className="w-full">
-                    <CardHeader>
-                        <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
-                        <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="px-6 pb-6 pt-4">
-                        {/* Filter row */}
-                        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
-                            {/* Customer — takes remaining space */}
-                            <div className="grid flex-1 min-w-0 gap-2">
-                                <Label>Customer</Label>
-                                <ReactSelect
-                                    instanceId="history-filter-customer"
-                                    options={custOptions}
-                                    value={historyFilterCustomerId ? { value: historyFilterCustomerId, label: customers.find(c => c.id === historyFilterCustomerId)?.name_en } : null}
-                                    onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
-                                    isClearable
-                                    placeholder="Filter by customer..."
-                                    styles={rsStyles}
-                                    filterOption={filterOption}
-                                />
-                            </div>
-
-                            {/* Date picker — fixed width */}
-                            <div className="grid gap-2">
-                                <Label>Date</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline"
-                                            className={cn('w-full sm:w-[180px] justify-start text-left font-normal select-none h-11',
-                                                !historyFilterDate && 'text-muted-foreground')}
-                                            onKeyDown={e => handleDateKeyDown(e, historyFilterDate, d => setHistoryFilterDate(d))}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} initialFocus />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-
-                            {/* Clear button — self-aligns to bottom */}
-                            <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }} className="h-10 shrink-0">
-                                <X className="mr-2 h-4 w-4" /> Clear
-                            </Button>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
+                    <CardDescription>Browse all received entries. Double-click to load into the statement.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+                        <div className="grid flex-1 gap-2">
+                            <Label>Customer</Label>
+                            <ReactSelect instanceId="history-filter-customer"
+                                options={custOptions}
+                                value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
+                                onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
+                                isClearable placeholder="Filter by customer..." styles={rsStyles} filterOption={filterOption} />
                         </div>
+                        <div className="grid gap-2">
+                            <Label>Date</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none h-11', !historyFilterDate && 'text-muted-foreground')}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <Button variant="ghost" onClick={() => { setHistoryFilterCustomerId(''); setHistoryFilterDate(undefined); }}>
+                            <X className="mr-2 h-4 w-4" /> Clear
+                        </Button>
+                    </div>
 
-                        {/* Desktop Table */}
-                    <div className="payments-history-desktop w-full overflow-x-auto rounded-md border border-border">
-                        <Table className="w-full table-fixed text-xs md:text-sm">
+                    {/* Desktop Table */}
+                    <div className="payments-history-desktop overflow-x-auto rounded-md border">
+                        <Table className="w-full min-w-[500px] text-sm">
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-[140px]">Date</TableHead>
-                                    <TableHead className="w-[200px]">Customer</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Mode</TableHead>
                                     <TableHead>Notes</TableHead>
-                                    <TableHead className="text-right w-[160px]">Received Amt</TableHead>
+                                    <TableHead className="text-right">Received Amt</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -603,16 +666,21 @@ export default function PaymentsPage() {
                                         const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
                                         const cust = customers.find(c => c.id === p.customerId);
                                         return (
-                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50 transition-colors" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
-                                                <TableCell className="py-3">{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell className="py-3 truncate">{cust?.name_en || p.customerId}</TableCell>
-                                                <TableCell className="py-3 text-muted-foreground truncate">{p.notes || '-'}</TableCell>
-                                                <TableCell className="py-3 text-right font-mono text-red-600 font-semibold whitespace-nowrap">₹{formatINR(p.amount)}</TableCell>
+                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleHistoryRowDoubleClick(p)}>
+                                                <TableCell>{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
+                                                <TableCell>{cust?.name_en || p.customerId}</TableCell>
+                                                <TableCell>
+                                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
+                                                        {p.paymentMode || 'Cash'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground">{p.notes || '-'}</TableCell>
+                                                <TableCell className="text-right font-mono text-red-600 font-semibold">₹{formatINR(p.amount)}</TableCell>
                                             </TableRow>
                                         );
                                     })
                                 ) : (
-                                    <TableRow><TableCell colSpan={4} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">No payment entries found.</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>
@@ -628,12 +696,16 @@ export default function PaymentsPage() {
                                     <div
                                         key={i}
                                         className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
+                                        style={{ minHeight: '80px', padding: '12px' }}
                                         onDoubleClick={() => handleHistoryRowDoubleClick(p)}
                                     >
                                         {/* Top Row: Customer + Date */}
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
-                                            <span className="text-xs text-muted-foreground">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex flex-col items-start gap-1.5">
+                                                <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
+                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{p.paymentMode || 'Cash'}</span>
+                                            </div>
+                                            <span className="text-xs text-muted-foreground mt-0.5">
                                                 {!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}
                                             </span>
                                         </div>
@@ -653,18 +725,48 @@ export default function PaymentsPage() {
                             </div>
                         )}
                     </div>
-                    </CardContent>
-                </Card>
-            </div>
+                </CardContent>
+            </Card>
 
             {/* ── Edit Modal ── */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
                 <DialogContent>
                     <DialogHeader><DialogTitle>Edit Received Entry</DialogTitle></DialogHeader>
                     <div className="space-y-4 py-2">
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="grid gap-2">
                             <Label htmlFor="edit-amount">Amount (₹)</Label>
                             <Input id="edit-amount" type="number" value={editAmount} onChange={e => setEditAmount(e.target.value)} autoFocus onFocus={e => e.target.select()} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Date</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none h-10', !editRecordDate && 'text-muted-foreground')}
+                                            onFocus={() => { if (!editRecordDate) setEditRecordDate(new Date()); }}
+                                            onKeyDown={e => handleDateKeyDown(e, editRecordDate, setEditRecordDate)}
+                                            onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {editRecordDate ? format(editRecordDate, 'dd-MM-yyyy') : <span>Pick</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={editRecordDate} onSelect={setEditRecordDate} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="edit-payment-mode">Payment Mode</Label>
+                            <Select value={editPaymentMode} onValueChange={(v: any) => setEditPaymentMode(v)}>
+                                <SelectTrigger id="edit-payment-mode"><SelectValue placeholder="Select Mode" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Cash">Cash</SelectItem>
+                                    <SelectItem value="ACC">ACC</SelectItem>
+                                    <SelectItem value="UPI">UPI</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="edit-notes">Notes</Label>

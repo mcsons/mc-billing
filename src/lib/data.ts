@@ -66,6 +66,7 @@ export type Payment = {
     date: any;
     notes?: string;
     isDeleted?: boolean;
+    paymentMode?: "Cash" | "ACC" | "UPI";
 }
 
 export type Transaction = {
@@ -76,6 +77,7 @@ export type Transaction = {
   balance: number;
   type: 'bill' | 'payment';
   paymentId?: string; // Only set for type === 'payment', links to Firestore doc
+  paymentMode?: "Cash" | "ACC" | "UPI";
 };
 
 export type SalesReportData = {
