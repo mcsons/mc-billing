@@ -48,6 +48,7 @@ export default function PaymentsPage() {
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
     const { setLoading } = useLoading();
+    const [recordDateOpen, setRecordDateOpen] = useState(false);
 
     // ── Record Payment form ──────────────────────────────────────────────────
     const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState('');
@@ -72,6 +73,8 @@ export default function PaymentsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [editPaymentMode, setEditPaymentMode] = useState<"Cash" | "ACC" | "UPI">('Cash');
     const [editRecordDate, setEditRecordDate] = useState<Date | undefined>(new Date());
+    const [editDateOpen, setEditDateOpen] = useState(false);
+    
 
     // ── History filters ──────────────────────────────────────────────────────
     const [historyFilterCustomerId, setHistoryFilterCustomerId] = useState('');
@@ -320,7 +323,7 @@ export default function PaymentsPage() {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Date</Label>
-                                    <Popover>
+                                    <Popover open={recordDateOpen} onOpenChange={setRecordDateOpen} modal={true}>
                                         <PopoverTrigger asChild>
                                             <Button
                                                 variant="outline"
@@ -345,12 +348,7 @@ export default function PaymentsPage() {
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0">
-                                            <Calendar
-                                                mode="single"
-                                                selected={recordDate}
-                                                onSelect={(d) => d && setRecordDate(d)}
-                                                initialFocus
-                                            />
+                                        <Calendar mode="single" selected={recordDate} onSelect={(d) => { if (d) setRecordDate(d); setRecordDateOpen(false); }} initialFocus />
                                         </PopoverContent>
                                     </Popover>
                                 </div>
@@ -731,7 +729,7 @@ export default function PaymentsPage() {
                             </div>
                             <div className="grid gap-2">
                                 <Label>Date</Label>
-                                <Popover>
+                                <Popover open={editDateOpen} onOpenChange={setEditDateOpen} modal={true}>
                                     <PopoverTrigger asChild>
                                         <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none h-10', !editRecordDate && 'text-muted-foreground')}
                                             onFocus={() => { if (!editRecordDate) setEditRecordDate(new Date()); }}
@@ -743,7 +741,7 @@ export default function PaymentsPage() {
                                         </Button>
                                     </PopoverTrigger>
                                     <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={editRecordDate} onSelect={setEditRecordDate} initialFocus />
+                                    <Calendar mode="single" selected={editRecordDate} onSelect={(d) => { if (d) setEditRecordDate(d); setEditDateOpen(false); }} initialFocus />
                                     </PopoverContent>
                                 </Popover>
                             </div>
