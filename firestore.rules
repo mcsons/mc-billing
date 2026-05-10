@@ -12,7 +12,7 @@
  * `customers`, `products`, `users`, and `bills`. Bill items are stored in a
  * subcollection (`/bills/{billId}/billItems`). This flat structure simplifies
  * rules and queries. Archived bills are segregated into `/billArchives` to
-- * separate active and inactive data.
+ * separate active and inactive data.
  *
  * Key Security Decisions:
  * - Admin Role: A user is considered an admin if a document with their UID
@@ -81,17 +81,22 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the user's role is CREATOR or ADMIN by reading their user document.
+     * Checks if the user has elevated privileges (Creator or Admin).
+     * Uses the exists() check on roles_admin for performance and reliability.
      */
     function isCreatorOrAdmin() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['CREATOR', 'ADMIN'];
+      return isAdmin();
     }
 
     /**
      * Checks if the user has permission to edit bills (Manager, Admin, or Creator).
+     * Prioritizes the isAdmin check, falling back to reading the user document for Managers.
      */
     function canEditBills() {
-      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['MANAGER', 'CREATOR', 'ADMIN'];
+      return isSignedIn() && (
+        isAdmin() || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'MANAGER'
+      );
     }
 
     /**
@@ -156,6 +161,7 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read, create: if isSignedIn();
       allow update: if isCreatorOrAdmin();
+      allow delete: if isCreatorOrAdmin();
     }
 
     /**
@@ -288,7 +294,7 @@ service cloud.firestore {
      */
     match /vehicleBills/{vehicleBillId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
       allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
       allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
     }
@@ -300,7 +306,7 @@ service cloud.firestore {
      */
     match /partyBills/{partyBillId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
       allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
       allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
     }

@@ -71,7 +71,7 @@ export default function PaymentsPage() {
     const [editAmount, setEditAmount] = useState('');
     const [editNotes, setEditNotes] = useState('');
     const [isSaving, setIsSaving] = useState(false);
-    const [editPaymentMode, setEditPaymentMode] = useState<"Cash" | "ACC" | "UPI">('Cash');
+    const [editPaymentMode, setEditPaymentMode] = useState<"Cash" | "ACC" | "UPI" | "Bill Payment">('Cash');
     const [editRecordDate, setEditRecordDate] = useState<Date | undefined>(new Date());
     const [editDateOpen, setEditDateOpen] = useState(false);
     
@@ -197,7 +197,9 @@ export default function PaymentsPage() {
         setEditNotes(desc === 'Payment Received' || desc.endsWith('Payment') ? '' : desc);
         let modeToSet: string = tx.paymentMode || 'Cash';
         if (modeToSet === 'Bank') modeToSet = 'ACC';
-        setEditPaymentMode(modeToSet as "Cash" | "ACC" | "UPI");
+        // Bill Payment mode is auto-managed; default to Cash for editing
+        if (modeToSet === 'Bill Payment') modeToSet = 'Cash';
+        setEditPaymentMode(modeToSet as "Cash" | "ACC" | "UPI" | "Bill Payment");
         setEditRecordDate(tx.date);
         setEditModalOpen(true);
     };
