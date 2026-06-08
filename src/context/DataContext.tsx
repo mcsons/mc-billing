@@ -18,6 +18,7 @@ import {
   PartyBill,
   PartyBalance,
   SalesReportData,
+  StatementPrintHistory,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay, parseISO } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
@@ -36,7 +37,7 @@ export interface DashboardStats {
   todayBills: number;
   billsChange: number;
   totalPendingBalance: number;
-  activeCustomers: number;
+  todayPaymentsTotal: number;
   recentBills: LiveBillSummary[];
   topProducts: {
     productId: string;
@@ -44,6 +45,12 @@ export interface DashboardStats {
     totalQty: number;
     uom: string;
     percentage: number;
+  }[];
+  allProductsToday: {
+    productId: string;
+    productName: string;
+    totalQty: number;
+    uom: string;
   }[];
 }
 
@@ -120,6 +127,10 @@ interface DataContextType {
   addDriver: (driver: Omit<Driver, 'id' | 'active'|'createdAt'|'updatedAt'>) => void;
   editDriver: (driverId: string, data: Partial<Driver>) => void;
   deleteDriver: (driverId: string) => Promise<void>;
+  statementPrintHistory: StatementPrintHistory[];
+  addStatementPrintHistory: (record: Omit<StatementPrintHistory, 'id' | 'printedAt'>) => Promise<void>;
+  getStatementPrintHistoryForCustomer: (customerId: string) => StatementPrintHistory[];
+  deleteStatementPrintHistory: (recordId: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -178,6 +189,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const paymentsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'payments') : null, [firestore, firebaseUser]);
   const { data: paymentsData } = useCollection<Payment>(paymentsCollection);
   const payments = useMemo(() => paymentsData || [], [paymentsData]);
+
+  const statementPrintHistoryCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'statementPrintHistory') : null, [firestore, firebaseUser]);
+  const { data: statementPrintHistoryData } = useCollection<StatementPrintHistory>(statementPrintHistoryCollection);
+  const statementPrintHistory = useMemo(() => statementPrintHistoryData || [], [statementPrintHistoryData]);
   
   const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({});
   
@@ -199,9 +214,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     todayBills: 0,
     billsChange: 0,
     totalPendingBalance: 0,
-    activeCustomers: 0,
+    todayPaymentsTotal: 0,
     recentBills: [],
     topProducts: [],
+    allProductsToday: [],
   });
 
   const currentUser = useMemo(() => {
@@ -334,15 +350,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const yesterdayBillsCount = yesterdayBillsList.length;
       const billsChange = yesterdayBillsCount > 0 ? todayBillsCount - yesterdayBillsCount : todayBillsCount;
       
-      // Balance and Customer stats
+      // Balance stats
       const totalPendingBalance = Object.values(customerBalances).reduce((sum, bal) => sum + bal, 0);
-      const activeCustomers = new Set(todayBillsList.map(b => b.customerId)).size;
+
+      // Today's Payments total from payments collection
+      const todayPaymentsList = (payments || []).filter(payment => {
+        if (payment.isDeleted) return false;
+        const paymentDate = payment.date instanceof Timestamp ? payment.date.toDate() : new Date(payment.date);
+        return paymentDate >= todayStart && paymentDate <= todayEnd;
+      });
+      const todayPaymentsTotal = todayPaymentsList.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
       // Recent Bills
       const recentBills = todayBillsList.sort((a,b) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis()).slice(0, 5);
 
       // Top Products
       let topProducts: DashboardStats['topProducts'] = [];
+      let allProductsToday: DashboardStats['allProductsToday'] = [];
       if (todayBillsList.length > 0) {
           const billItemsPromises = todayBillsList.map(bill => 
               getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
@@ -369,19 +393,26 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
               }
           });
 
-          const sortedProducts = [...productSales.entries()]
-              .sort(([, a], [, b]) => b.totalQty - a.totalQty)
-              .slice(0, 5);
+          const allSortedProducts = [...productSales.entries()]
+              .sort(([, a], [, b]) => b.totalQty - a.totalQty);
 
-          const maxQty = sortedProducts[0]?.[1].totalQty || 1;
+          const top5Products = allSortedProducts.slice(0, 5);
+          const maxQty = top5Products[0]?.[1].totalQty || 1;
 
-          topProducts = sortedProducts.map(([productId, data]) => ({
+          topProducts = top5Products.map(([productId, data]) => ({
               productId,
               productName: data.name,
               totalQty: data.totalQty,
               uom: data.uom,
               percentage: (data.totalQty / maxQty) * 100,
           }));
+
+          allProductsToday = allSortedProducts.map(([productId, data]) => ({
+            productId,
+            productName: data.name,
+            totalQty: data.totalQty,
+            uom: data.uom,
+        }));
       }
 
       setDashboardStats({
@@ -390,15 +421,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           todayBills: todayBillsCount,
           billsChange,
           totalPendingBalance,
-          activeCustomers,
+          todayPaymentsTotal,
           recentBills,
-          topProducts
+          topProducts,
+          allProductsToday
       });
     };
 
     calculateStats();
 
-  }, [liveBillSummaries, customerBalances, firestore, products, isUserLoading]);
+  }, [liveBillSummaries, customerBalances, payments, firestore, products, isUserLoading]);
   
   
   const logout = () => {
@@ -883,10 +915,59 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
           }
       }
   
-      batch.commit().catch(error => {
+      try {
+        await batch.commit();
+    } catch (error) {
           const pathForError = billNos.length > 0 ? `bills/${billNos[0]}` : 'bills';
           errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: pathForError }));
-      });
+          return;
+      }
+
+      // ── Step 2: Soft-delete any linked payment entries (non-fatal, separate batch) ──
+      // Uses update (isDeleted: true) instead of delete to match existing Firestore rules.
+      // Kept separate so payment rule issues never block bill deletion.
+      try {
+          const paymentBatch = writeBatch(firestore);
+          let hasPaymentOps = false;
+          for (const billNo of billNos) {
+              const linkedPaymentsQuery = query(
+                  collection(firestore, 'payments'),
+                  where('linkedBillId', '==', billNo)
+              );
+              const linkedPaymentsSnap = await getDocs(linkedPaymentsQuery);
+              linkedPaymentsSnap.forEach(payDoc => {
+                  paymentBatch.update(payDoc.ref, { isDeleted: true, updatedAt: serverTimestamp() });
+                  hasPaymentOps = true;
+              });
+          // Fallback: legacy bills (saved before fix) had no linkedBillId.
+              // Their payments were created with notes like "Payment for new bill B1785".
+              // Use in-memory payments array to find and soft-delete them.
+              if (linkedPaymentsSnap.empty) {
+                const billSummary = (liveBillSummaries || []).find(b => b.billNo === billNo);
+                const paidAmt = billSummary?.paidAmount || 0;
+                if (paidAmt > 0) {
+                    const legacyPayment = (payments || []).find(p =>
+                        !p.isDeleted &&
+                        !p.linkedBillId &&
+                        p.customerId === billSummary?.customerId &&
+                        p.amount === paidAmt &&
+                        (p.notes?.includes(billNo) || p.notes?.includes('Bill Payment'))
+                    );
+                    if (legacyPayment) {
+                        const legacyPayRef = doc(firestore, 'payments', legacyPayment.id);
+                        paymentBatch.update(legacyPayRef, { isDeleted: true, updatedAt: serverTimestamp() });
+                        hasPaymentOps = true;
+                    }
+                }
+            }
+        }
+          if (hasPaymentOps) {
+              await paymentBatch.commit();
+          }
+      } catch (e) {
+          // Non-fatal: bill is already deleted. Payment will remain but isDeleted handles filtering.
+          console.error('Failed to soft-delete linked payments after bill deletion:', e);
+      }
     };
 
   const addPayment = async (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => {
@@ -1474,9 +1555,46 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     batch.commit().catch(e => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
     });
+
+
   }, [firestore, currentUser]);
 
+  const addStatementPrintHistory = useCallback(async (record: Omit<StatementPrintHistory, 'id' | 'printedAt'>) => {
+    if (!firestore) return;
+    const col = collection(firestore, 'statementPrintHistory');
+    const payload = {
+      ...record,
+      fromDate: record.fromDate instanceof Date ? Timestamp.fromDate(record.fromDate) : record.fromDate,
+      toDate: record.toDate instanceof Date ? Timestamp.fromDate(record.toDate) : record.toDate,
+      printedAt: serverTimestamp(),
+    };
+    try {
+      await addDoc(col, payload);
+    } catch (e) {
+      console.error('Failed to save statement print history:', e);
+    }
+  }, [firestore]);
 
+  const deleteStatementPrintHistory = useCallback(async (recordId: string) => {
+    if (!firestore) return;
+    try {
+      const docRef = doc(firestore, 'statementPrintHistory', recordId);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error('Failed to delete statement print history:', e);
+      throw e;
+    }
+  }, [firestore]);
+
+  const getStatementPrintHistoryForCustomer = useCallback((customerId: string): StatementPrintHistory[] => {
+    return statementPrintHistory
+      .filter(r => r.customerId === customerId)
+      .sort((a, b) => {
+        const dateA = a.printedAt?.toDate ? a.printedAt.toDate().getTime() : new Date(a.printedAt).getTime();
+        const dateB = b.printedAt?.toDate ? b.printedAt.toDate().getTime() : new Date(b.printedAt).getTime();
+        return dateB - dateA;
+      });
+  }, [statementPrintHistory]);
 
   return (
     <DataContext.Provider
@@ -1539,6 +1657,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         getBill,
         getCustomerLedger,
         getSalesReport,
+        statementPrintHistory,
+        addStatementPrintHistory,
+        getStatementPrintHistoryForCustomer,
+        deleteStatementPrintHistory,
       }}
     >
       {children}

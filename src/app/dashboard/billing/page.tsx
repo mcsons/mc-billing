@@ -73,6 +73,7 @@ import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import { useLoading } from '@/context/LoadingContext';
+import { useBillingGuard } from '@/context/BillingGuardContext';
 import { FishLoader } from '@/components/ui/fish-loader';
 import ReactSelect from 'react-select';
 import {
@@ -119,6 +120,7 @@ export default function BillingPage() {
   const firestore = useFirestore();
   const { isDirty, setIsDirty } = useNavigationGuard();
   const { setLoading } = useLoading();
+  const billingGuard = useBillingGuard();
 
   const {
     customers,
@@ -229,7 +231,8 @@ export default function BillingPage() {
   
   // Print confirmation dialog state
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
-  const [printPaperType, setPrintPaperType] = useState<'a4' | 'thermal'>('thermal');
+  const [printPaperType, setPrintPaperType] = useState<'a4' | 'thermal' | 'thermal3'>('thermal');
+  
 
   const [walkInConfirmed, setWalkInConfirmed] = useState(false);
 
@@ -694,6 +697,63 @@ export default function BillingPage() {
     };
   }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date, manualCustomerName]);
 
+  // ── Billing Guard: sync unsaved state & expose save callback ─────────
+  const hasUnsavedChanges = useMemo(() => {
+    return (
+      selectedCustomerId !== '' ||
+      (localBillItems && localBillItems.length > 0) ||
+      qty !== '' ||
+      rate !== '' ||
+      paidAmount !== '' ||
+      deliveryCharge !== '' ||
+      description !== '' ||
+      activeBillNo !== null ||
+      isPrevBalModified
+    );
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, description, activeBillNo, isPrevBalModified]);
+
+  useEffect(() => {
+    billingGuard.setHasUnsavedChanges(hasUnsavedChanges);
+    return () => billingGuard.setHasUnsavedChanges(false);
+  }, [hasUnsavedChanges]);
+
+  // Warn on browser tab close / reload with unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    billingGuard.saveBillRef.current = async (): Promise<boolean> => {
+      if (isSaving) return false;
+      if (!selectedCustomerId) {
+        toast({ variant: 'destructive', title: 'Customer Required', description: 'Please select a customer or confirm as walk-in to save.' });
+        return false;
+      }
+      try {
+        setIsSaving(true);
+        setLoading(true, 'Saving bill...');
+        const savedData = await handleSaveAndGetData();
+        setLoading(false);
+        if (savedData) {
+          performReset();
+          return true;
+        }
+        return false;
+      } catch {
+        return false;
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    return () => { billingGuard.saveBillRef.current = null; };
+  });
+  // ────────────────────────────────────────────────────────────────────────
+
   const handleSaveAndGetData = async (): Promise<BillPrintData | null> => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
     
@@ -793,6 +853,16 @@ export default function BillingPage() {
         return;
     }
     setPrintPaperType(paper);
+    setShowPrintConfirm(true);
+  };
+
+  const handlePrint3Inch = async () => {
+    // Same flow as Print Receipt — shows the same Save/Print dialog, just with 3-inch paper
+    if (localBillItems.length === 0 && !activeBillNo) {
+      toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please add at least one item.' });
+      return;
+    }
+    setPrintPaperType('thermal3');
     setShowPrintConfirm(true);
   };
 
@@ -1491,7 +1561,10 @@ export default function BillingPage() {
                   }} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1}>{"<"}</Button>
                   <Button id="save-bill-btn" size="lg" className="btn-save" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
                   <Button onClick={() => handlePrintBill('thermal')} disabled={!selectedCustomerId}>Print Receipt</Button>
+                  {/* TEMP DISABLED
                   <Button className="btn-print" onClick={() => handlePrintBill('a4')} disabled={!selectedCustomerId}>Print A4</Button>
+                  */}
+                  <Button variant="secondary" onClick={handlePrint3Inch} disabled={!selectedCustomerId}>Print 3-Inch</Button>
                   <Button variant="outline" className="nav-btn" onClick={() => {
                     if (currentBillIndex > 0) {
                       router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex - 1].billNo}`);
@@ -1711,7 +1784,10 @@ export default function BillingPage() {
             <DropdownMenuContent align="end" className="mb-2 w-48">
               <DropdownMenuItem onClick={handleNewBill}><FilePlus className="mr-2 h-4 w-4" /><span>New Bill</span></DropdownMenuItem>
               <DropdownMenuItem onClick={() => handlePrintBill('thermal')}><Printer className="mr-2 h-4 w-4" /><span>Print Receipt</span></DropdownMenuItem>
+              {/* TEMP DISABLED: Print A4
               <DropdownMenuItem onClick={() => handlePrintBill('a4')}><Printer className="mr-2 h-4 w-4" /><span>Print A4</span></DropdownMenuItem>
+              */}
+              <DropdownMenuItem onClick={handlePrint3Inch}><Printer className="mr-2 h-4 w-4" /><span>Print 3-Inch</span></DropdownMenuItem>
               <DropdownMenuItem onClick={handleShareWhatsApp}><Share className="mr-2 h-4 w-4" /><span>Share WhatsApp</span></DropdownMenuItem>
               <DropdownMenuItem onClick={handleSharePDF}><Share className="mr-2 h-4 w-4" /><span>Share (PDF)</span></DropdownMenuItem>
             </DropdownMenuContent>

@@ -206,9 +206,9 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings: string[] = [];
-  if (totalKgs > 0) qtyStrings.push(`${totalKgs.toFixed(1)} KGS `);
-  if (totalBox > 0) qtyStrings.push(`${Math.round(totalBox)} BOX `);
-  const totalQtyString = qtyStrings.join(',').trim();
+  if (totalKgs > 0) qtyStrings.push(paper === 'thermal3' ? `${totalKgs.toFixed(1)}KGS` : `${totalKgs.toFixed(1)} KGS `);
+  if (totalBox > 0) qtyStrings.push(paper === 'thermal3' ? `${Math.round(totalBox)}BOX` : `${Math.round(totalBox)} BOX `);
+  const totalQtyString = paper === 'thermal3' ? qtyStrings.join(',') : qtyStrings.join(',').trim();
 
   // ─────────────────────────────────────────────────────────────
   //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
@@ -218,15 +218,17 @@ function PrintPageContent() {
   // ─────────────────────────────────────────────────────────────
   const S = {
     cell: (extra?: React.CSSProperties): React.CSSProperties => ({
-      border: '1px solid #bbb',
-      padding: '7px 9px',
+      border: '1px solid #ccc',
+      padding: '5px 6px',
+      fontSize: '12px',
       ...extra,
     }),
     hCell: (extra?: React.CSSProperties): React.CSSProperties => ({
-      border: '1px solid #bbb',
-      padding: '7px 9px',
-      background: '#f4f4f4',
+      border: '1px solid #ccc',
+      padding: '5px 6px',
+      background: '#f0f0f0',
       fontWeight: 'bold' as const,
+      fontSize: '12px',
       ...extra,
     }),
   };
@@ -238,133 +240,99 @@ function PrintPageContent() {
         position: 'fixed',
         left: '-9999px',
         top: 0,
-        width: '210mm',
-        minHeight: '297mm',
-        padding: '15mm',
+        width: '480px',
         background: '#fff',
         color: '#000',
         fontFamily: 'Arial, sans-serif',
         fontSize: '12px',
         boxSizing: 'border-box',
+        padding: '16px',
       }}
     >
       {/* Header */}
-      <header style={{ textAlign: 'center', marginBottom: '10px' }}>
-        <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>
-          M.C &amp; SONS FISH COMPANY
-        </h1>
-        <p style={{ fontSize: '11px', margin: '2px 0' }}>No. 1, Fish Market, Palladam Road,</p>
-        <p style={{ fontSize: '11px', margin: '2px 0' }}>Tiruppur - 641604</p>
-        <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
-      </header>
+      <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
+        <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '0.3px' }}>M.C &amp; SONS FISH COMPANY</div>
+        <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+        <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
+      </div>
 
       {/* Customer Info */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0 6px', fontSize: '12px', fontFamily: 'monospace' }}>
-        <table style={{ textAlign: 'left', width: '55%' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '1px 0', width: '48px' }}>ID</td>
-              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
-              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
-                <strong>{customer?.id === 'WALK-IN' ? '-' : customer?.id}</strong>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ padding: '1px 0' }}>Name</td>
-              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
-              <td style={{ padding: '1px 0', paddingRight: '8px' }}>
-                <strong>
-                  {customer?.id === 'WALK-IN'
-                    ? customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--'
-                    : customer?.name_ta && customer.name_ta !== '--' ? customer.name_ta : (customer?.name_en || '-')}
-                </strong>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <table style={{ textAlign: 'right' }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Bill No</td>
-              <td style={{ padding: '1px 0', width: '16px', textAlign: 'center' }}>:</td>
-              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}><strong>{billNo}</strong></td>
-            </tr>
-            <tr>
-              <td style={{ padding: '1px 0', textAlign: 'left', whiteSpace: 'nowrap' }}>Date</td>
-              <td style={{ padding: '1px 0', textAlign: 'center' }}>:</td>
-              <td style={{ padding: '1px 0', whiteSpace: 'nowrap' }}>
-                <strong>{format(new Date(date), 'dd-MM-yyyy')}</strong>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', margin: '6px 0', fontSize: '11px' }}>
+        <div>
+          <div style={{ fontWeight: 600 }}>ID: {customer?.id === 'WALK-IN' ? '-' : customer?.id}</div>
+          <div style={{ fontWeight: 700, fontSize: '12px', marginTop: '2px' }}>
+            {customer?.id === 'WALK-IN'
+              ? customer?.name_en && customer.name_en !== '--' ? customer.name_en : '--'
+              : customer?.name_ta && customer.name_ta !== '--' ? customer.name_ta : (customer?.name_en || '-')}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div><span style={{ fontWeight: 600 }}>Bill No:</span> {billNo}</div>
+          <div><span style={{ fontWeight: 600 }}>Date:</span> {format(new Date(date), 'dd-MM-yyyy')}</div>
+        </div>
       </div>
 
       {/* Divider */}
-      <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
+      <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
 
       {/* Items Table */}
-      <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '12px' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '12px' }}>
         <thead>
-          <tr>
-            <th style={S.hCell({ textAlign: 'left' })}>Product</th>
-            <th style={S.hCell({ textAlign: 'right', width: '80px' })}>Qty</th>
-            <th style={S.hCell({ textAlign: 'right', width: '80px' })}>Rate</th>
-            <th style={S.hCell({ textAlign: 'right', width: '100px' })}>Amount</th>
+          <tr style={{ background: '#f0f0f0' }}>
+            <th style={{ width: '34%', padding: '5px 4px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Product</th>
+            <th style={{ width: '18%', padding: '5px 4px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
+            <th style={{ width: '20%', padding: '5px 4px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
+            <th style={{ width: '28%', padding: '5px 4px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
           </tr>
         </thead>
         <tbody>
           {items.map((item, idx) => (
             <tr key={item.id} style={{ background: idx % 2 === 1 ? '#fafafa' : '#fff' }}>
-              <td style={S.cell({ textAlign: 'left' })}>{item.product}</td>
-              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{item.qty}{item.uom}</td>
-              <td style={S.cell({ textAlign: 'right' })}>{item.rate.toFixed(2)}</td>
-              <td style={S.cell({ textAlign: 'right', fontWeight: 600 })}>{formatINR(item.amount)}</td>
+              <td style={{ padding: '4px', border: '1px solid #ddd', fontSize: '11px', wordBreak: 'break-word' }}>{item.product}</td>
+              <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{item.qty}{item.uom}</td>
+              <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.rate.toFixed(2)}</td>
+              <td style={{ padding: '4px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{formatINR(item.amount)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
-          <tr>
-            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'left' }}>
-              TOTAL ITEMS: {items.length}
+          <tr style={{ background: '#f0f0f0', fontWeight: 'bold' }}>
+            <td colSpan={2} style={{ padding: '5px 4px', border: '1px solid #ccc', borderTop: '1.5px solid #444', fontSize: '11px' }}>
+              ITEMS: {items.length} &nbsp;|&nbsp; {totalQtyString ? `QTY: ${totalQtyString}` : ''}
             </td>
-            <td colSpan={2} style={{ border: '1px solid #bbb', borderTop: '1.5px solid #444', padding: '6px 9px', background: '#f0f0f0', fontWeight: 'bold', fontSize: '11px', textAlign: 'right' }}>
-              {totalQtyString ? `TOTAL QTY->${totalQtyString}` : ''}
+            <td colSpan={2} style={{ padding: '5px 4px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right', fontSize: '11px' }}>
+              &nbsp;
             </td>
           </tr>
         </tfoot>
       </table>
 
       {/* Summary */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-        <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
-          <tbody>
-            {[
-              { label: 'Items Total',      value: formatINR(itemsTotal) },
-              ...(displayDeliveryCharge > 0 ? [{ label: 'Delivery Charge', value: formatINR(displayDeliveryCharge) }] : []),
-              { label: 'Bill Total',       value: formatINR(itemsTotal + displayDeliveryCharge) },
-              { label: 'Old Balance',      value: formatINR(previousBalance) },
-              { label: 'Net Total',        value: formatINR(itemsTotal + displayDeliveryCharge + previousBalance) },
-              { label: 'Received Amount',  value: formatINR(paidAmount) },
-            ].map(({ label, value }) => (
-              <tr key={label}>
-                <td style={{ padding: '5px 8px', fontWeight: 600, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>{label}</td>
-                <td style={{ padding: '5px 8px', textAlign: 'center', width: '18px', color: '#555', borderBottom: '1px solid #e0e0e0' }}>:</td>
-                <td style={{ padding: '5px 8px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #e0e0e0' }}>₹{value}</td>
-              </tr>
-            ))}
-            <tr>
-              <td style={{ padding: '7px 8px', fontWeight: 'bold', fontSize: '13px', textAlign: 'left', whiteSpace: 'nowrap', borderTop: '1.5px solid #333' }}>Final Balance</td>
-              <td style={{ padding: '7px 8px', textAlign: 'center', color: '#555', borderTop: '1.5px solid #333' }}>:</td>
-              <td style={{ padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px', borderTop: '1.5px solid #333' }}>₹{formatINR(finalBalance)}</td>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+        <tbody>
+          {[
+            { label: 'Items Total', value: formatINR(itemsTotal) },
+            ...(displayDeliveryCharge > 0 ? [{ label: 'Delivery Charge', value: formatINR(displayDeliveryCharge) }] : []),
+            { label: 'Bill Total', value: formatINR(itemsTotal + displayDeliveryCharge) },
+            { label: 'Old Balance', value: formatINR(previousBalance) },
+            { label: 'Net Total', value: formatINR(itemsTotal + displayDeliveryCharge + previousBalance) },
+            { label: 'Received Amount', value: formatINR(paidAmount) },
+          ].map(({ label, value }) => (
+            <tr key={label}>
+              <td style={{ padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid #eee' }}>{label}</td>
+              <td style={{ padding: '4px 2px', textAlign: 'center', color: '#555', borderBottom: '1px solid #eee', width: '12px' }}>:</td>
+              <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>₹{value}</td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+          ))}
+          <tr style={{ borderTop: '2px solid #333' }}>
+            <td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>Final Balance</td>
+            <td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td>
+            <td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(finalBalance)}</td>
+          </tr>
+        </tbody>
+      </table>
 
-      <footer style={{ marginTop: '28px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5', textAlign: 'left' }}>
-        Developed by MC &amp; SONS
-      </footer>
+      <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
     </div>
   );
 
@@ -502,15 +470,15 @@ function PrintPageContent() {
                   <TableCell className="col-product text-left">{item.product}</TableCell>
                   <TableCell className="col-qty text-right">
                     <span className="qty-uom">
-                      <strong>{item.qty}</strong>
-                      <span className="uom-text">{item.uom}</span>
+                    <span className="qty-num">{item.qty}</span>
+                    <strong className="uom-text">{item.uom}</strong>
                     </span>
                   </TableCell>
                   <TableCell className="col-rate text-right font-mono">
                     {item.rate.toFixed(2)}
                   </TableCell>
                   <TableCell className="col-amount text-right font-mono">
-                    {paper === 'a4' ? formatINR(item.amount) : item.amount.toFixed(2)}
+                    {paper === 'a4' ? formatINR(item.amount) : (paper === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
                   </TableCell>
                 </TableRow>
               ))}
@@ -522,11 +490,28 @@ function PrintPageContent() {
               </TableRow>
 
               <TableRow className="combined-summary-row">
-                <TableCell colSpan={4} className="px-1 py-1">
-                  <div className="flex justify-between items-center whitespace-nowrap font-bold text-[11px] uppercase w-full">
-                    <span>Total Items: {items.length}</span>
-                    {totalQtyString && (
-                      <span>Total Qty-&gt;{totalQtyString}</span>
+              <TableCell colSpan={4} className="px-1 py-1" style={{ overflow: 'visible' }}>
+              <div className={paper === 'thermal3' ? "flex justify-between items-center w-full pr-[16px] whitespace-nowrap overflow-hidden font-bold text-[11px] uppercase" : "flex justify-between items-center w-full font-bold text-[11px] uppercase"}>
+                    {paper === 'thermal3' ? (
+                      <>
+                        <span>Total Items:{items.length}</span>
+                        {totalQtyString && (
+                          <>
+                          <span>•</span>
+                          <span>Total Qty-&gt;{totalQtyString}</span>
+                        </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <span>Total Items: {items.length}</span>
+                        {totalQtyString && (
+                        <>
+                          <span>•</span>
+                          <span>Total Qty-&gt;{totalQtyString}</span>
+                        </>
+                        )}
+                      </>
                     )}
                   </div>
                 </TableCell>
@@ -543,7 +528,42 @@ function PrintPageContent() {
           <div className="flex justify-end mt-2 summary-section-wrapper" style={{ breakInside: 'avoid' }}>
             <table className="summary-table">
               <tbody>
-                {paper === 'thermal' ? (
+              {paper === 'thermal3' ? (
+                  <>
+                    <tr className="summary-highlight-row">
+                      <td className="summary-label">Items Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{Math.round(itemsTotal)}</td>
+                    </tr>
+                    {displayDeliveryCharge > 0 && (
+                      <tr>
+                        <td className="summary-label">Delivery</td>
+                        <td className="summary-colon">:</td>
+                        <td className="summary-value font-mono">₹{Math.round(displayDeliveryCharge)}</td>
+                      </tr>
+                    )}
+                    <tr>
+                      <td className="summary-label">Old Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{Math.round(previousBalance)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-highlight-row">
+                      <td className="summary-label">Bill Total</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{Math.round(itemsTotal + displayDeliveryCharge + previousBalance)}</td>
+                    </tr>
+                    <tr>
+                      <td className="summary-label">Received Amount</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{Math.round(paidAmount)}</td>
+                    </tr>
+                    <tr className="summary-divider-row summary-total-row summary-final-balance">
+                      <td className="summary-label">Final Balance</td>
+                      <td className="summary-colon">:</td>
+                      <td className="summary-value font-mono">₹{Math.round(finalBalance)}</td>
+                    </tr>
+                  </>
+                ) : paper === 'thermal' ? (
                   <>
                     <tr>
                       <td className="summary-label">Items Total</td>
@@ -652,6 +672,19 @@ function PrintPageContent() {
             .print-root.thermal #print-area {
                 width: 106mm;
             }
+            .print-root.thermal3 #print-area {
+                width: 78mm;
+                padding: 1rem 0;
+                margin: 1rem auto;
+                margin-left: 0;
+                padding-left: 0;
+            }
+            .print-root.thermal3 {
+                width: 78mm;
+                max-width: 78mm;
+                margin: 0 auto;
+                padding: 0;
+            }
             .print-root.a4 #print-area {
                 width: 210mm;
                 min-height: 297mm;
@@ -692,7 +725,7 @@ function PrintPageContent() {
           }
 
           @page {
-            size: ${paper === 'thermal' ? '106mm auto' : 'A4'};
+            size: ${paper === 'thermal3' ? '78mm auto' : paper === 'thermal' ? '106mm auto' : 'A4'};
             margin: 0;
           }
         }
@@ -858,6 +891,202 @@ function PrintPageContent() {
             font-weight: 800;
             font-style: italic;
             padding-bottom: 5mm;
+          }
+        }
+        /* ===============================
+           3-INCH THERMAL (78mm)
+        ================================ */
+        @media print {
+          .print-root.thermal3 {
+            width: 78mm;
+            max-width: 78mm;
+            margin: 0;
+            margin-left: 0 !important;
+            padding: 0;
+            display: block;
+            font-family: 'Courier New', 'Noto Sans Tamil', monospace !important;
+          }
+
+          .print-root.thermal3 #print-area {
+            padding: 1.5cm 0 10mm 0;
+            margin: 0 !important;
+            margin-left: 0 !important;
+            padding-left: 0 !important;
+            width: 78mm;
+            box-sizing: border-box;
+          }
+
+          .print-root.thermal3 .header-title {
+            font-size: 19px !important;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+            white-space: nowrap;
+          }
+          .print-root.thermal3 .header-sub {
+            display: block;
+            text-align: center;
+            font-size: 13px !important;
+            font-weight: 700;
+            line-height: 1.35;
+            margin-top: 2px;
+          }
+          .print-root.thermal3 .header-phone {
+            margin-top: 4px;
+          }
+          .print-root.thermal3 .hr-line {
+            border-top: 2px solid #000;
+            margin: 6px 0;
+            width: 100%;
+          }
+          .print-root.thermal3 .table-header-line {
+            border-top: 1px solid #000;
+            margin: 0;
+            width: 100%;
+          }
+
+          /* ---- Customer info section (ID / Name / Bill No / Date) ---- */
+          /* Smaller font so Tamil names fit across 78mm */
+          .print-root.thermal3 .mb-2.font-mono {
+            font-size: 12px !important;
+            font-weight: 500;
+          }
+          /* Allow Name to wrap fully -- override Tailwind 'truncate' */
+          .print-root.thermal3 .truncate {
+            overflow: visible !important;
+            white-space: normal !important;
+            text-overflow: clip !important;
+          }
+          /* Give the left (ID/Name) table a bit more room */
+          .print-root.thermal3 .mb-2.font-mono > table:first-child {
+            width: 58% !important;
+          }
+          /* Right (Bill No / Date) table: auto-width, all cells left-aligned */
+          /* so there is no dead gap between label and value                  */
+          .print-root.thermal3 .mb-2.font-mono > table:last-child {
+            width: auto !important;
+            text-align: left !important;
+          }
+          .print-root.thermal3 .mb-2.font-mono > table:last-child td {
+            text-align: left !important;
+            white-space: nowrap;
+            padding-left: 1px;
+            padding-right: 2px;
+          }
+          /* ---- End customer info ---- */
+
+          .print-root.thermal3 .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+
+          .print-root.thermal3 .print-table th,
+          .print-root.thermal3 .print-table td {
+            border: none;
+            padding: 2px 1px;
+            vertical-align: middle !important;
+            white-space: nowrap;
+          }
+
+          .print-root.thermal3 .combined-summary-row div {
+            font-size: 10px !important;
+          }
+
+          .print-root.thermal3 .print-table thead th {
+            font-weight: 700 !important;
+            font-size: 13px !important;
+            padding-top: 2px !important;
+            padding-bottom: 2px !important;
+          }
+
+          .print-root.thermal3 .header-row-divider td {
+            padding: 0 !important;
+          }
+
+          .print-root.thermal3 .text-center { text-align: center !important; }
+          .print-root.thermal3 .text-left   { text-align: left !important; }
+          .print-root.thermal3 .text-right  { text-align: right !important; }
+          /* Override text-right specifically for the info-table wrapper */
+          .print-root.thermal3 .mb-2.font-mono > table.text-right {
+            text-align: left !important;
+          }
+
+          .print-root.thermal3 .print-table tbody td {
+            font-weight: 400 !important;
+            font-size: 12.5px;
+            line-height: 1.35;
+          }
+
+          /* 3-inch column widths - rebalanced to prevent wrap */
+          .print-root.thermal3 .col-product {
+            width: 34%;
+            font-size: 12px !important;
+            line-height: 1.35;
+            white-space: normal !important;
+            word-wrap: break-word;
+            word-break: break-word;
+            padding-right: 2px;
+          }
+          .print-root.thermal3 .col-qty    { width: 20%; }
+          .print-root.thermal3 .col-rate   { width: 18%; }
+          .print-root.thermal3 .col-amount {
+            width: 28%;
+            white-space: nowrap;
+            overflow: visible;
+            text-overflow: clip;
+          }
+
+          .print-root.thermal3 .uom-text {
+            margin-left: 2px;
+            font-weight: 700 !important;
+          }
+          .print-root.thermal3 .qty-num {
+            font-weight: 700 !important;
+          }
+
+          .print-root.thermal3 .summary-table {
+            width: 100%;
+            max-width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            font-weight: 700;
+          }
+          .print-root.thermal3 .summary-table td {
+            padding: 1px 2px;
+          }
+          .print-root.thermal3 .summary-label { text-align: left; white-space: nowrap; }
+          .print-root.thermal3 .summary-colon { width: 10px; text-align: center; }
+          .print-root.thermal3 .summary-value { text-align: right; white-space: nowrap; overflow: visible; }
+          .print-root.thermal3 .summary-total-row td { font-weight: bold; }
+          .print-root.thermal3 .summary-divider-row td { border-top: 1px solid black; }
+          .print-root.thermal3 .summary-final-balance td { font-size: 15px; font-weight: 800; }
+
+          /* Highlighted summary rows: Items Total, Bill Total, Final Balance */
+          .print-root.thermal3 .summary-highlight-row td {
+            font-size: 15px;
+            font-weight: 700;
+          }
+
+          /* Summary wrapper: full width on 3-inch thermal */
+          .print-root.thermal3 .summary-section-wrapper {
+            justify-content: flex-start !important;
+            width: 100% !important;
+          }
+
+          .print-root.thermal3 .print-footer {
+            margin-top: 10mm;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 800;
+            font-style: italic;
+            padding-bottom: 5mm;
+          }
+
+          /* 3-inch thermal: no page breaks, continuous feed */
+          @media print {
+            thead { display: table-row-group !important; }
+            tr { page-break-inside: avoid; }
           }
         }
         /* ===============================

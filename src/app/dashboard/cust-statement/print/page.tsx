@@ -22,17 +22,18 @@ interface PrintData {
     dateRange: { from?: string, to?: string };
 }
 
-function PrintPaymentsContent() {
+function PrintPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'thermal';
   const [printData, setPrintData] = useState<PrintData | null>(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('paymentsReportData');
-    if (stored) {
+    const data = searchParams.get('data');
+    if (data) {
       try {
-        const parsedData = JSON.parse(stored, (key, value) => {
+        const decodedData = decodeURIComponent(data);
+        const parsedData = JSON.parse(decodedData, (key, value) => {
             if ((key === 'from' || key === 'to' || key === 'date') && value) {
                 return new Date(value);
             }
@@ -41,15 +42,12 @@ function PrintPaymentsContent() {
         setPrintData(parsedData);
       } catch (error) {
         console.error('Failed to parse print data:', error);
-        router.push('/dashboard/payments');
+        router.push('/dashboard/cust-statement');
       }
     } else {
-      router.push('/dashboard/payments');
+      router.push('/dashboard/cust-statement');
     }
-    return () => {
-      sessionStorage.removeItem('paymentsReportData');
-    };
-  }, [router]);
+  }, [searchParams, router]);
 
   if (!printData) {
     return (
@@ -66,18 +64,27 @@ function PrintPaymentsContent() {
     dateRange,
   } = printData;
 
-  const totalBilled = transactions.reduce((sum, t) => sum + (t.billedAmount || 0), 0);
-  const totalReceived = transactions.reduce((sum, t) => sum + (t.receivedAmount || 0), 0);
+  const dailySummary = transactions.reduce((acc, t) => {
+    const dateStr = format(t.date, 'yyyy-MM-dd');
+    if (!acc[dateStr]) {
+        acc[dateStr] = { date: t.date, billed: 0, received: 0 };
+    }
+    acc[dateStr].billed += t.billedAmount || 0;
+    acc[dateStr].received += t.receivedAmount || 0;
+    return acc;
+  }, {} as Record<string, { date: Date; billed: number; received: number; }>);
 
-  const prevBalance = openingBalance;
-  const nettAmount = prevBalance + totalBilled;
-  const finalBalance = nettAmount - totalReceived;
+  const dailyTransactions = Object.values(dailySummary).sort((a,b) => a.date.getTime() - b.date.getTime());
 
+  const totalBilled = dailyTransactions.reduce((sum, day) => sum + day.billed, 0);
+  const totalReceived = dailyTransactions.reduce((sum, day) => sum + day.received, 0);
+
+  const finalBalance = openingBalance + totalBilled - totalReceived;
 
   return (
     <div>
-        <div className="p-4 print:hidden flex justify-between items-center">
-          <Button variant="outline" onClick={() => window.close()} className="text-foreground">
+        <div className="flex justify-between items-center mb-4 p-4 print:hidden">
+          <Button variant="outline" onClick={() => window.close()}>
             <X className="mr-2 h-4 w-4" />
             Close Preview
           </Button>
@@ -91,10 +98,10 @@ function PrintPaymentsContent() {
             <header className="text-center">
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
-                No. 1, Fish Market, Palladam Road,<br />
-                Tiruppur - 641604
+                No. 1, Fish Market, Palladam Road,
+                <span className="city">Tiruppur - 641604</span>
               </p>
-              <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
+              <p className="header-sub header-phone">📞 9894089889</p>
             </header>
             <div className="hr-line"></div>
             <h2 className="text-lg font-semibold my-1 text-center">Customer Statement</h2>
@@ -106,10 +113,10 @@ function PrintPaymentsContent() {
                 </div>
                 <div className="text-right">
                     {dateRange.from && (
-                         <p className="bill-date"><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
+                         <p><span className="font-semibold">From:</span> <strong>{format(new Date(dateRange.from), 'dd-MM-yyyy')}</strong></p>
                     )}
                     {dateRange.to && (
-                         <p className="bill-date"><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
+                         <p><span className="font-semibold">To:</span> <strong>{format(new Date(dateRange.to), 'dd-MM-yyyy')}</strong></p>
                     )}
                 </div>
             </div>
@@ -133,67 +140,44 @@ function PrintPaymentsContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.length > 0 ? (
-                  transactions.map((t, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
-                      <TableCell className="col-billed text-right">
-                        {t.billedAmount ? t.billedAmount.toFixed(2) : '-'}
-                      </TableCell>
-                      <TableCell className="col-received text-right">
-                        {t.receivedAmount ? t.receivedAmount.toFixed(2) : '-'}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center py-4">No transactions</TableCell>
+                {dailyTransactions.map((t, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="col-date">{format(t.date, 'dd-MM-yyyy')}</TableCell>
+                    <TableCell className="col-billed text-right">
+                      {t.billed > 0 ? t.billed.toFixed(2) : '-'}
+                    </TableCell>
+                    <TableCell className="col-received text-right">
+                      {t.received > 0 ? t.received.toFixed(2) : '-'}
+                    </TableCell>
                   </TableRow>
-                )}
+                ))}
                  <TableRow>
                   <TableCell colSpan={3} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
-                <TableRow>
-                    <TableCell className="col-date font-bold">Total</TableCell>
-                    <TableCell className="col-billed text-right font-bold">{totalBilled.toFixed(2)}</TableCell>
-                    <TableCell className="col-received text-right font-bold">{totalReceived.toFixed(2)}</TableCell>
-                </TableRow>
               </TableBody>
             </Table>
             
             <div className="flex justify-end mt-2">
-            <div className="w-full max-w-[300px] totals-section">
-                    <table className="summary-table">
-                        <tbody>
-                            <tr>
-                                <td className="summary-label">Prev Balance</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{prevBalance.toFixed(2)}</td>
-                            </tr>
-                            <tr>
-                                <td className="summary-label">Bill Amount (+)</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{totalBilled.toFixed(2)}</td>
-                            </tr>
-                            <tr className="summary-divider-row">
-                                <td className="summary-label">NETT Amount</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{nettAmount.toFixed(2)}</td>
-                            </tr>
-                            <tr>
-                                <td className="summary-label">Received (-)</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{totalReceived.toFixed(2)}</td>
-                            </tr>
-                            <tr className="summary-divider-row summary-final-balance">
-                                <td className="summary-label">Final Balance</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-mono">₹{finalBalance.toFixed(2)}</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                 <div className="w-full max-w-[300px] space-y-1 totals-section">
+                    <div className="flex justify-between">
+                        <span>Opening Balance:</span>
+                        <span>₹{openingBalance.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>Total Billed:</span>
+                        <span>₹{totalBilled.toFixed(2)}</span>
+                    </div>
+                     <div className="flex justify-between">
+                        <span>Total Received:</span>
+                        <span>₹{totalReceived.toFixed(2)}</span>
+                    </div>
+                    <div className="hr-line my-1"></div>
+                    <div className="flex justify-between final-balance">
+                        <span>Final Balance:</span>
+                        <span>₹{finalBalance.toFixed(2)}</span>
+                    </div>
                 </div>
             </div>
 
@@ -201,25 +185,6 @@ function PrintPaymentsContent() {
           </div>
         </div>
         <style jsx global>{`
-        /* ===============================
-          SCREEN PREVIEW STYLES
-        ================================ */
-        @media screen {
-            #print-area {
-                background: white;
-                color: black;
-                margin: 2rem auto;
-            }
-
-            .print-root.thermal #print-area {
-                width: 106mm;
-            }
-            .print-root.a4 #print-area {
-                width: 210mm;
-                min-height: 297mm;
-            }
-        }
-        
         /* ===============================
           GLOBAL PRINT
         ================================ */
@@ -236,11 +201,6 @@ function PrintPaymentsContent() {
             background: white !important;
             print-color-adjust: exact;
           }
-          
-          #print-area {
-              margin: 0;
-              padding: 0;
-          }
 
           .print\\:hidden {
             display: none !important;
@@ -248,12 +208,9 @@ function PrintPaymentsContent() {
         }
 
         /* ===============================
-          THERMAL (106mm)
+          THERMAL (106mm) - Copied from Main Bill Print
         ================================ */
         @media print {
-          .print-root.thermal #print-area {
-            padding: 2mm 4mm 18mm 4mm;
-          }
           .print-root.thermal {
             width: 106mm;
             max-width: 106mm;
@@ -261,10 +218,9 @@ function PrintPaymentsContent() {
             font-family: 'Courier New', 'Lucida Console', monospace !important;
           }
 
-          h2.text-lg {
-             font-size: 16px !important;
-             line-height: 1.4;
-             font-weight: 700;
+          #print-area {
+            padding: 2mm 4mm 18mm 4mm;
+            margin-top: 0;
           }
 
           .header-title {
@@ -302,17 +258,6 @@ function PrintPaymentsContent() {
             font-size: 15px;
           }
 
-          .bill-no > strong,
-          .bill-date > strong {
-            font-weight: 700;
-          }
-          
-          .text-lg {
-             font-size: 16px !important;
-             line-height: 1.4;
-             font-weight: 700;
-          }
-
           .print-table {
             width: 100%;
             border-collapse: collapse;
@@ -335,53 +280,30 @@ function PrintPaymentsContent() {
 
           .print-table tbody td {
             font-weight: 700 !important;
-            font-size: 13px;
+            font-size: 13px; /* Slightly larger for readability */
             padding: 2px 4px;
             vertical-align: top;
           }
+
+          /* Adapted Columns for Statement */
+          .col-date { width: 34%; text-align: left; }
+          .col-billed { width: 33%; text-align: right; }
+          .col-received { width: 33%; text-align: right; }
+
+          .totals-section > div,
+          .totals-section span {
+            font-size: 15px !important;
+            font-weight: 700 !important;
+          }
           
-          /* Opening Balance Custom Styles */
-          .opening-value {
-            text-align: center !important;
-            font-size: 14.5px !important; /* 13px base + 1.5px */
+          .totals-section .hr-line {
+            margin: 2px 0;
+          }
+
+          .final-balance,
+          .final-balance span {
+            font-size: 16px !important;
             font-weight: 800 !important;
-          }
-          
-          .col-date { width: 40%; text-align: left; }
-          .col-billed { width: 30%; text-align: right; }
-          .col-received { width: 30%; text-align: right; }
-
-          .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 15px;
-            font-weight: 700;
-          }
-          .summary-table td {
-            padding: 1px 4px;
-          }
-          
-          .summary-label {
-            text-align: left;
-            white-space: nowrap;
-          }
-          .summary-colon {
-            width: 10px;
-            text-align: center;
-          }
-          .summary-value {
-            text-align: right;
-            white-space: nowrap;
-          }
-          .summary-divider-row td {
-            border-top: 2px solid black;
-            padding-top: 4px;
-            margin-top: 2px;
-          }
-
-          .summary-final-balance td {
-            font-size: 16px;
-            font-weight: 800;
           }
 
           .print-footer {
@@ -397,14 +319,15 @@ function PrintPaymentsContent() {
           A4 PRINT
         ================================ */
         @media print {
-          .print-root.a4 #print-area {
-            padding: 15mm;
-          }
           .print-root.a4 {
             width: 210mm;
             margin: 0 auto;
             font-family: Arial, sans-serif;
             font-size: 12px;
+          }
+
+          .print-root.a4 #print-area {
+            padding: 15mm;
           }
 
           .print-root.a4 .print-table {
@@ -437,7 +360,7 @@ function PrintPaymentsContent() {
 export default function PrintPaymentsPage() {
     return (
       <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
-        <PrintPaymentsContent />
+        <PrintPageContent />
       </Suspense>
     );
   }

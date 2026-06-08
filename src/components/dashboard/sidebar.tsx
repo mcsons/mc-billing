@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   ClipboardList,
   Fish,
@@ -48,6 +48,15 @@ import { ThemeToggle } from '../ui/theme-toggle';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/context/LoadingContext';
 import { useNavigationGuard } from '@/context/NavigationGuardContext';
+import { useBillingGuard } from '@/context/BillingGuardContext';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+} from '@/components/ui/alert-dialog';
 
 type NavItem = {
   href: string;
@@ -72,8 +81,8 @@ const coreOperations: NavItem[] = [
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
-  { href: '/dashboard/payments', label: 'Payments', icon: Wallet },
-  { href: '/dashboard/received', label: 'Received', icon: IndianRupee },
+  { href: '/dashboard/payments', label: 'Payments', icon: IndianRupee },
+  { href: '/dashboard/cust-statement', label: 'Cust Statement', icon: History },
 ];
 
 const balancesSubItems: NavItem[] = [
@@ -110,6 +119,7 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
     const { setLoading } = useLoading();
     const { confirmNavigation } = useNavigationGuard();
     const currentUserRole = currentUser?.role;
+    const { guardedNavigate } = useGuardedNav();
 
     const isMenuItemActive = (href: string, exact = false) => {
         if (exact) {
@@ -134,7 +144,13 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
         (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
             <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, !!item.exact)}>
-                <Link href={item.href} onClick={() => setLoading(true, getNavLoadingMessage(item.label))}>
+                <Link
+                      href={item.href}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        guardedNavigate(item.href, item.label);
+                      }}
+                    >
                         <item.icon />
                         <span>{item.label}</span>
                     </Link>
@@ -144,13 +160,24 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
     );
 };
 
+// ── Guarded Navigation Context (scoped to sidebar) ────────────────────
+type GuardedNavCtx = {
+    guardedNavigate: (href: string, label: string) => void;
+  };
+  const GuardedNavContext = React.createContext<GuardedNavCtx>({
+    guardedNavigate: () => {},
+  });
+  const useGuardedNav = () => React.useContext(GuardedNavContext);
+
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { currentUser } = useData();
   const { confirmNavigation } = useNavigationGuard();
   const currentUserRole = currentUser?.role;
   const { setOpenMobile, setOpen } = useSidebar();
   const { setLoading } = useLoading();
+  const billingGuard = useBillingGuard();
   
   // Track the last pathname to only trigger auto-close on actual navigation
   const lastPathnameRef = React.useRef(pathname);
@@ -158,6 +185,54 @@ export function DashboardSidebar() {
   const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+
+  // ── Unsaved changes dialog state ──────────────────────────────────────
+  const [guardDialog, setGuardDialog] = React.useState<{
+    open: boolean;
+    targetHref: string;
+    targetLabel: string;
+  }>({ open: false, targetHref: '', targetLabel: '' });
+
+  const navigateTo = React.useCallback((href: string, label: string) => {
+    setLoading(true, getNavLoadingMessage(label));
+    router.push(href);
+  }, [router, setLoading]);
+
+  const guardedNavigate = React.useCallback((href: string, label: string) => {
+    // If we're on the billing page and there are unsaved changes
+    const isOnBilling = pathname === '/dashboard/billing';
+    if (isOnBilling && billingGuard.hasUnsavedChanges && href !== '/dashboard/billing') {
+      setGuardDialog({ open: true, targetHref: href, targetLabel: label });
+      return;
+    }
+    navigateTo(href, label);
+  }, [pathname, billingGuard.hasUnsavedChanges, navigateTo]);
+
+  const handleGuardSaveAndContinue = React.useCallback(async () => {
+    setGuardDialog(prev => ({ ...prev, open: false }));
+    const saveFn = billingGuard.saveBillRef.current;
+    if (saveFn) {
+      const success = await saveFn();
+      if (success) {
+        navigateTo(guardDialog.targetHref, guardDialog.targetLabel);
+      }
+      // If save fails, stay on billing (dialog already closed, user sees the toast)
+    }
+  }, [billingGuard.saveBillRef, guardDialog.targetHref, guardDialog.targetLabel, navigateTo]);
+
+  const handleGuardContinueWithout = React.useCallback(() => {
+    setGuardDialog(prev => ({ ...prev, open: false }));
+    billingGuard.setHasUnsavedChanges(false);
+    navigateTo(guardDialog.targetHref, guardDialog.targetLabel);
+  }, [billingGuard, guardDialog.targetHref, guardDialog.targetLabel, navigateTo]);
+
+  const handleGuardCancel = React.useCallback(() => {
+    setGuardDialog(prev => ({ ...prev, open: false }));
+  }, []);
+
+  const guardedNavValue = React.useMemo(() => ({ guardedNavigate }), [guardedNavigate]);
+  // ─────────────────────────────────────────────────────────────────────
+
 
   const isMenuItemActive = React.useCallback((href: string, exact = false) => {
     if (exact) {
@@ -203,6 +278,7 @@ export function DashboardSidebar() {
   };
 
   return (
+    <GuardedNavContext.Provider value={guardedNavValue}>
       <Sidebar>
         <SidebarHeader className="flex items-center justify-between p-2">
             <Button 
@@ -229,7 +305,13 @@ export function DashboardSidebar() {
                     {balancesSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
+                                <Link
+                                  href={subItem.href}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    guardedNavigate(subItem.href, subItem.label);
+                                  }}
+                                >
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -256,7 +338,13 @@ export function DashboardSidebar() {
                       {manageSubItems.map(subItem => (
                           (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
+                                <Link
+                                  href={subItem.href}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    guardedNavigate(subItem.href, subItem.label);
+                                  }}
+                                >
                                     <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
                                         <subItem.icon />
                                         <span>{subItem.label}</span>
@@ -283,13 +371,19 @@ export function DashboardSidebar() {
                     {settingsSubItems.map(subItem => (
                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                                <Link href={subItem.href} onClick={() => setLoading(true, getNavLoadingMessage(subItem.label))}>
-                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
-                                        <subItem.icon />
-                                        <span>{subItem.label}</span>
-                                    </SidebarMenuSubButton>
-                                </Link>
-                            </SidebarMenuSubItem>
+                            <Link
+                              href={subItem.href}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                guardedNavigate(subItem.href, subItem.label);
+                              }}
+                            >
+                                <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                    <subItem.icon />
+                                    <span>{subItem.label}</span>
+                                </SidebarMenuSubButton>
+                            </Link>
+                        </SidebarMenuSubItem>
                          )
                     ))}
                 </SidebarMenuSub>
@@ -301,5 +395,30 @@ export function DashboardSidebar() {
             <ThemeToggle />
         </SidebarFooter>
       </Sidebar>
+
+      
+      {/* Unsaved Billing Changes — 3-option Dialog */}
+      <AlertDialog open={guardDialog.open} onOpenChange={(open) => { if (!open) handleGuardCancel(); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved Bill</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have an unsaved bill in progress. What would you like to do?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button onClick={handleGuardSaveAndContinue} className="w-full">
+              Save Bill &amp; Continue
+            </Button>
+            <Button variant="secondary" onClick={handleGuardContinueWithout} className="w-full">
+              Continue Without Saving
+            </Button>
+            <Button variant="outline" onClick={handleGuardCancel} className="w-full">
+              Cancel
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </GuardedNavContext.Provider>
   );
 }

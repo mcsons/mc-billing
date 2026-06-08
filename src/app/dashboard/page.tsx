@@ -6,12 +6,13 @@ import {
   FileText,
   IndianRupee,
   Tag,
-  Users,
+  X,
   Users2,
   Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import { useData } from '@/context/DataContext';
 export default function DashboardPage() {
   const router = useRouter();
   const { dashboardStats, currentUser } = useData();
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -42,10 +44,12 @@ export default function DashboardPage() {
     todayBills = 0,
     billsChange = 0,
     totalPendingBalance = 0,
-    activeCustomers = 0,
+    todayPaymentsTotal = 0,
     recentBills = [],
     topProducts = [],
+    allProductsToday = [],
   } = dashboardStats || {};
+
 
   return (
     <div className="flex flex-col gap-8">
@@ -119,16 +123,18 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Active Customers
+            Today&apos;s Payments
             </CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20 text-purple-600">
-              <Users className="h-5 w-5" />
+            <Wallet className="h-5 w-5" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeCustomers}</div>
+          <div className="text-2xl font-bold">
+              ₹{todayPaymentsTotal.toLocaleString('en-IN')}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Customers billed today
+            Total payments received today
             </p>
           </CardContent>
         </Card>
@@ -184,9 +190,19 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Top Products Today</CardTitle>
-            <CardDescription>Most sold items by quantity.</CardDescription>
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Top Products Today</CardTitle>
+              <CardDescription>Most sold items by quantity.</CardDescription>
+            </div>
+            <Button
+              size="sm"
+              className="ml-auto gap-1"
+              onClick={() => setShowAllProducts(true)}
+            >
+              View All
+              <ArrowRight className="h-4 w-4" />
+            </Button>
           </CardHeader>
           <CardContent className="grid gap-6">
             {topProducts.length > 0 ? (
@@ -219,6 +235,74 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* View All Products Modal */}
+      {showAllProducts && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowAllProducts(false)}
+        >
+          <div
+            className="relative bg-card text-card-foreground border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <div>
+              <h2 className="text-lg font-bold text-foreground">All Products Today</h2>
+                <p className="text-sm text-muted-foreground">
+                  Sorted by highest quantity sold
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 shrink-0"
+                onClick={() => setShowAllProducts(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="overflow-y-auto flex-1 p-6">
+              {allProductsToday.length > 0 ? (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-muted-foreground border-b">
+                      <th className="pb-3 font-medium">#</th>
+                      <th className="pb-3 font-medium">Product</th>
+                      <th className="pb-3 font-medium text-right">Total Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {allProductsToday.map((product, index) => (
+                      <tr key={product.productId} className="hover:bg-muted/40">
+                        <td className="py-3 pr-3 text-muted-foreground font-medium">
+                          {index + 1}
+                        </td>
+                        <td className="py-3 font-medium">
+                          {product.productName}
+                        </td>
+                        <td className="py-3 text-right font-mono font-semibold">
+                          {product.totalQty % 1 === 0
+                            ? product.totalQty.toFixed(0)
+                            : product.totalQty.toFixed(2)}{' '}
+                          {product.uom}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center text-muted-foreground py-8">
+                  No sales recorded today.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

@@ -174,3 +174,87 @@ export type PartyBill = {
   createdAt?: any;
   updatedAt?: any;
 };
+
+export type StatementPrintHistory = {
+  id: string;
+  customerId: string;
+  customerName: string;
+  fromDate: any;
+  toDate: any;
+  statementAmount: number;
+  printedAt: any;
+  printedBy: string;
+};
+
+/**
+ * BoxBill — represents a document in the `box_bills` Firestore collection.
+ *
+ * Firestore collection: box_bills
+ *
+ * Equivalent SQL schema:
+ *   CREATE TABLE box_bills (
+ *     id               TEXT PRIMARY KEY,   -- e.g. "BB1", "BB2"
+ *     customer_id      UUID NOT NULL REFERENCES customers(id),
+ *     bill_date        DATE NOT NULL,
+ *     prev_balance_box INTEGER NOT NULL DEFAULT 0,
+ *     todays_fish_box  INTEGER NOT NULL DEFAULT 0,
+ *     total_box        INTEGER GENERATED ALWAYS AS (prev_balance_box + todays_fish_box),
+ *     empty_box        INTEGER NOT NULL DEFAULT 0,
+ *     balance_box      INTEGER GENERATED ALWAYS AS (total_box - empty_box),
+ *     description      TEXT,
+ *     driver_mobile    TEXT,
+ *     driver_name      TEXT,
+ *     vehicle_no       TEXT,
+ *     created_by       TEXT NOT NULL,
+ *     created_at       TIMESTAMP,
+ *     updated_at       TIMESTAMP
+ *   );
+ */
+export type BoxBill = {
+  /** Document ID — e.g. "BB1", "BB2" */
+  id: string;
+  /** Foreign key → customers collection */
+  customerId: string;
+  /** Customer name snapshot for display */
+  customerName: string;
+  /** The billing date (Firestore Timestamp or ISO string) */
+  billDate: any;
+  /** Previous box balance carried forward */
+  prevBalanceBox: number;
+  /** Today's fish boxes received */
+  todaysFishBox: number;
+  /** prevBalanceBox + todaysFishBox (computed, stored for history) */
+  totalBox: number;
+  /** Empty boxes returned */
+  emptyBox: number;
+  /** totalBox - emptyBox (computed, stored for history) */
+  balanceBox: number;
+  /** Free-text note */
+  description?: string;
+  /** Driver mobile number */
+  driverMobile?: string;
+  /** Driver name */
+  driverName?: string;
+  /** Vehicle registration number */
+  vehicleNo?: string;
+  /** ID of the user who created the bill */
+  createdBy: string;
+  createdAt?: any;
+  updatedAt?: any;
+};
+
+/**
+ * BoxBillEntry — represents individual box addition transactions throughout the day.
+ * 
+ * Firestore collection: box_bill_entries
+ */
+export type BoxBillEntry = {
+  id: string;
+  boxBillId: string;
+  customerId: string;
+  entryDate: any;
+  boxesAdded: number;
+  createdBy: string;
+  createdAt?: any;
+  updatedAt?: any;
+};

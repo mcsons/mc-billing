@@ -13,35 +13,6 @@
  * subcollection (`/bills/{billId}/billItems`). This flat structure simplifies
  * rules and queries. Archived bills are segregated into `/billArchives` to
  * separate active and inactive data.
- *
- * Key Security Decisions:
- * - Admin Role: A user is considered an admin if a document with their UID
- *   exists in the `/roles_admin` collection. This is the sole mechanism for
- *   granting elevated privileges. Admins have exclusive write access to the
- *   `/users` and `/roles_admin` collections.
- * - Collaborative Writes: Most business data (customers, products, prices) can
- *   be created and modified by any authenticated user, fostering a collaborative
- *   environment.
- * - Bill Ownership: While any authenticated user can create a bill, only the
- *   original creator (as defined by the `createdBy` field), an Admin, a Manager, or a Creator can modify or delete it.
- *   This protects the integrity of billing records while allowing for administrative oversight.
- * - User Data Privacy: Users can only read their own data from the `/users`
- *   collection. Listing all users is now allowed for any signed-in user to
- *   facilitate collaboration within the app, but creation/modification is still restricted.
- *
- * Denormalization for Authorization:
- * Authorization decisions rely on denormalized fields to avoid costly `get()` calls.
- * - The `createdBy` field on `/bills` and the `addedBy` field on `/billItems`
- *   are used to enforce ownership directly on the document being accessed.
- * - The existence of a document in `/roles_admin/{userId}` is used for all
- *   admin checks, which is significantly faster than reading a role field
- *   from a user document.
- *
- * Structural Segregation:
- * Active bills (`/bills`) and archived bills (`/billArchives`) are stored in
- * separate collections. This allows for different security postures (e.g., making
- * archives read-only for regular users) and improves query performance by
- * reducing the size of the active dataset.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -73,26 +44,18 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the requesting user is an administrator.
-     * Admin status is determined by the existence of a document in the /roles_admin collection.
+     * Checks if the requesting user is an administrator via the high-performance
+     * roles_admin collection.
      */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
-     * Checks if the user has elevated privileges (Creator or Admin).
-     * Uses the exists() check on roles_admin for performance and reliability.
+     * A robust check for business roles (Creator, Admin, or Manager).
+     * Combines the fast exists() check with a fallback to the user document.
      */
-    function isCreatorOrAdmin() {
-      return isAdmin();
-    }
-
-    /**
-     * Checks if the user has permission to edit bills (Manager, Admin, or Creator).
-     * Prioritizes the isAdmin check, falling back to checking the user document.
-     */
-    function canEditBills() {
+    function isAuthorizedStaff() {
       return isSignedIn() && (
         isAdmin() || 
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['MANAGER', 'ADMIN', 'CREATOR']
@@ -100,8 +63,17 @@ service cloud.firestore {
     }
 
     /**
+     * Checks specifically for elevated privileges (Creator or Admin).
+     */
+    function isCreatorOrAdmin() {
+      return isSignedIn() && (
+        isAdmin() || 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['ADMIN', 'CREATOR']
+      );
+    }
+
+    /**
      * Ensures an immutable relationship field on update.
-     * Allows partial updates where the field is not present in the request.
      */
     function isImmutable(fieldName) {
       return !(fieldName in request.resource.data) || request.resource.data[fieldName] == resource.data[fieldName];
@@ -111,178 +83,96 @@ service cloud.firestore {
     // Collection Rules
     // -------------------------------------------------------------------------
 
-    /**
-     * @description Manages customer data. Any authenticated user can read, create,
-     *   update, and delete customer information in this collaborative system.
-     * @path /customers/{customerId}
-     */
     match /customers/{customerId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages user profiles. Any authenticated user can read user
-     *   profiles to facilitate collaboration. A user can update their own profile.
-     *   Only admins or creators can create new users or modify/delete others.
-     * @path /users/{userId}
-     */
     match /users/{userId} {
       allow get, list: if isSignedIn();
       allow create: if isOwner(userId) || isCreatorOrAdmin();
       allow update: if isOwner(userId) || isCreatorOrAdmin();
-      allow delete: if isCreatorOrAdmin() && resource != null;
+      allow delete: if isCreatorOrAdmin();
     }
 
-    /**
-     * @description Manages product data. Any authenticated user can manage the
-     *   product catalog.
-     * @path /products/{productId}
-     */
     match /products/{productId} {
       allow read, write: if isSignedIn();
     }
     
-    /**
-     * @description Manages customer payment records. Any authenticated user can
-     *   read and create payments.
-     * @path /payments/{paymentId}
-     */
     match /payments/{paymentId} {
       allow read, create: if isSignedIn();
-      allow update: if isCreatorOrAdmin();
-      allow delete: if isCreatorOrAdmin();
+      allow update, delete: if isAuthorizedStaff();
     }
 
-    /**
-     * @description Manages customer balance information. Any authenticated user
-     *   can read or write balance data.
-     * @path /customerBalances/{customerId}
-     */
     match /customerBalances/{customerId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages daily product prices. Any authenticated user can manage
-     *   the pricing information.
-     * @path /productPrices/{productPriceId}
-     */
     match /productPrices/{productPriceId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages Units of Measure (UOMs). Any authenticated user can manage them.
-     * @path /uoms/{uomId}
-     */
     match /uoms/{uomId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages active billing documents. Any authenticated user can read
-     *   all bills and create new ones. Only the original creator, an Admin, a Manager, or a
-     *   Creator can modify or delete a bill.
-     * @path /bills/{billId}
-     */
     match /bills/{billId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
-      allow update: if isSignedIn() && (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy) || canEditBills();
+      allow create: if isSignedIn() && (isOwner(request.resource.data.createdBy) || isAuthorizedStaff());
+      allow update: if isSignedIn() && (isExistingOwner(resource.data.createdBy) || isAuthorizedStaff()) && isImmutable('createdBy');
+      allow delete: if isAuthorizedStaff() || isExistingOwner(resource.data.createdBy);
 
-      /**
-       * @description Manages items within a bill. Any signed-in user can read items and
-       *   add new ones. Only the user who added an item, an admin, a manager, or a creator can modify or delete it.
-       * @path /bills/{billId}/billItems/{billItemId}
-       */
       match /billItems/{billItemId} {
         allow get, list: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.billId == billId && (request.resource.data.addedBy == request.auth.uid || canEditBills());
-        allow update: if (isExistingOwner(resource.data.addedBy) || canEditBills()) && isImmutable('addedBy') && isImmutable('billId');
-        allow delete: if isExistingOwner(resource.data.addedBy) || canEditBills();
+        allow create: if isSignedIn() && request.resource.data.billId == billId && (isOwner(request.resource.data.addedBy) || isAuthorizedStaff());
+        allow update: if (isExistingOwner(resource.data.addedBy) || isAuthorizedStaff()) && isImmutable('addedBy') && isImmutable('billId');
+        allow delete: if isAuthorizedStaff() || isExistingOwner(resource.data.addedBy);
       }
     }
 
-    /**
-     * @description Manages archived bills. Data is read-only for all authenticated
-     *   users. Only administrators can write or delete archived data.
-     * @path /billArchives/{billId}
-     */
     match /billArchives/{billId} {
       allow get, list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update, delete: if isAdmin() && resource != null;
+      allow create, update, delete: if isCreatorOrAdmin();
     }
 
-    /**
-     * @description Manages administrator roles. Only existing admins or creators can read or
-     *   write to this collection, allowing them to grant or revoke admin privileges.
-     * @path /roles_admin/{userId}
-     */
     match /roles_admin/{userId} {
       allow get: if isSignedIn();
       allow list, update, delete: if isCreatorOrAdmin();
       allow create: if (isOwner(userId) && request.auth.token.email == 'creator@mcandsons.com') || isCreatorOrAdmin();
     }
     
-    /**
-     * @description Manages vehicle data. Any authenticated user can manage.
-     *   Admins and Creators have full control.
-     * @path /vehicles/{vehicleId}
-     */
     match /vehicles/{vehicleId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages driver data. Any authenticated user can manage.
-     *   Admins and Creators have full control.
-     * @path /drivers/{driverId}
-     */
     match /drivers/{driverId} {
       allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages party data. Any authenticated user can manage.
-     * @path /parties/{partyId}
-     */
     match /parties/{partyId} {
         allow read, write: if isSignedIn();
     }
 
-    /**
-     * @description Manages vehicle bills. Any authenticated user can read bills.
-     *   Only the creator, an admin, or manager can modify or delete a bill.
-     * @path /vehicleBills/{vehicleBillId}
-     */
     match /vehicleBills/{vehicleBillId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
-      allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
+      allow create: if isSignedIn() && (isOwner(request.resource.data.createdBy) || isAuthorizedStaff());
+      allow update: if (isExistingOwner(resource.data.createdBy) || isAuthorizedStaff()) && isImmutable('createdBy');
+      allow delete: if isAuthorizedStaff() || isExistingOwner(resource.data.createdBy);
     }
 
-    /**
-     * @description Manages party bills. Any authenticated user can read bills.
-     *   Only the creator, an admin, or manager can modify or delete a bill.
-     * @path /partyBills/{partyBillId}
-     */
     match /partyBills/{partyBillId} {
       allow get, list: if isSignedIn();
-      allow create: if isSignedIn() && (request.resource.data.createdBy == request.auth.uid || canEditBills());
-      allow update: if (isExistingOwner(resource.data.createdBy) || canEditBills()) && isImmutable('createdBy');
-      allow delete: if isExistingOwner(resource.data.createdBy) || isCreatorOrAdmin();
+      allow create: if isSignedIn() && (isOwner(request.resource.data.createdBy) || isAuthorizedStaff());
+      allow update: if (isExistingOwner(resource.data.createdBy) || isAuthorizedStaff()) && isImmutable('createdBy');
+      allow delete: if isAuthorizedStaff() || isExistingOwner(resource.data.createdBy);
     }
     
-    /**
-     * @description Manages party balance information. Any authenticated user
-     *   can read or write balance data.
-     * @path /partyBalances/{partyId}
-     */
     match /partyBalances/{partyId} {
       allow read, write: if isSignedIn();
+    }
+
+    match /statementPrintHistory/{recordId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if isCreatorOrAdmin();
     }
   }
 }

@@ -7,6 +7,7 @@ import { AlertDialogProvider } from '@/context/AlertDialogProvider';
 import { AlertDialogComponent } from '@/components/ui/alert-dialog-component';
 import { DataProvider } from '@/context/DataContext';
 import { NavigationGuardProvider } from '@/context/NavigationGuardContext';
+import { BillingGuardProvider } from '@/context/BillingGuardContext';
 import { useUser } from '@/firebase';
 import { useRouter } from 'next/navigation';
 
@@ -33,6 +34,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
+      <BillingGuardProvider>
       <AlertDialogProvider>
         <div className="flex min-h-screen w-full">
           <div className="print:hidden">
@@ -52,6 +54,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
         <AlertDialogComponent />
       </AlertDialogProvider>
+      </BillingGuardProvider>
     </SidebarProvider>
   );
 }
