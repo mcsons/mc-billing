@@ -530,7 +530,7 @@ function PrintPageContent() {
               <tbody>
               {paper === 'thermal3' ? (
                   <>
-                    <tr className="summary-highlight-row">
+                    <tr>
                       <td className="summary-label">Items Total</td>
                       <td className="summary-colon">:</td>
                       <td className="summary-value font-mono">₹{Math.round(itemsTotal)}</td>
@@ -547,7 +547,7 @@ function PrintPageContent() {
                       <td className="summary-colon">:</td>
                       <td className="summary-value font-mono">₹{Math.round(previousBalance)}</td>
                     </tr>
-                    <tr className="summary-divider-row summary-total-row summary-highlight-row">
+                    <tr className="summary-divider-row summary-total-row">
                       <td className="summary-label">Bill Total</td>
                       <td className="summary-colon">:</td>
                       <td className="summary-value font-mono">₹{Math.round(itemsTotal + displayDeliveryCharge + previousBalance)}</td>
@@ -894,30 +894,24 @@ function PrintPageContent() {
           }
         }
         /* ===============================
-           3-INCH THERMAL (78mm)
+           3-INCH THERMAL (80mm)
         ================================ */
-        @media print {
+         @media print {
           .print-root.thermal3 {
-            width: 78mm;
-            max-width: 78mm;
-            margin: 0;
-            margin-left: 0 !important;
-            padding: 0;
+            width: 80mm;
+            max-width: 80mm;
+            margin: 0 auto;
             display: block;
             font-family: 'Courier New', 'Noto Sans Tamil', monospace !important;
           }
 
           .print-root.thermal3 #print-area {
-            padding: 1.5cm 0 10mm 0;
+            padding: 1.5cm 2px 10mm 2px;
             margin: 0 !important;
-            margin-left: 0 !important;
-            padding-left: 0 !important;
-            width: 78mm;
-            box-sizing: border-box;
           }
 
           .print-root.thermal3 .header-title {
-            font-size: 19px !important;
+            font-size: 18px !important;
             font-weight: 700;
             letter-spacing: 0.5px;
             line-height: 1.2;
@@ -926,9 +920,9 @@ function PrintPageContent() {
           .print-root.thermal3 .header-sub {
             display: block;
             text-align: center;
-            font-size: 13px !important;
+            font-size: 11px !important;
             font-weight: 700;
-            line-height: 1.35;
+            line-height: 1.3;
             margin-top: 2px;
           }
           .print-root.thermal3 .header-phone {
@@ -937,19 +931,16 @@ function PrintPageContent() {
           .print-root.thermal3 .hr-line {
             border-top: 2px solid #000;
             margin: 6px 0;
-            width: 100%;
           }
           .print-root.thermal3 .table-header-line {
             border-top: 1px solid #000;
             margin: 0;
-            width: 100%;
           }
 
           /* ---- Customer info section (ID / Name / Bill No / Date) ---- */
           /* Smaller font so Tamil names fit across 78mm */
           .print-root.thermal3 .mb-2.font-mono {
-            font-size: 12px !important;
-            font-weight: 500;
+            font-size: 10px !important;
           }
           /* Allow Name to wrap fully -- override Tailwind 'truncate' */
           .print-root.thermal3 .truncate {
@@ -959,7 +950,7 @@ function PrintPageContent() {
           }
           /* Give the left (ID/Name) table a bit more room */
           .print-root.thermal3 .mb-2.font-mono > table:first-child {
-            width: 58% !important;
+            width: 50% !important;
           }
           /* Right (Bill No / Date) table: auto-width, all cells left-aligned */
           /* so there is no dead gap between label and value                  */
@@ -973,6 +964,11 @@ function PrintPageContent() {
             padding-left: 1px;
             padding-right: 2px;
           }
+          .print-root.thermal3 .mb-2.font-mono .w-4 {
+            width: auto !important;
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+          }
           /* ---- End customer info ---- */
 
           .print-root.thermal3 .print-table {
@@ -984,7 +980,7 @@ function PrintPageContent() {
           .print-root.thermal3 .print-table th,
           .print-root.thermal3 .print-table td {
             border: none;
-            padding: 2px 1px;
+            padding: 0px 1px;
             vertical-align: middle !important;
             white-space: nowrap;
           }
@@ -994,10 +990,10 @@ function PrintPageContent() {
           }
 
           .print-root.thermal3 .print-table thead th {
-            font-weight: 700 !important;
-            font-size: 13px !important;
-            padding-top: 2px !important;
-            padding-bottom: 2px !important;
+            font-weight: 800 !important;
+            font-size: 12px !important;
+            padding-top: 0px !important;
+            padding-bottom: 0px !important;
           }
 
           .print-root.thermal3 .header-row-divider td {
@@ -1013,66 +1009,51 @@ function PrintPageContent() {
           }
 
           .print-root.thermal3 .print-table tbody td {
-            font-weight: 400 !important;
-            font-size: 12.5px;
-            line-height: 1.35;
+            font-weight: 700 !important;
+            font-size: 12px;
+            line-height: 1.2;
           }
 
           /* 3-inch column widths - rebalanced to prevent wrap */
           .print-root.thermal3 .col-product {
-            width: 34%;
+            width: 40%;
             font-size: 12px !important;
-            line-height: 1.35;
+            line-height: 1.2;
             white-space: normal !important;
             word-wrap: break-word;
             word-break: break-word;
             padding-right: 2px;
           }
-          .print-root.thermal3 .col-qty    { width: 20%; }
-          .print-root.thermal3 .col-rate   { width: 18%; }
+          .print-root.thermal3 .col-qty,
+          .print-root.thermal3 .col-rate,
           .print-root.thermal3 .col-amount {
-            width: 28%;
-            white-space: nowrap;
-            overflow: visible;
-            text-overflow: clip;
+            font-size: 12px !important;
           }
+          .print-root.thermal3 .col-qty    { width: 18%; }
+          .print-root.thermal3 .col-rate   { width: 18%; }
+          .print-root.thermal3 .col-amount { width: 24%; }
 
           .print-root.thermal3 .uom-text {
+            font-size: 10px !important;
             margin-left: 2px;
-            font-weight: 700 !important;
-          }
-          .print-root.thermal3 .qty-num {
-            font-weight: 700 !important;
           }
 
           .print-root.thermal3 .summary-table {
             width: 100%;
             max-width: 100%;
             border-collapse: collapse;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 700;
           }
           .print-root.thermal3 .summary-table td {
-            padding: 1px 2px;
+            padding: 1px 3px;
           }
           .print-root.thermal3 .summary-label { text-align: left; white-space: nowrap; }
           .print-root.thermal3 .summary-colon { width: 10px; text-align: center; }
-          .print-root.thermal3 .summary-value { text-align: right; white-space: nowrap; overflow: visible; }
+          .print-root.thermal3 .summary-value { text-align: right; white-space: nowrap; }
           .print-root.thermal3 .summary-total-row td { font-weight: bold; }
           .print-root.thermal3 .summary-divider-row td { border-top: 1px solid black; }
-          .print-root.thermal3 .summary-final-balance td { font-size: 15px; font-weight: 800; }
-
-          /* Highlighted summary rows: Items Total, Bill Total, Final Balance */
-          .print-root.thermal3 .summary-highlight-row td {
-            font-size: 15px;
-            font-weight: 700;
-          }
-
-          /* Summary wrapper: full width on 3-inch thermal */
-          .print-root.thermal3 .summary-section-wrapper {
-            justify-content: flex-start !important;
-            width: 100% !important;
-          }
+          .print-root.thermal3 .summary-final-balance td { font-size: 14px; font-weight: 800; }
 
           .print-root.thermal3 .print-footer {
             margin-top: 10mm;

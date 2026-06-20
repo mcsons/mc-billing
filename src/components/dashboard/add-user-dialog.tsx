@@ -91,6 +91,7 @@ export function AddUserDialog({
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="MANAGER">Manager</SelectItem>
+                    <SelectItem value="BOX">Box</SelectItem>
                 </SelectContent>
             </Select>
           </div>

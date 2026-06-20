@@ -367,7 +367,7 @@ export default function PaymentsPage() {
                                                             <TableCell>{format(t.date, 'dd-MM-yy')}</TableCell>
                                                             <TableCell>{t.description}</TableCell>
                                                             <TableCell>{t.paymentMode || '-'}</TableCell>
-                                                            <TableCell className="text-right font-mono text-green-600">{t.billedAmount != null ? formatINR(t.billedAmount) : ''}</TableCell>
+                                                            <TableCell className="text-right font-mono text-green-600 font-bold text-base">{t.billedAmount != null ? formatINR(t.billedAmount) : ''}</TableCell>
                                                             <TableCell className="text-right font-mono text-foreground font-bold text-base">{t.receivedAmount != null ? formatINR(t.receivedAmount) : ''}</TableCell>
                                                             <TableCell className="text-right font-mono">{formatINR(t.balance)}</TableCell>
                                                             <TableCell className="text-right">
@@ -420,7 +420,7 @@ export default function PaymentsPage() {
                                                         {t.billedAmount != null && (
                                                             <div className="flex flex-col items-start">
                                                                 <span className="text-xs text-muted-foreground">Billed (+)</span>
-                                                                <span className="font-mono text-green-600 font-semibold">{formatINR(t.billedAmount)}</span>
+                                                                <span className="font-mono text-green-600 font-bold text-base">{formatINR(t.billedAmount)}</span>
                                                             </div>
                                                         )}
                                                         {t.receivedAmount != null && (

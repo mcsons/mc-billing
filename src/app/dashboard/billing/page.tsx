@@ -253,6 +253,7 @@ export default function BillingPage() {
   const rateInputRef = useRef<HTMLInputElement>(null);
   const uomSelectRef = useRef<any>(null);
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
+  const desktopBillTableRef = useRef<HTMLDivElement>(null);
   const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
   const manualCustomerNameRef = useRef<HTMLInputElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
@@ -394,7 +395,10 @@ export default function BillingPage() {
     // Isolation: include date in the session key to re-initialize on date changes
     const dateKey = date ? format(date, 'yyyy-MM-dd') : 'no-date';
     const workId = billNoFromParams ? `load-${billNoFromParams}` : (selectedCustomerId ? `new-${selectedCustomerId}-${dateKey}` : `reset-${dateKey}`);
-    if (workId === lastSessionKeyRef.current) return;
+    if (workId === lastSessionKeyRef.current) {
+      setLoading(false);
+      return;
+  }
     lastSessionKeyRef.current = workId;
 
     if (!selectedCustomerId && !billNoFromParams) {
@@ -403,10 +407,12 @@ export default function BillingPage() {
         setLocalBillItems([]);
         setPrevBalInput('0.00');
         setDescription('');
+        setLoading(false);
         return;
     }
 
     const initializeSession = async () => {
+      try {
         let billToLoad = null;
         if (billNoFromParams) {
             billToLoad = getBill(billNoFromParams);
@@ -480,6 +486,9 @@ export default function BillingPage() {
             setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
+          } 
+        } finally {
+          setLoading(false);
         } 
     };
 
@@ -503,10 +512,29 @@ export default function BillingPage() {
   }, [selectedProductId, uom, productPrices]);
 
   useEffect(() => {
-    if (billItemsContainerRef.current) {
-        const { scrollHeight } = billItemsContainerRef.current;
-        billItemsContainerRef.current.scrollTo({ top: scrollHeight, behavior: 'smooth' });
-    }
+    if (localBillItems.length === 0) return;
+    // Use a tiny timeout so the DOM has painted the new row before we scroll
+    const timer = setTimeout(() => {
+      // Mobile container
+      if (billItemsContainerRef.current) {
+        const mobileLastRow = billItemsContainerRef.current.querySelector('[data-last-item]');
+        if (mobileLastRow) {
+          mobileLastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          billItemsContainerRef.current.scrollTo({ top: billItemsContainerRef.current.scrollHeight, behavior: 'smooth' });
+        }
+      }
+      // Desktop container
+      if (desktopBillTableRef.current) {
+        const desktopLastRow = desktopBillTableRef.current.querySelector('[data-last-item]');
+        if (desktopLastRow) {
+          desktopLastRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          desktopBillTableRef.current.scrollTo({ top: desktopBillTableRef.current.scrollHeight, behavior: 'smooth' });
+        }
+      }
+    }, 50);
+    return () => clearTimeout(timer);
   }, [localBillItems]);
 
   // History filtering effect
@@ -1015,7 +1043,13 @@ export default function BillingPage() {
     });
   };
 
-  const handleEditBill = (billNo: string) => {
+  const handleEditBill = async (billNo: string) => {
+    setLoading(true, 'Loading Bill...');
+    if (searchParams.get('billNo') === billNo) {
+        setTimeout(() => setLoading(false), 300);
+        return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 50));
     router.push(`/dashboard/billing?billNo=${billNo}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -1192,17 +1226,22 @@ export default function BillingPage() {
       <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
       <div className="grid auto-rows-max gap-4 section-box">
         <Card className="border-none shadow-none bg-transparent">
-            <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between pb-2">
+          <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-start md:justify-between pb-2">
               <div>
                 <CardTitle className="font-headline">
                   {activeBillNo ? `Editing Bill ${activeBillNo}` : 'Create Bill'}
                 </CardTitle>
                 <CardDescription>Manage active transaction.</CardDescription>
               </div>
-              <div className="flex flex-col items-stretch gap-2 w-full sm:w-auto sm:items-end">
+              <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:items-end">
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                  <Button variant={'outline'} className={cn('w-full justify-start text-left font-normal sm:w-[240px] select-none', !date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => {
+                  <Button variant={'outline'}  className={cn('w-full justify-start text-left font-normal h-[44px] md:w-[240px] select-none', !date && 'text-muted-foreground')}
+                         onFocus={() => { if(!date) setDate(new Date()) }} 
+                         onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} 
+                         onKeyDown={(e) => handleDateKeyDown(e, date, (d) => {
                       if (isDirty && d) {
                         showAlertDialog({
                            title: 'Unsaved Changes',
@@ -1236,7 +1275,8 @@ export default function BillingPage() {
                     />
                   </PopoverContent>
                 </Popover>
-                <Button variant="outline" onClick={handleNewBill} className="h-11 md:h-10">
+                </div>
+                <Button variant="outline" className="w-full md:w-auto h-[44px]" onClick={handleNewBill}>
                   <FilePlus className="mr-2 h-4 w-4" />
                   New Bill
                 </Button>
@@ -1305,8 +1345,8 @@ export default function BillingPage() {
           <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t">
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent className="p-4 md:p-6">
-              <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-3">
-                <div className="grid w-full md:flex-[4] min-w-0 gap-1.5" onClick={handleProductSelectInteraction}>
+            <div className="flex flex-wrap md:flex-nowrap items-end gap-2">
+              <div className="grid gap-1.5 w-full md:w-auto md:flex-1 min-w-0" onClick={handleProductSelectInteraction}>
                   <Label htmlFor="product" className="text-xs">Product</Label>
                   <ReactSelect
                     instanceId="product-select"
@@ -1314,25 +1354,20 @@ export default function BillingPage() {
                     isClearable
                     tabSelectsValue={true}
                     openMenuOnFocus={true}
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                    menuPosition="fixed"
                     options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
                     value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
-                    inputValue={productSearchText}
-                    onInputChange={(val) => setProductSearchText(val)}
                     onChange={(option) => {
-                      if (!option) { 
-                        setSelectedProductId(''); 
-                        setRate(''); 
+                      if (!option) {
+                        setSelectedProductId('');
+                        setRate('');
                         isEditingRef.current = false;
-                        setProductSearchText('');
-                        return; 
+                        return;
                       }
                       setSelectedProductId(option.value);
-                      setProductSearchText('');
                       const product = products.find(p => p.id === option.value);
-                      if (product && product.uom_allowed.length > 0) {
-                        const defaultUom = product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0];
-                        setUom(defaultUom);
-                      }
+                      if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
                       setTimeout(() => qtyInputRef.current?.focus(), 0);
                     }}
                     styles={reactSelectStyles}
@@ -1340,29 +1375,29 @@ export default function BillingPage() {
                     onFocus={handleProductSelectInteraction}
                   />
                 </div>
-                <div className="grid w-full md:w-24 shrink-0 gap-1.5">
+                <div className="grid gap-1.5 flex-1 md:flex-none md:w-[80px] shrink-0 min-w-[60px]">
                   <Label htmlFor="qty" className="text-xs">Qty</Label>
-                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 md:h-10 w-full" />
+                  <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 px-2 text-center" />
                 </div>
-                <div className="grid w-full md:flex-1 shrink-0 gap-1.5 min-w-0 md:min-w-[100px]">
+                <div className="grid gap-1.5 flex-1 md:flex-none shrink-0 min-w-[80px]">
                   <Label className="text-xs">UOM</Label>
                   <ReactSelect
                     ref={uomSelectRef}
                     instanceId="uom-select"
                     placeholder="UOM"
-                    options={useMemo(() => {
-                      const opts = selectedProduct?.uom_allowed.map(o => ({ value: o, label: o })) || [];
-                      // Force KGS to the top of the list so it is highlighted by default when the menu opens
+                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                    menuPosition="fixed"
+                    options={(() => {
+                      const opts = selectedProduct?.uom_allowed.map((o: string) => ({ value: o, label: o })) || [];
                       return [...opts].sort((a, b) => a.value === 'KGS' ? -1 : b.value === 'KGS' ? 1 : 0);
-                    }, [selectedProduct])}
+                    })()}
                     value={uom ? { value: uom, label: uom } : null}
                     onChange={(option: any) => {
                       setUom(option ? option.value : 'KGS');
                       setTimeout(() => rateInputRef.current?.focus(), 50);
-                    } }
-                    onKeyDown={(e) => {
+                    }}
+                    onKeyDown={(e: any) => {
                       if (e.key === 'Tab') {
-                        // Confirm selection and move to Rate
                         setTimeout(() => rateInputRef.current?.focus(), 50);
                       }
                     }}
@@ -1370,24 +1405,28 @@ export default function BillingPage() {
                     tabSelectsValue={true}
                     openMenuOnFocus={true}
                     isSearchable={false}
-                    className="h-11 md:h-10" // ManualEdits
+                    isDisabled={!selectedProductId}
                   />
                 </div>
-                <div className="grid w-full md:w-24 shrink-0 gap-1.5">
+                <div className="grid gap-1.5 flex-1 md:flex-none md:w-[72px] shrink-0 min-w-[60px]">
                   <Label htmlFor="rate" className="text-xs">Rate</Label>
-                  <Input 
-                    id="rate" 
-                    type="number" 
-                    placeholder="0.00" 
-                    value={rate} 
-                    onChange={(e) => setRate(e.target.value)} 
-                    ref={rateInputRef} 
-                    onKeyDown={handleRateKeyDown} 
+                  <Input
+                    id="rate"
+                    type="number"
+                    placeholder="0.00"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    ref={rateInputRef}
+                    onKeyDown={handleRateKeyDown}
                     onFocus={(e) => e.target.select()}
-                    className="h-11 md:h-10 w-full" 
+                    className="h-11 px-2 text-right"
                   />
                 </div>
-                <div className="w-full md:w-auto shrink-0"><Button onClick={handleAddItem} className="h-11 md:h-10 w-full md:w-10 p-0" size={null as any}><PlusCircle className="h-5 w-5 mr-2 md:mr-0" /><span className="md:hidden">Add Item</span></Button></div>
+                <div className="shrink-0 self-end">
+                  <Button onClick={handleAddItem} className="h-11 w-11 p-0 flex items-center justify-center">
+                    <PlusCircle className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -1413,73 +1452,128 @@ export default function BillingPage() {
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent ref={billItemsContainerRef} className="max-h-[240px] p-0 border-t overflow-y-auto overflow-x-auto live-bill-container">
-              <div className="min-w-[600px] w-full">
-                <Table className="w-full md:table-fixed border-collapse">
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent border-b">
-                      <TableHead className="w-[40px] px-1 text-center font-bold text-xs md:text-sm uppercase">S/N</TableHead>
-                      <TableHead className="px-1 text-left font-bold text-xs md:text-sm uppercase min-w-[200px] md:min-w-0">Product</TableHead>
-                      <TableHead className="w-[60px] px-1 text-center font-bold text-xs md:text-sm uppercase">UOM</TableHead>
-                      <TableHead className="w-[80px] md:w-[100px] px-1 text-center font-bold text-xs md:text-sm uppercase">Qty</TableHead>
-                      <TableHead className="w-[100px] md:w-[120px] px-1 text-right font-bold text-xs md:text-sm uppercase">Rate</TableHead>
-                      <TableHead className="w-[100px] md:w-[130px] px-1 text-right font-bold text-xs md:text-sm uppercase">Amount</TableHead>
-                      <TableHead className="w-[40px] md:w-[45px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                  <TooltipProvider delayDuration={200}>
-                    {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
-                      localBillItems.map((item, index) => {
-                        const itemAddedBy = users.find(u => u.id === item.addedBy)?.username || '--';
-                        return (
-                          <TableRow 
-                            key={item.id} 
-                            className="h-14 hover:bg-muted/50 border-b relative cursor-pointer select-none" 
-                            onDoubleClick={() => {
-                              isEditingRef.current = true;
-                              setSelectedProductId(item.productId);
-                              
-                              // Sync highlight logic
-                              const productInfo = products.find(p => p.id === item.productId);
-                              if (productInfo) {
-                                  setProductSearchText(`${productInfo.name_en} (${productInfo.name_ta})`);
-                              }
-                              
-                              setQty(item.qty.toString());
-                              setUom(item.uom);
-                              setRate(item.rate.toString());
-                              setLocalBillItems(prev => prev.filter(i => i.id !== item.id));
-                              setTimeout(() => productSelectRef.current?.focus(), 50);
-                            }}
-                          >
-                            <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
-                            <TableCell className="px-1 min-w-[200px] md:min-w-0 md:max-w-[250px]">
+            <CardContent className="p-0">
+              {/* Mobile Card List */}
+              <div ref={billItemsContainerRef} className="block md:hidden border-t max-h-[300px] overflow-y-auto">
+                {isItemsLoading ? (
+                  <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">Loading...</div>
+                ) : localBillItems.length > 0 ? (
+                  <div className="divide-y">
+                    {localBillItems.map((item, index) => (
+                      <div
+                        key={item.id}
+                        data-last-item={index === localBillItems.length - 1 ? 'true' : undefined}
+                        className="p-3 bg-card hover:bg-muted/40 active:bg-muted/70"
+                        onDoubleClick={() => {
+                          isEditingRef.current = true;
+                          setSelectedProductId(item.productId);
+                          setQty(item.qty.toString());
+                          setUom(item.uom);
+                          setRate(item.rate.toString());
+                          setLocalBillItems(prev => prev.filter(i => i.id !== item.id));
+                          setTimeout(() => productSelectRef.current?.focus(), 50);
+                        }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <span className="font-semibold text-sm flex-1 pr-2">{item.product}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive shrink-0 -mt-1 -mr-1" onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+                          <div>
+                            <span className="text-xs text-muted-foreground block">Qty ({item.uom})</span>
+                            <Input
+                              type="number"
+                              defaultValue={item.qty}
+                              onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="h-8 text-center font-mono text-sm px-1 mt-0.5"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-xs text-muted-foreground block">Rate</span>
+                            <Input
+                              type="number"
+                              defaultValue={item.rate}
+                              onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="h-8 text-right font-mono text-sm px-1 mt-0.5"
+                            />
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground block">Amount</span>
+                            <span className="font-mono font-semibold text-sm block mt-1.5">₹{item.amount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="h-24 flex items-center justify-center text-sm text-muted-foreground">No items added.</div>
+                )}
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden md:block border-t overflow-x-auto">
+                <div ref={desktopBillTableRef} className="max-h-[240px] overflow-y-auto live-bill-container">
+                  <Table className="min-w-[650px] table-fixed border-collapse">
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent border-b">
+                        <TableHead className="w-[45px] px-1 text-center font-bold text-sm uppercase">S/N</TableHead>
+                        <TableHead className="px-1 text-left font-bold text-sm uppercase">Product</TableHead>
+                        <TableHead className="w-[60px] px-1 text-center font-bold text-sm uppercase">UOM</TableHead>
+                        <TableHead className="w-[100px] px-1 text-center font-bold text-sm uppercase">Qty</TableHead>
+                        <TableHead className="w-[120px] px-1 text-right font-bold text-sm uppercase">Rate</TableHead>
+                        <TableHead className="w-[130px] px-1 text-right font-bold text-sm uppercase">Amt</TableHead>
+                        <TableHead className="w-[45px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TooltipProvider delayDuration={200}>
+                        {isItemsLoading ? <TableRow><TableCell colSpan={7} className="h-24 text-center">Loading...</TableCell></TableRow> : localBillItems.length > 0 ? (
+                          localBillItems.map((item, index) => {
+                            const creator = users.find((u) => u.id === item.addedBy);
+                            const username = creator?.username || item.addedBy || 'Unknown';
+                            const isLast = index === localBillItems.length - 1;
+                            return (
+                              <TableRow key={item.id} data-last-item={isLast ? 'true' : undefined} className="h-14 hover:bg-muted/50 border-b relative" onDoubleClick={() => {
+                                isEditingRef.current = true;
+                                setSelectedProductId(item.productId);
+                                setQty(item.qty.toString());
+                                setUom(item.uom);
+                                setRate(item.rate.toString());
+                                setLocalBillItems(prev => prev.filter(i => i.id !== item.id));
+                                setTimeout(() => productSelectRef.current?.focus(), 50);
+                              }}>
+                                <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
+                                <TableCell className="px-1 max-w-[120px]">
                                   <Tooltip key={item.id}>
                                     <TooltipTrigger asChild>
-                                      <span className="cursor-default block w-full whitespace-normal break-words text-xs md:text-base leading-tight md:leading-normal font-medium">{item.product}</span>
+                                      <span className="cursor-default block w-full whitespace-normal break-words text-base leading-normal">{item.product}</span>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top">
-                                      <p>Added by: {itemAddedBy}</p>
-                                    </TooltipContent>
+                                    <TooltipContent side="top"><p>Created by: {username}</p></TooltipContent>
                                   </Tooltip>
                                 </TableCell>
-                            <TableCell className="px-1 text-center">{item.uom}</TableCell>
-                            <TableCell className="px-1 md:px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-9 w-full text-center font-mono text-sm md:text-base px-1" /></TableCell>
-                            <TableCell className="px-1 md:px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-9 w-full text-right font-mono text-sm md:text-base px-1" /></TableCell>
-                            <TableCell className="px-1 text-right font-mono font-semibold">{formatINR(item.amount)}</TableCell>
-                            <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleRemoveItem(item.id)}><Trash2 className="h-4 w-4" /></Button></TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
-                    </TooltipProvider>
-                  </TableBody>
-                </Table>
+                                <TableCell className="px-1 text-center">{item.uom}</TableCell>
+                                <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-10 w-[90px] text-center font-mono text-base px-1" /></TableCell>
+                                <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-10 w-[110px] text-right font-mono text-base px-1" /></TableCell>
+                                <TableCell className="px-1 text-right font-mono font-semibold text-base whitespace-nowrap">{item.amount.toFixed(2)}</TableCell>
+                                <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}><Trash2 className="h-4 w-4" /></Button></TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
+                      </TooltipProvider>
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
+
+            </CardContent>
               
               {localBillItems.length > 0 && (
-                <div className="mt-2 px-4 py-2 text-sm font-medium text-muted-foreground border-t bg-muted/5 flex gap-1">
+                <div className="total-qty-ui text-right px-4 pt-3 pb-1 text-sm" style={{ fontWeight: 500, color: '#9ca3af' }}>
                   <span>Total Qty →</span>
                   <span className="text-foreground">
                     {totalKgs > 0 ? `${totalKgs.toFixed(1)} KGS` : ''}
@@ -1488,7 +1582,6 @@ export default function BillingPage() {
                   </span>
                 </div>
               )}
-            </CardContent>
               <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
                 {/* Mobile totals — compact two-column grid, full width */}
                 <div className="w-full md:hidden rounded-lg bg-muted/40 border p-4 space-y-4">

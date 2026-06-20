@@ -23,88 +23,32 @@ import { useToast } from '@/hooks/use-toast';
 import { Save } from 'lucide-react';
 import { useData } from '@/context/DataContext';
 
-const roles = ['CREATOR', 'ADMIN', 'MANAGER'] as const;
-type Role = typeof roles[number];
-
-const pages = [
-    'Dashboard',
-    'Billing',
-    'Vehicle Bill',
-    'Party Bill',
-    'Sales Report',
-    'Bill History',
-    'Payments',
-    'Customer Balance',
-    'Party Balance',
-    'View Balances',
-    'Edit Balances',
-    'Customers',
-    'Products',
-    'Set Prices',
-    'Manage Users',
-    'Manage Vehicles',
-    'Manage Drivers',
-    'Manage Parties',
-    'Permissions',
-    'Profile',
-    'Printer Settings',
-    'UOM Settings',
-] as const;
-type Page = typeof pages[number];
-
-const initialPermissions: Record<Role, Page[]> = {
-  CREATOR: [...pages],
-  ADMIN: [
-    'Dashboard',
-    'Billing',
-    'Vehicle Bill',
-    'Party Bill',
-    'Sales Report',
-    'Bill History',
-    'Payments',
-    'Customer Balance',
-    'Party Balance',
-    'View Balances',
-    'Edit Balances',
-    'Customers',
-    'Products',
-    'Set Prices',
-    'Manage Vehicles',
-    'Manage Drivers',
-    'Manage Parties',
-    'Profile',
-    'Printer Settings',
-    'UOM Settings',
-  ],
-  MANAGER: [
-    'Dashboard',
-    'Billing',
-    'Vehicle Bill',
-    'Party Bill',
-    'Bill History',
-    'Payments',
-    'Profile',
-    'View Balances',
-    'Customer Balance',
-    'Party Balance',
-    'Sales Report',
-  ],
-};
-
+import { useEffect } from 'react';
+import { Role, Page, initialPermissions, roles, pages } from '@/lib/data';
 export default function PermissionsPage() {
   const { toast } = useToast();
-  const { currentUser } = useData();
+  const { currentUser, rolePermissions, updateRolePermissions } = useData();
   const canEdit = currentUser?.role === 'CREATOR';
 
   const [permissions, setPermissions] =
     useState<Record<Role, Set<Page>>>(() => {
       const state: Record<Role, Set<Page>> = {
-        CREATOR: new Set(initialPermissions.CREATOR),
-        ADMIN: new Set(initialPermissions.ADMIN),
-        MANAGER: new Set(initialPermissions.MANAGER),
+        CREATOR: new Set(rolePermissions.CREATOR || initialPermissions.CREATOR),
+        ADMIN: new Set(rolePermissions.ADMIN || initialPermissions.ADMIN),
+        MANAGER: new Set(rolePermissions.MANAGER || initialPermissions.MANAGER),
+        BOX: new Set(rolePermissions.BOX || initialPermissions.BOX),
       };
       return state;
     });
+
+  useEffect(() => {
+    setPermissions({
+        CREATOR: new Set(rolePermissions.CREATOR || initialPermissions.CREATOR),
+        ADMIN: new Set(rolePermissions.ADMIN || initialPermissions.ADMIN),
+        MANAGER: new Set(rolePermissions.MANAGER || initialPermissions.MANAGER),
+        BOX: new Set(rolePermissions.BOX || initialPermissions.BOX),
+    });
+  }, [rolePermissions]);
 
   const handlePermissionChange = (
     role: Role,
@@ -126,13 +70,14 @@ export default function PermissionsPage() {
     });
   };
 
-  const handleSave = () => {
-    // In a real application, you would save this to your database.
-    console.log('Saving permissions:', permissions);
-    toast({
-      title: 'Permissions Saved',
-      description: 'User role permissions have been updated.',
-    });
+  const handleSave = async () => {
+    const toSave = {
+      CREATOR: Array.from(permissions.CREATOR),
+      ADMIN: Array.from(permissions.ADMIN),
+      MANAGER: Array.from(permissions.MANAGER),
+      BOX: Array.from(permissions.BOX),
+    };
+    await updateRolePermissions(toSave);
   };
 
   return (

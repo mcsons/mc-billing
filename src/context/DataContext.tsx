@@ -19,10 +19,15 @@ import {
   PartyBalance,
   SalesReportData,
   StatementPrintHistory,
+  BoxBill,
+  BoxBillEntry,
+  Role,
+  Page,
+  initialPermissions,
 } from '@/lib/data';
 import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay, parseISO } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
 import { FirestorePermissionError, errorEmitter } from '@/firebase';
 
@@ -83,7 +88,7 @@ interface DataContextType {
   deleteProduct: (productId: string) => Promise<void>;
   addUser: (user: Omit<User, 'id' | 'status'> & { password?: string }) => Promise<void>;
   deleteUser: (userId: string) => Promise<void>;
-  promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => void;
+  promoteUser: (userId: string, username: string, role: 'ADMIN' | 'CREATOR' | 'MANAGER' | 'BOX') => void;
   updateUserProfile: (userId: string, data: Partial<Omit<User, 'id'>>) => Promise<void>;
   addUom: (uom: Uom) => void;
   addVehicle: (vehicle: Omit<Vehicle, 'active'|'createdAt'|'updatedAt'>) => void;
@@ -131,6 +136,23 @@ interface DataContextType {
   addStatementPrintHistory: (record: Omit<StatementPrintHistory, 'id' | 'printedAt'>) => Promise<void>;
   getStatementPrintHistoryForCustomer: (customerId: string) => StatementPrintHistory[];
   deleteStatementPrintHistory: (recordId: string) => Promise<void>;
+  // Box Billing
+  boxBills: BoxBill[];
+  openingBoxBalances: Record<string, number>; // keyed by customerId
+  customerBoxBalances: Record<string, number>; // keyed by customerId, running total
+  setOpeningBoxBalance: (customerId: string, balance: number) => Promise<void>;
+  addOrUpdateBoxBill: (bill: Omit<BoxBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>, existingBillId?: string | null) => Promise<BoxBill | null>;
+  deleteBoxBills: (billIds: string[]) => Promise<void>;
+  recalculateFutureBoxBalances: (customerId: string, skipBillIds?: string[]) => Promise<void>;
+  findBoxBillForCustomerOnDate: (customerId: string, date: Date) => BoxBill | undefined;
+  getBoxBill: (billId: string) => BoxBill | undefined;
+
+  boxBillEntries: BoxBillEntry[];
+  addBoxBillEntry: (entry: Omit<BoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>) => Promise<BoxBillEntry | null>;
+  updateBoxBillEntry: (entryId: string, boxesAdded: number) => Promise<void>;
+  deleteBoxBillEntry: (entryId: string) => Promise<void>;
+  rolePermissions: Record<Role, Page[]>;
+  updateRolePermissions: (permissions: Record<Role, Page[]>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -193,6 +215,65 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const statementPrintHistoryCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'statementPrintHistory') : null, [firestore, firebaseUser]);
   const { data: statementPrintHistoryData } = useCollection<StatementPrintHistory>(statementPrintHistoryCollection);
   const statementPrintHistory = useMemo(() => statementPrintHistoryData || [], [statementPrintHistoryData]);
+
+  const boxBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'box_bills') : null, [firestore, firebaseUser]);
+  const { data: boxBillsData } = useCollection<BoxBill>(boxBillsCollection);
+  const boxBills = useMemo(() => boxBillsData || [], [boxBillsData]);
+
+  const boxBillEntriesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'box_bill_entries') : null, [firestore, firebaseUser]);
+  const { data: boxBillEntriesData } = useCollection<BoxBillEntry>(boxBillEntriesCollection);
+  const boxBillEntries = useMemo(() => boxBillEntriesData || [], [boxBillEntriesData]);
+
+  // Opening box balances: keyed by customerId, stored in `customerBoxBalances` collection
+  const { data: boxBalancesData } = useCollection<{ customerId: string; balanceAmount: number }>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'customerBoxBalances') : null, [firestore, firebaseUser]));
+  const openingBoxBalances = useMemo(() => {
+    if (!boxBalancesData) return {};
+    return boxBalancesData.reduce((acc, cb) => {
+      acc[cb.customerId] = cb.balanceAmount;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [boxBalancesData]);
+
+  const customerBoxBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+    customers.forEach(c => {
+      balances[c.id] = openingBoxBalances[c.id] || 0;
+    });
+
+    const billsByCustomer: Record<string, BoxBill[]> = {};
+    boxBills.forEach(b => {
+      if (!billsByCustomer[b.customerId]) billsByCustomer[b.customerId] = [];
+      billsByCustomer[b.customerId].push(b);
+    });
+
+    Object.keys(billsByCustomer).forEach(customerId => {
+      const bills = billsByCustomer[customerId];
+      bills.sort((a, b) => {
+        const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
+        const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+        return dateB.getTime() - dateA.getTime();
+      });
+      if (bills.length > 0) {
+        balances[customerId] = bills[0].balanceBox;
+      }
+    });
+
+    return balances;
+  }, [customers, openingBoxBalances, boxBills]);
+
+  const [rolePermissions, setRolePermissions] = useState<Record<Role, Page[]>>(initialPermissions);
+
+  useEffect(() => {
+    if (!firestore || !firebaseUser) return;
+    const unsub = onSnapshot(doc(firestore, 'settings', 'permissions'), (docSnap) => {
+        if (docSnap.exists()) {
+            setRolePermissions(docSnap.data() as Record<Role, Page[]>);
+        } else {
+            setRolePermissions(initialPermissions);
+        }
+    });
+    return () => unsub();
+  }, [firestore, firebaseUser]);
   
   const [liveBillItems, setLiveBillItems] = useState<LiveBillItems>({});
   
@@ -615,14 +696,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
   
-    if (user.role !== 'MANAGER') {
-        toast({
-            variant: 'destructive',
-            title: 'Invalid Role',
-            description: 'New users can only be created with the MANAGER role. Promote them to Admin/Creator after creation.',
-        });
-        return;
-    }
+    if (user.role !== 'MANAGER' && user.role !== 'BOX') {
+      toast({
+          variant: 'destructive',
+          title: 'Invalid Role',
+          description: 'New users can only be created with the MANAGER or BOX role. Promote them to Admin/Creator after creation.',
+      });
+      return;
+  }
 
     try {
       const email = `${user.username.toLowerCase()}@mcandsons.com`;
@@ -631,7 +712,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const newUser: User = {
         id: userCredential.user.uid,
         username: user.username,
-        role: 'MANAGER',
+        role: user.role,
         status: 'Active'
       };
   
@@ -676,7 +757,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   };
   
-  const promoteUser = async (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
+  const promoteUser = async (userId: string, username: string, role: 'ADMIN' | 'CREATOR' | 'MANAGER' | 'BOX') => {
     if (!firestore || !currentUser) return;
     if (!isCurrentUserAdmin) {
       toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to promote users.'});
@@ -710,6 +791,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: userRef.path, requestResourceData: updatedData }));
       throw e;
+    }
+  };
+
+  const updateRolePermissions = async (permissions: Record<Role, Page[]>) => {
+    if (!firestore) return;
+    const permissionsRef = doc(firestore, 'settings', 'permissions');
+    try {
+        await setDoc(permissionsRef, permissions);
+        toast({ title: 'Permissions Saved', description: 'User role permissions have been updated.' });
+    } catch (e) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: permissionsRef.path, requestResourceData: permissions }));
     }
   };
 
@@ -1061,6 +1153,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const setOpeningBoxBalance = async (customerId: string, balance: number) => {
+    if (!firestore) return;
+    const balanceRef = doc(firestore, 'customerBoxBalances', customerId);
+    const balanceData = { customerId: customerId, balanceAmount: balance, updatedAt: serverTimestamp() };
+    setDoc(balanceRef, balanceData, { merge: true }).catch(e => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
+    });
+  };
+
   const setPartyBalance = async (partyId: string, balance: number) => {
     if (!firestore) return;
     const balanceRef = doc(firestore, 'partyBalances', partyId);
@@ -1110,53 +1211,96 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const billsInRange = allBills.filter(b => isWithinInterval(getSafeDate(b.date), interval));
     const paymentsInRange = allPayments.filter(p => isWithinInterval(getSafeDate(p.date), interval));
 
-    const groupedByDate: Record<string, { bills: typeof billsInRange, payments: typeof paymentsInRange }> = {};
+    const rawTransactions: any[] = [];
 
     billsInRange.forEach(b => {
-      const dateStr = format(getSafeDate(b.date), 'yyyy-MM-dd');
-      if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { bills: [], payments: [] };
-      groupedByDate[dateStr].bills.push(b);
+      const txDate = getSafeDate(b.date);
+      const createdAtDate = b.createdAt ? getSafeDate(b.createdAt) : txDate;
+      rawTransactions.push({
+        date: txDate,
+        createdAt: createdAtDate,
+        description: `Bill No: ${b.billNo}`,
+        billedAmount: b.amount,
+        balance: 0,
+        type: 'bill',
+        sortKey: 1,
+      });
     });
 
     paymentsInRange.forEach(p => {
-      const dateStr = format(getSafeDate(p.date), 'yyyy-MM-dd');
-      if (!groupedByDate[dateStr]) groupedByDate[dateStr] = { bills: [], payments: [] };
-      groupedByDate[dateStr].payments.push(p);
+      const txDate = getSafeDate(p.date);
+      const createdAtDate = (p as any).createdAt ? getSafeDate((p as any).createdAt) : txDate;
+      rawTransactions.push({
+        date: txDate,
+        createdAt: createdAtDate,
+        description: p.notes || `${p.paymentMode || 'Cash'} Payment`,
+        receivedAmount: p.amount,
+        paymentMode: p.paymentMode || 'Cash',
+        paymentId: p.id,
+        balance: 0,
+        type: 'payment',
+        sortKey: 2,
+      });
     });
 
-    const combinedTransactions: Transaction[] = [];
-
-    Object.keys(groupedByDate).sort().forEach(dateStr => {
-      const { bills, payments } = groupedByDate[dateStr];
-      const maxRows = Math.max(bills.length, payments.length);
+    rawTransactions.sort((a, b) => {
+      const dayA = startOfDay(a.date).getTime();
+      const dayB = startOfDay(b.date).getTime();
+      if (dayA !== dayB) return dayA - dayB;
       
-      for (let i = 0; i < maxRows; i++) {
-        const b = bills[i];
-        const p = payments[i];
-        
-        let desc = [];
-        if (b) desc.push(`Bill No: ${b.billNo}`);
-        if (p) desc.push(p.notes || `${p.paymentMode || 'Cash'} Payment`);
-        
-        const tx: Transaction = {
-          date: parseISO(dateStr),
-          description: desc.join(' | '),
-          balance: 0,
-          type: (b && p) ? ('both' as any) : (b ? 'bill' : 'payment'),
-        };
-        
-        if (b) {
-          tx.billedAmount = b.amount;
-        }
-        if (p) {
-          tx.receivedAmount = p.amount;
-          tx.paymentMode = p.paymentMode || 'Cash';
-          tx.paymentId = p.id;
-        }
-        
-        combinedTransactions.push(tx);
-      }
+      const timeA = a.createdAt.getTime();
+      const timeB = b.createdAt.getTime();
+      if (timeA !== timeB) return timeA - timeB;
+      
+      return a.sortKey - b.sortKey;
     });
+
+    const groupedByDay = new Map<number, any[]>();
+    for (const t of rawTransactions) {
+      const dayTime = startOfDay(t.date).getTime();
+      if (!groupedByDay.has(dayTime)) groupedByDay.set(dayTime, []);
+      groupedByDay.get(dayTime)!.push(t);
+    }
+
+    const mergedTransactions: any[] = [];
+    const sortedDays = Array.from(groupedByDay.keys()).sort((a, b) => a - b);
+    
+    for (const day of sortedDays) {
+      const dailyTx = groupedByDay.get(day)!;
+      const bills = dailyTx.filter(t => t.type === 'bill');
+      const payments = dailyTx.filter(t => t.type === 'payment');
+
+      if (bills.length > 0 && payments.length > 0) {
+        const totalBilled = bills.reduce((sum, b) => sum + b.billedAmount, 0);
+        const billDescriptions = bills.map(b => b.description).join(' & ');
+        
+        const firstPayment = payments[0];
+        const mergedPayment = {
+          ...firstPayment,
+          description: `${firstPayment.description} | ${billDescriptions}`,
+          billedAmount: totalBilled,
+          type: 'both'
+        };
+
+        mergedTransactions.push(mergedPayment);
+        for (let i = 1; i < payments.length; i++) {
+          mergedTransactions.push(payments[i]);
+        }
+      } else {
+        mergedTransactions.push(...dailyTx);
+      }
+    }
+
+    const combinedTransactions: Transaction[] = mergedTransactions.map(t => ({
+      date: t.date,
+      description: t.description,
+      billedAmount: t.billedAmount,
+      receivedAmount: t.receivedAmount,
+      paymentMode: t.paymentMode,
+      paymentId: t.paymentId,
+      balance: 0,
+      type: t.type
+    }));
 
     let currentBalance = openingBalanceForPeriod;
     const finalTransactions = combinedTransactions.map(t => {
@@ -1596,6 +1740,199 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   }, [statementPrintHistory]);
 
+  // ── Box Billing CRUD ───────────────────────────────────────────────────
+
+  const findBoxBillForCustomerOnDate = useCallback((customerId: string, date: Date): BoxBill | undefined => {
+    const targetDay = new Date(date);
+    targetDay.setHours(0, 0, 0, 0);
+    return (boxBills || []).find(bill => {
+      if (bill.customerId !== customerId) return false;
+      const billDate = bill.billDate?.toDate ? bill.billDate.toDate() : new Date(bill.billDate);
+      const billDay = new Date(billDate);
+      billDay.setHours(0, 0, 0, 0);
+      return billDay.getTime() === targetDay.getTime();
+    });
+  }, [boxBills]);
+
+  const getBoxBill = useCallback((billId: string): BoxBill | undefined => {
+    return (boxBills || []).find(b => b.id === billId);
+  }, [boxBills]);
+
+  const addOrUpdateBoxBill = useCallback(async (
+    billData: Omit<BoxBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>,
+    existingBillId?: string | null
+  ): Promise<BoxBill | null> => {
+    if (!firestore || !currentUser) return null;
+
+    const { id: _id, ...sanitized } = billData as any;
+    let billId = existingBillId;
+    let billRef;
+    let billPayload: any;
+
+    try {
+      if (billId) {
+        // UPDATE existing bill
+        billRef = doc(firestore, 'box_bills', billId);
+        billPayload = { ...sanitized, updatedAt: serverTimestamp() };
+        await setDoc(billRef, billPayload, { merge: true });
+        const original = (boxBills || []).find(b => b.id === billId);
+        return { ...original, ...billPayload, id: billId } as BoxBill;
+      } else {
+        // CREATE new bill — sequential BB# IDs
+        const maxId = (boxBills || [])
+          .map(b => parseInt(b.id.replace('BB', ''), 10))
+          .filter(n => !isNaN(n))
+          .reduce((max, n) => Math.max(max, n), 0);
+        billId = `BB${maxId + 1}`;
+        billRef = doc(firestore, 'box_bills', billId);
+        billPayload = {
+          ...sanitized,
+          id: billId,
+          createdBy: currentUser.id,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(billRef, billPayload);
+        return { ...billPayload, id: billId } as BoxBill;
+      }
+    } catch (e) {
+      const path = billId ? `box_bills/${billId}` : 'box_bills';
+      const operation = existingBillId ? 'update' : 'create';
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation, path, requestResourceData: billPayload }));
+      return null;
+    }
+  }, [firestore, currentUser, boxBills]);
+
+  const recalculateFutureBoxBalances = useCallback(async (customerId: string, skipBillIds: string[] = []) => {
+    if (!firestore) return;
+    try {
+      const recalcBatch = writeBatch(firestore);
+      let updates = 0;
+
+      const customerBills = boxBills.filter(b => b.customerId === customerId && !skipBillIds.includes(b.id));
+      customerBills.sort((a, b) => {
+        const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
+        const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      let runningBalance = openingBoxBalances[customerId] || 0;
+      for (const bill of customerBills) {
+        if (bill.prevBalanceBox !== runningBalance) {
+          const newBalanceBox = runningBalance + bill.todaysFishBox - bill.emptyBox;
+          recalcBatch.update(doc(firestore, 'box_bills', bill.id), {
+            prevBalanceBox: runningBalance,
+            balanceBox: newBalanceBox,
+            updatedAt: serverTimestamp(),
+          });
+          updates++;
+          runningBalance = newBalanceBox;
+        } else {
+          runningBalance = bill.balanceBox;
+        }
+      }
+
+      if (updates > 0) {
+        await recalcBatch.commit();
+      }
+    } catch (e) {
+      console.error("Failed to recalculate future box balances", e);
+    }
+  }, [firestore, boxBills, openingBoxBalances]);
+
+  const deleteBoxBills = useCallback(async (billIds: string[]) => {
+    if (!firestore || !isCurrentUserAdmin) {
+      toast({ variant: 'destructive', title: 'Permission Denied' });
+      return;
+    }
+    const batch = writeBatch(firestore);
+    const customersToRecalculate = new Set<string>();
+
+    billIds.forEach(id => {
+      const bill = boxBills.find(b => b.id === id);
+      if (bill) customersToRecalculate.add(bill.customerId);
+      batch.delete(doc(firestore, 'box_bills', id));
+    });
+
+    try {
+      await batch.commit();
+
+      // Recalculate future bills for affected customers
+      const recalcBatch = writeBatch(firestore);
+      let updates = 0;
+
+      for (const customerId of customersToRecalculate) {
+        const customerBills = boxBills.filter(b => b.customerId === customerId && !billIds.includes(b.id));
+        customerBills.sort((a, b) => {
+          const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
+          const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+          return dateA.getTime() - dateB.getTime();
+        });
+
+        let runningBalance = openingBoxBalances[customerId] || 0;
+        for (const bill of customerBills) {
+          if (bill.prevBalanceBox !== runningBalance) {
+            const newBalanceBox = runningBalance + bill.todaysFishBox - bill.emptyBox;
+            recalcBatch.update(doc(firestore, 'box_bills', bill.id), {
+              prevBalanceBox: runningBalance,
+              balanceBox: newBalanceBox,
+              updatedAt: serverTimestamp(),
+            });
+            updates++;
+            runningBalance = newBalanceBox;
+          } else {
+            runningBalance = bill.balanceBox;
+          }
+        }
+      }
+
+      if (updates > 0) {
+        await recalcBatch.commit();
+      }
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: 'box_bills' }));
+    }
+  }, [firestore, isCurrentUserAdmin, toast, boxBills, openingBoxBalances]);
+
+  const addBoxBillEntry = useCallback(async (entryData: Omit<BoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>): Promise<BoxBillEntry | null> => {
+    if (!firestore || !currentUser) return null;
+    try {
+      const entryRef = doc(collection(firestore, 'box_bill_entries'));
+      const payload = {
+        ...entryData,
+        id: entryRef.id,
+        createdBy: currentUser.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      await setDoc(entryRef, payload);
+      return payload as BoxBillEntry;
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: 'box_bill_entries', requestResourceData: entryData }));
+      return null;
+    }
+  }, [firestore, currentUser]);
+
+  const updateBoxBillEntry = useCallback(async (entryId: string, boxesAdded: number): Promise<void> => {
+    if (!firestore) return;
+    try {
+      const entryRef = doc(firestore, 'box_bill_entries', entryId);
+      await updateDoc(entryRef, { boxesAdded, updatedAt: serverTimestamp() });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: `box_bill_entries/${entryId}` }));
+    }
+  }, [firestore]);
+
+  const deleteBoxBillEntry = useCallback(async (entryId: string): Promise<void> => {
+    if (!firestore) return;
+    try {
+      const entryRef = doc(firestore, 'box_bill_entries', entryId);
+      await deleteDoc(entryRef);
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: `box_bill_entries/${entryId}` }));
+    }
+  }, [firestore]);
+
   return (
     <DataContext.Provider
       value={{
@@ -1661,6 +1998,23 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addStatementPrintHistory,
         getStatementPrintHistoryForCustomer,
         deleteStatementPrintHistory,
+        // Box Billing
+        boxBills,
+        openingBoxBalances,
+        customerBoxBalances,
+        setOpeningBoxBalance,
+
+        addOrUpdateBoxBill,
+        deleteBoxBills,
+        recalculateFutureBoxBalances,
+        findBoxBillForCustomerOnDate,
+        getBoxBill,
+        boxBillEntries,
+        addBoxBillEntry,
+        updateBoxBillEntry,
+        deleteBoxBillEntry,
+        rolePermissions,
+        updateRolePermissions,
       }}
     >
       {children}

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, writeBatch } from 'firebase/firestore';
+import { doc, setDoc, writeBatch, getDoc } from 'firebase/firestore';
 
 function CompanyHeader() {
   return (
@@ -84,11 +84,26 @@ export default function LoginPage() {
         await batch.commit();
       }
 
+      let userRole = '';
+      try {
+        const userDocRef = doc(firestore, 'users', userCredential.user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          userRole = userDoc.data().role;
+        }
+      } catch (err) {
+        console.error("Error fetching user role on login:", err);
+      }
+
       toast({
         title: 'Login Successful',
         description: `Welcome back, ${username}!`,
       });
-      router.replace('/dashboard');
+      if (userRole === 'BOX') {
+        router.push('/dashboard/empty-box-entry');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       // Handle all login errors, including not found, invalid credential, wrong password etc.
       console.error('Login Error:', error.code, error.message);

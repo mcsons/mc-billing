@@ -14,28 +14,21 @@ import {
 import { Customer, SalesReportData, BillItem } from '@/lib/data';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { setupTamilFont } from '@/lib/pdf-fonts';
 
-type SalesReportPrintData = SalesReportData;
-
-const formatINR = (value: number) => {
-  if (value == null || isNaN(value)) return '0.00';
-  return new Intl.NumberFormat('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value);
-};
+type SalesReportPrintData = any;
 
 function PrintPageContent() {
   const router = useRouter();
   const [printData, setPrintData] = useState<SalesReportPrintData | null>(null);
   const [isSharing, setIsSharing] = useState(false);
+  const [isSharingNoBal, setIsSharingNoBal] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [printWithoutPrevBal, setPrintWithoutPrevBal] = useState(false);
-  const [isSharingNoBal, setIsSharingNoBal] = useState(false);
 
   useEffect(() => {
-    const rawData = sessionStorage.getItem('salesReportData');
-    if (rawData)  {
+    const rawData = sessionStorage.getItem('unifiedReportData');
+    if (rawData) {
       try {
         const decodedData = JSON.parse(rawData, (key, value) => {
             if ((key === 'from' || key === 'to' || key === 'billDate') && value) {
@@ -43,7 +36,35 @@ function PrintPageContent() {
             }
             return value;
         });
-        setPrintData(decodedData);
+        
+        let normalizedData = decodedData;
+        if (decodedData && decodedData.mode && decodedData.mode !== 'CUSTOMER') {
+           const groups: Record<string, any[]> = {};
+           decodedData.data.items.forEach((item: any) => {
+              const dateStr = format(new Date(item.billDate), 'dd-MM-yy');
+              if (!groups[dateStr]) groups[dateStr] = [];
+              groups[dateStr].push({
+                 ...item,
+                 product: decodedData.mode === 'PRODUCT' ? item.customerName : item.product,
+                 qty: item.qty,
+                 uom: item.uom || '',
+                 rate: item.rate,
+                 amount: item.amount
+              });
+           });
+           const itemsByDate = Object.keys(groups).map(date => ({
+              date,
+              items: groups[date]
+           }));
+           normalizedData.data.itemsByDate = itemsByDate;
+           if (typeof decodedData.data.totalQty === 'number') {
+              normalizedData.data.totalQty = { '': decodedData.data.totalQty };
+           }
+           normalizedData.data.previousBalance = 0;
+           normalizedData.data.netAmount = decodedData.data.totalAmount;
+        }
+        setPrintData(normalizedData);
+
       } catch (error) {
         console.error('Failed to parse print data:', error);
         router.push('/dashboard/sales-report');
@@ -51,9 +72,9 @@ function PrintPageContent() {
     } else {
       router.push('/dashboard/sales-report');
     }
-  
+
     return () => {
-      sessionStorage.removeItem('salesReportData');
+      sessionStorage.removeItem('unifiedReportData');
     };
   }, [router]);
 
@@ -65,6 +86,8 @@ function PrintPageContent() {
     );
   }
 
+  const mode = printData.mode || 'CUSTOMER';
+  const data = printData.data || printData;
   const {
     customer,
     itemsByDate,
@@ -73,67 +96,288 @@ function PrintPageContent() {
     previousBalance,
     netAmount,
     dateRange,
-  } = printData;
+  } = data;
+  const productName = data.productName;
+  const customerName = data.customerName;
 
-  const totalQtyString = Object.entries(totalQty)
-    .map(([uom, qty]) => {
-         // Apply unit-specific formatting: BOX as whole numbers, others with decimals
-         if (uom.toUpperCase() === 'BOX') {
-          return `${Math.round(qty)}${uom}`;
-      }
-      return `${qty.toFixed(2)}${uom}`;
-  })
-  .join(', ');
+  const formatINR = (value: number) => {
+    if (value == null || isNaN(value)) return '0.00';
+    return new Intl.NumberFormat('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
 
-   // ─────────────────────────────────────────────────────────────
+  const totalQtyString = Object.entries(totalQty || {})
+    .map(([uom, qty]: [string, any]) => {
+        const numericQty = Number(qty) || 0;
+        // Apply unit-specific formatting: BOX as whole numbers, others with decimals
+        if (uom.toUpperCase() === 'BOX') {
+            return `${Math.round(numericQty)}${uom}`;
+        }
+        return `${numericQty.toFixed(2)}${uom}`;
+    })
+    .join(', ');
+
+  // ─────────────────────────────────────────────────────────────
   //  Share PDF: captures hidden #pdf-area-sales div
   // ─────────────────────────────────────────────────────────────
   const handleSharePDF = async (withoutBalance: boolean = false) => {
-    const captureId = withoutBalance ? 'pdf-area-sales-no-bal' : 'pdf-area-sales';
-    const captureEl = document.getElementById(captureId);
-    if (!captureEl || !printData) return;
+    if (!printData) return;
 
-    if (withoutBalance) {
-      setIsSharingNoBal(true);
-    } else {
-      setIsSharing(true);
-    }
+    if (withoutBalance) setIsSharingNoBal(true);
+    else setIsSharing(true);
     setShareError(null);
 
     try {
-      const [html2canvasModule, jsPDFModule] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf'),
-      ]);
-      const html2canvas = html2canvasModule.default;
-      const { jsPDF } = jsPDFModule;
+      const { jsPDF } = await import('jspdf');
 
-      const canvas = await html2canvas(captureEl, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        windowWidth: captureEl.scrollWidth,
-        windowHeight: captureEl.scrollHeight,
+      // ── Page constants ──────────────────────────────────────────
+      const PAGE_W   = 210;   // A4 mm
+      const PAGE_H   = 297;
+      const ML       = 10;    // left margin
+      const MR       = 10;    // right margin
+      const MT       = 10;    // top margin
+      const MB       = 12;    // bottom margin
+      const CW       = PAGE_W - ML - MR;  // content width
+
+      // Column widths
+      const C_DATE   = 18;
+      const C_AMT    = 26;
+      const C_RATE   = 22;
+      const C_QTY    = 24;
+      const C_ITEM   = CW - C_DATE - C_QTY - C_RATE - C_AMT;
+
+      const X: number[] = [
+        ML,
+        ML + C_DATE,
+        ML + C_DATE + C_ITEM,
+        ML + C_DATE + C_ITEM + C_QTY,
+        ML + C_DATE + C_ITEM + C_QTY + C_RATE,
+      ];
+
+      const ROW_H    = 5.5;
+      const HDR_H    = 6.5;
+      const TOTALS_RESERVE = 32; // mm reserved at page bottom for totals block
+
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await setupTamilFont(pdf);
+      let y = MT;
+      let pageNum = 1;
+
+      // ── Helpers ─────────────────────────────────────────────────
+      const setFont = (style: 'normal' | 'bold' | 'italic', size: number, color = 0) => {
+        // Use the registered 'Tamil' font which supports both English and Tamil
+        // Style support depends on the font file, for now we map all to 'normal' 
+        // as we only embedded the Regular weight.
+        pdf.setFont('Tamil', 'normal'); 
+        pdf.setFontSize(size);
+        pdf.setTextColor(color, color, color);
+      };
+
+      const hline = (yy: number, w = 0.4, x1 = ML, x2 = PAGE_W - MR) => {
+        pdf.setDrawColor(100, 100, 100);
+        pdf.setLineWidth(w);
+        pdf.line(x1, yy, x2, yy);
+      };
+
+      const drawTableHeader = () => {
+        pdf.setFillColor(235, 235, 235);
+        pdf.rect(ML, y, CW, HDR_H, 'F');
+        setFont('bold', 9);
+        const ty = y + HDR_H - 1.8;
+        pdf.text('Date',                          X[0] + 1,              ty);
+        pdf.text(mode === 'PRODUCT' ? 'Cust Name' : 'Item', X[1] + 1,  ty);
+        pdf.text('Qty',    X[2] + C_QTY  - 1,    ty, { align: 'right' });
+        pdf.text('Rate',   X[3] + C_RATE - 1,    ty, { align: 'right' });
+        pdf.text('Amount', X[4] + C_AMT  - 1,    ty, { align: 'right' });
+        hline(y + HDR_H, 0.3);
+        y += HDR_H;
+      };
+
+      const addPage = () => {
+        pdf.addPage();
+        pageNum++;
+        y = MT;
+        drawTableHeader();
+        setFont('normal', 9);
+      };
+
+      // ── Page 1 Header ────────────────────────────────────────────
+      setFont('bold', 15);
+      pdf.text('M.C & SONS FISH COMPANY', PAGE_W / 2, y + 1, { align: 'center' });
+      y += 7;
+
+      setFont('normal', 8, 60);
+      pdf.text('No. 1, Fish Market, Palladam Road, Tiruppur - 641604', PAGE_W / 2, y, { align: 'center' });
+      y += 4.5;
+      pdf.text('Ph: 9894089889, 9597833277', PAGE_W / 2, y, { align: 'center' });
+      y += 5;
+
+      hline(y, 0.5);
+      y += 4;
+
+      const reportTitle = mode === 'PRODUCT'
+        ? 'Product Report'
+        : mode === 'CUSTOMER_PRODUCT'
+          ? 'Customer Product Report'
+          : 'Sales Report';
+
+      setFont('bold', 13, 0);
+      pdf.text(reportTitle, PAGE_W / 2, y, { align: 'center' });
+      y += 6;
+
+      // Customer / Product label
+      const custLabel = mode === 'PRODUCT' ? 'Product:' : 'Customer:';
+      const custValue = mode === 'PRODUCT'
+        ? (productName || '')
+        : mode === 'CUSTOMER_PRODUCT'
+          ? `${customerName || ''} | ${productName || ''}`
+          : (customer?.name_ta || customer?.name_en || '-');
+
+      const fromStr = dateRange?.from ? format(new Date(dateRange.from), 'dd-MM-yyyy') : '';
+      const toStr   = dateRange?.to   ? format(new Date(dateRange.to),   'dd-MM-yyyy') : '';
+
+      setFont('bold', 10);
+      pdf.text(custLabel, ML, y);
+      setFont('normal', 10);
+      const labelW = pdf.getTextWidth(custLabel) + 1;
+      // Truncate customer name if too wide
+      let cvDisplay = custValue;
+      const maxCvW  = CW - labelW - (fromStr ? 38 : 0);
+      while (pdf.getTextWidth(cvDisplay) > maxCvW && cvDisplay.length > 4)
+        cvDisplay = cvDisplay.slice(0, -1);
+      if (cvDisplay !== custValue) cvDisplay += '…';
+      pdf.text(cvDisplay, ML + labelW, y);
+
+      if (fromStr) {
+        setFont('normal', 9, 60);
+        pdf.text(`From: ${fromStr}`, PAGE_W - MR, y, { align: 'right' });
+        y += 4.5;
+        if (toStr) pdf.text(`To:   ${toStr}`, PAGE_W - MR, y, { align: 'right' });
+      } else {
+        y -= 0;
+      }
+      y += 6;
+
+      hline(y, 0.5);
+      y += 4;
+
+      // ── Table header (page 1) ────────────────────────────────────
+      drawTableHeader();
+      setFont('normal', 9, 0);
+
+      // ── Data rows ────────────────────────────────────────────────
+      itemsByDate.forEach(({ date, items }: { date: string; items: any[] }) => {
+        items.forEach((item: any, idx: number) => {
+          // Reserve bottom space for totals on every page check
+          const spaceNeeded = ROW_H + (idx === items.length - 1 ? TOTALS_RESERVE : 0);
+          if (y + spaceNeeded > PAGE_H - MB) addPage();
+
+          // Alternating row tint
+          if (idx % 2 === 1) {
+            pdf.setFillColor(250, 250, 250);
+            pdf.rect(ML, y, CW, ROW_H, 'F');
+          }
+
+          setFont('normal', 9, 0);
+          const ty = y + ROW_H - 1.5;
+
+          // Date (first item of group only)
+          if (idx === 0) pdf.text(date, X[0] + 1, ty);
+
+          // Item name – truncate to fit column
+          let iName = String(item.product || '');
+          const maxIW = C_ITEM - 3;
+          while (pdf.getTextWidth(iName) > maxIW && iName.length > 3)
+            iName = iName.slice(0, -1);
+          if (iName !== String(item.product || '')) iName += '…';
+          pdf.text(iName, X[1] + 1, ty);
+
+          const isDelivery = item.product === 'Delivery';
+
+          // Qty
+          pdf.text(
+            isDelivery ? '-' : `${Number(item.qty).toFixed(1)} ${item.uom || ''}`,
+            X[2] + C_QTY - 1, ty, { align: 'right' }
+          );
+
+          // Rate
+          pdf.text(
+            isDelivery ? '-' : String(Math.round(item.rate)),
+            X[3] + C_RATE - 1, ty, { align: 'right' }
+          );
+
+          // Amount
+          setFont('bold', 9, 0);
+          pdf.text(String(Math.round(item.amount)), X[4] + C_AMT - 1, ty, { align: 'right' });
+          setFont('normal', 9, 0);
+
+          y += ROW_H;
+        });
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgHeight = pageWidth * (canvas.height / canvas.width);
+      // ── Divider after rows ───────────────────────────────────────
+      hline(y, 0.5);
+      y += 3;
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+      // ── Totals – always on the final page ───────────────────────
+      // Total row
+      setFont('bold', 10);
+      pdf.text('Total  ==>', X[0] + 1, y + 4);
+      pdf.text(totalQtyString,            X[1] + 1,              y + 4);
+      pdf.text(
+        String(Math.round(totalAmount)),  X[4] + C_AMT - 1,     y + 4,
+        { align: 'right' }
+      );
+      y += 8;
+      hline(y, 0.3);
+      y += 5;
 
+      // Summary box (right-aligned)
+      const SX  = PAGE_W - MR - 72; // label start x
+      const CX  = SX + 52;           // colon x
+      const VX  = PAGE_W - MR;       // value x (right-aligned)
+
+      if (mode === 'CUSTOMER' && !withoutBalance) {
+        setFont('normal', 10);
+        pdf.text('PREVIOUS BALANCE', SX, y + 4.5);
+        pdf.text(':',                CX, y + 4.5);
+        pdf.text(
+          String(Math.round(previousBalance)),
+          VX, y + 4.5, { align: 'right' }
+        );
+        y += 7;
+        hline(y, 0.3, SX - 2, VX);
+        y += 1;
+      }
+
+      setFont('bold', 12);
+      const nettAmt = withoutBalance ? Math.round(totalAmount) : Math.round(netAmount);
+      pdf.text('NETT AMT', SX, y + 5.5);
+      pdf.text(':',        CX, y + 5.5);
+      pdf.text(String(nettAmt), VX, y + 5.5, { align: 'right' });
+      y += 9;
+      hline(y, 0.5, SX - 2, VX);
+      y += 8;
+
+      // Footer
+      setFont('italic', 8, 26);
+      pdf.setTextColor(26, 109, 181);
+      pdf.text('Developed by MC & SONS', ML, y);
+
+      // ── Output / Share ───────────────────────────────────────────
       const pdfBlob = pdf.output('blob');
-      const custName = customer?.name_en || 'Customer';
-      const fromStr = dateRange.from ? format(new Date(dateRange.from), 'dd-MM-yyyy') : '';
-      const toStr = dateRange.to ? format(new Date(dateRange.to), 'dd-MM-yyyy') : '';
-      const fileName = `MC_SalesReport_${custName}_${fromStr}.pdf`;
+      let title = 'Sales Report';
+      let custName = customer?.name_en || 'Customer';
+      if (mode === 'PRODUCT') { title = 'Product Report'; custName = productName; }
+      else if (mode === 'CUSTOMER_PRODUCT') { title = 'Customer Product Report'; custName = customerName; }
+
+      const fileName = `MC_${title.replace(/\s+/g, '')}_${custName}_${fromStr}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      const phone = (customer?.phone || '').replace(/\D/g, '');
+      const phone = (mode === 'CUSTOMER' && customer?.phone) ? customer.phone.replace(/\D/g, '') : '';
       const waMessage =
-        `*M.C & SONS FISH COMPANY*\n*Sales Report*\n\nCustomer: ${custName}\nPeriod: ${fromStr} to ${toStr}\n\nPlease find the attached sales report PDF.\n\nThank you!`;
+        `*M.C & SONS FISH COMPANY*\n*${title}*\n\n${mode === 'PRODUCT' ? 'Product' : 'Customer'}: ${custName}\nPeriod: ${fromStr} to ${toStr}\n\nPlease find the attached report PDF.\n\nThank you!`;
       const waUrl = phone
         ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
         : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
@@ -142,8 +386,8 @@ function PrintPageContent() {
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
           await navigator.share({
-            title: `Sales Report: ${custName} - M.C & SONS`,
-            text: `Sales Report From: ${fromStr}, To: ${toStr} by M.C & SONS FISH COMPANY`,
+            title: `${title}: ${custName} - M.C & SONS`,
+            text: `${title} From: ${fromStr}, To: ${toStr} by M.C & SONS FISH COMPANY`,
             files: [file],
           });
           sharedViaWebShare = true;
@@ -173,11 +417,8 @@ function PrintPageContent() {
         setShareError('Could not generate PDF. Please try printing instead.');
       }
     } finally {
-      if (withoutBalance) {
-        setIsSharingNoBal(false);
-      } else {
-        setIsSharing(false);
-      }
+      if (withoutBalance) setIsSharingNoBal(false);
+      else setIsSharing(false);
     }
   };
 
@@ -194,16 +435,18 @@ function PrintPageContent() {
             Close Preview
           </Button>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleSharePDF(true)}
-              disabled={isSharingNoBal}
-              className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
-            >
-              {isSharingNoBal
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
-                : <><Share2 className="mr-2 h-4 w-4" /> Share PDF (Without Balance)</>}
-            </Button>
+            {mode === 'CUSTOMER' && (
+              <Button
+                variant="outline"
+                onClick={() => handleSharePDF(true)}
+                disabled={isSharingNoBal}
+                className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+              >
+                {isSharingNoBal
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+                  : <><Share2 className="mr-2 h-4 w-4" /> Share PDF (Without Balance)</>}
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => handleSharePDF(false)}
@@ -214,22 +457,24 @@ function PrintPageContent() {
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
                 : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPrintWithoutPrevBal(true);
-                setTimeout(() => {
-                  window.print();
+            {mode === 'CUSTOMER' && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setPrintWithoutPrevBal(true);
                   setTimeout(() => {
-                    setPrintWithoutPrevBal(false);
-                  }, 500);
-                }, 100);
-              }}
-              className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
-            >
-              <Printer className="mr-2 h-4 w-4" />
-              Print Without Prev Bal
-            </Button>
+                    window.print();
+                    setTimeout(() => {
+                      setPrintWithoutPrevBal(false);
+                    }, 500);
+                  }, 100);
+                }}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+              >
+                <Printer className="mr-2 h-4 w-4" />
+                Print Without Prev Bal
+              </Button>
+            )}
             <Button onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Print
@@ -242,12 +487,14 @@ function PrintPageContent() {
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
                 No. 1, Fish Market, Palladam Road,
-                Tiruppur - 641604
+                <span className="city">Tiruppur - 641604</span>
               </p>
-              <p className="header-sub header-phone">📞 9597833277, 9894089889</p>
+              <p className="header-sub header-phone">📞 9894089889, 9597833277</p>
             </header>
             <div className="hr-line"></div>
-            <h2 className="text-lg font-semibold mt-2 text-center">Sales Report</h2>
+            <h2 className="text-lg font-semibold mt-2 text-center">
+      {mode === 'PRODUCT' ? 'Product Report' : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report' : 'Sales Report'}
+  </h2>
 
             <div className="grid grid-cols-2 gap-4 mb-1 text-sm">
                 <div></div>
@@ -263,13 +510,14 @@ function PrintPageContent() {
             
             <div className="text-sm">
                 <p>
-                  <span className="font-semibold">Customer Name:</span>{" "}
+                  <span className="font-semibold">{mode === 'PRODUCT' ? 'Product Name:' : 'Customer Name:'}</span>{" "}
                   <strong className="cust-name-highlight">
-                    {customer?.name_ta || customer?.name_en || '-'}
+                    {mode === 'PRODUCT' ? productName : mode === 'CUSTOMER_PRODUCT' ? `${customerName} | ${productName}` : (customer?.name_ta || customer?.name_en || '-')}
                   </strong>
                 </p>
             </div>
             
+            {/* Blank line for spacing */}
             <div className="py-1"></div>
 
             <Table className="print-table">
@@ -281,7 +529,7 @@ function PrintPageContent() {
                 </TableRow>
                 <TableRow>
                   <TableHead className="col-billdate">BillDate</TableHead>
-                  <TableHead className="col-itemname">ItemName</TableHead>
+                  <TableHead className="col-itemname">{mode === 'PRODUCT' ? 'Cust Name' : 'ItemName'}</TableHead>
                   <TableHead className="col-qty text-center">Qty</TableHead>
                   <TableHead className="col-rate text-right">Rate</TableHead>
                   <TableHead className="col-amount text-right">Amt</TableHead>
@@ -293,13 +541,13 @@ function PrintPageContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {itemsByDate.map(({ date, items }) => (
-                    items.map((item, itemIndex) => (
+                {itemsByDate.map(({ date, items }: { date: string, items: any[] }) => (
+                    items.map((item: any, itemIndex: number) => (
                         <TableRow key={`${date}-${item.id}`}>
                             <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
                             <TableCell className="col-itemname">{item.product}</TableCell>
                             <TableCell className="col-qty">
-                            {item.product === 'Delivery' ? (
+                              {item.product === 'Delivery' ? (
                                 <span className="qty-uom"><strong>-</strong></span>
                               ) : (
                                 <span className="qty-uom">
@@ -324,37 +572,43 @@ function PrintPageContent() {
             </Table>
             
             <div className="totals-section mt-4 space-y-1">
-                <div className="flex justify-between items-center font-bold">
-                    <div className="flex gap-2 items-center whitespace-nowrap">
-                        <span>Total ==&gt;</span>
-                        <span className="qty-summary-text">{totalQtyString}</span>
-                    </div>
-                    <div className="text-right">
-                        {!printWithoutPrevBal ? formatINR(totalAmount) : ''}
-                    </div>
+                <div className="flex">
+                    <span className="w-[40%] font-bold">Total ==&gt;</span>
+                    <span className="w-[30%] text-center">{totalQtyString}</span>
+                    <span className="w-[30%] text-right font-bold">
+                        {!printWithoutPrevBal ? Math.round(totalAmount) : ''}
+                    </span>
                 </div>
                 <div className="hr-line my-1"></div>
                 <div className="flex justify-end mt-1">
                     <table className="summary-table">
                         <tbody>
-                        {!printWithoutPrevBal ? (
-                                <>
-                        <tr>
-                                <td className="summary-label font-bold">PREVIOUS BALANCE</td>
-                                <td className="summary-colon">:</td> 
-                                <td className="summary-value font-bold">{previousBalance.toFixed(2)}</td>
-                            </tr>
-                            <tr className="summary-divider-row summary-final-balance">
-                                <td className="summary-label font-bold">NETT AMT</td>
-                                <td className="summary-colon">:</td>
-                                <td className="summary-value font-bold">{netAmount.toFixed(2)}</td>
-                            </tr>
-                            </>
+                            {mode === 'CUSTOMER' ? (
+                                !printWithoutPrevBal ? (
+                                    <>
+                                        <tr>
+                                            <td className="summary-label">PREVIOUS BALANCE</td>
+                                            <td className="summary-colon">:</td>
+                                            <td className="summary-value font-mono">{Math.round(previousBalance)}</td>
+                                        </tr>
+                                        <tr className="summary-divider-row summary-final-balance">
+                                            <td className="summary-label">NETT AMT</td>
+                                            <td className="summary-colon">:</td>
+                                            <td className="summary-value font-mono">{Math.round(netAmount)}</td>
+                                        </tr>
+                                    </>
+                                ) : (
+                                    <tr className="summary-final-balance">
+                                        <td className="summary-label">NETT AMT</td>
+                                        <td className="summary-colon">:</td>
+                                        <td className="summary-value font-mono">{Math.round(totalAmount)}</td>
+                                    </tr>
+                                )
                             ) : (
                                 <tr className="summary-final-balance">
                                     <td className="summary-label">NETT AMT</td>
                                     <td className="summary-colon">:</td>
-                                    <td className="summary-value font-mono">{formatINR(totalAmount)}</td>
+                                    <td className="summary-value font-mono">{Math.round(totalAmount)}</td>
                                 </tr>
                             )}
                         </tbody>
@@ -366,216 +620,9 @@ function PrintPageContent() {
           </div>
         </div>
 
-         {/* ── Hidden compact div for PDF capture (mobile-first) ── */}
-        <div
-          id="pdf-area-sales"
-          style={{
-            position: 'fixed',
-            left: '-9999px',
-            top: 0,
-            width: '480px',
-            padding: '16px',
-            background: '#fff',
-            color: '#000',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '12px',
-            boxSizing: 'border-box',
-          }}
-        >
-          
-          <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
-            <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>M.C &amp; SONS FISH COMPANY</div>
-            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
-            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '5px' }}>Sales Report</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
-            <div><strong>Customer:</strong> {customer?.name_ta || customer?.name_en || '-'}</div>
-            <div style={{ textAlign: 'right' }}>
-              {dateRange.from && <div><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</div>}
-              {dateRange.to && <div><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</div>}
-            </div>
-          </div>
-          <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px' }}>
-            <thead>
-              <tr style={{ background: '#f0f0f0' }}>
-                <th style={{ width: '14%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Date</th>
-                <th style={{ width: '34%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Item</th>
-                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
-                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
-                <th style={{ width: '20%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsByDate.map(({ date, items }) =>
-                items.map((item, itemIndex) => (
-                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', whiteSpace: 'nowrap', fontSize: '10px' }}>{itemIndex === 0 ? date : ''}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{item.product}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : formatINR(item.rate)}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
-                  </tr>
-                ))
-              )}
-              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
-                <td colSpan={2} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444' }}>Total &nbsp;|&nbsp; {totalQtyString}</td>
-                <td colSpan={3} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right' }}>{formatINR(totalAmount)}</td>
-              </tr>
-            </tbody>
-          </table>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
-            <tbody>
-              <tr><td style={{ padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid #eee' }}>PREVIOUS BALANCE</td><td style={{ padding: '4px 2px', textAlign: 'center', color: '#555', borderBottom: '1px solid #eee', width: '12px' }}>:</td><td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>₹{formatINR(previousBalance)}</td></tr>
-              <tr style={{ borderTop: '2px solid #333' }}><td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>NETT AMT</td><td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td><td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(netAmount)}</td></tr>
-            </tbody>
-          </table>
-          <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
-        </div>
-
-
-        {/* ── Hidden compact div for PDF capture (Without Balance) ── */}
-        <div
-          id="pdf-area-sales-no-bal"
-          style={{ position: 'fixed', left: '-9999px', top: 0, width: '480px', padding: '16px', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', fontSize: '12px', boxSizing: 'border-box' }}
-        >
-          <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
-            <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>M.C &amp; SONS FISH COMPANY</div>
-            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
-            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
-            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '5px' }}>Sales Report</div>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
-            <div><strong>Customer:</strong> {customer?.name_ta || customer?.name_en || '-'}</div>
-            <div style={{ textAlign: 'right' }}>
-              {dateRange.from && <div><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</div>}
-              {dateRange.to && <div><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</div>}
-            </div>
-          </div>
-          <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px' }}>
-            <thead>
-              <tr style={{ background: '#f0f0f0' }}>
-                <th style={{ width: '14%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Date</th>
-                <th style={{ width: '34%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Item</th>
-                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
-                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
-                <th style={{ width: '20%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsByDate.map(({ date, items }) =>
-                items.map((item, itemIndex) => (
-                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', whiteSpace: 'nowrap', fontSize: '10px' }}>{itemIndex === 0 ? date : ''}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{item.product}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : formatINR(item.rate)}</td>
-                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
-                  </tr>
-                ))
-              )}
-              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
-                <td colSpan={2} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444' }}>Total &nbsp;|&nbsp; {totalQtyString}</td>
-                <td colSpan={3} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right' }}></td>
-              </tr>
-            </tbody>
-          </table>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
-            <tbody>
-              <tr style={{ borderTop: '2px solid #333' }}><td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>NETT AMT</td><td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td><td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(totalAmount)}</td></tr>
-            </tbody>
-          </table>
-          <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
-        </div>
-        <div
-          id="pdf-area-sales-no-bal"
-          style={{
-            position: 'fixed',
-            left: '-9999px',
-            top: 0,
-            width: '210mm',
-            minHeight: '297mm',
-            padding: '15mm',
-            background: '#fff',
-            color: '#000',
-            fontFamily: 'Arial, sans-serif',
-            fontSize: '12px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <div style={{ width: '160mm', margin: '0 auto', padding: '15mm 0' }}>
-          <header style={{ textAlign: 'center', marginBottom: '10px' }}>
-            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>M.C &amp; SONS FISH COMPANY</h1>
-            <p style={{ fontSize: '11px', margin: '2px 0' }}>No. 1, Fish Market, Palladam Road,</p>
-            <p style={{ fontSize: '11px', margin: '2px 0' }}>Tiruppur - 641604</p>
-            <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
-          </header>
-          <h2 style={{ textAlign: 'center', fontSize: '15px', fontWeight: 'bold', margin: '6px 0' }}>Sales Report</h2>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
-            <div>
-              <p style={{ margin: '2px 0' }}><strong>Customer:</strong> {customer?.name_ta || customer?.name_en || '-'}</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              {dateRange.from && <p style={{ margin: '2px 0' }}><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</p>}
-              {dateRange.to && <p style={{ margin: '2px 0' }}><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</p>}
-            </div>
-          </div>
-          <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
-          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '11px', tableLayout: 'fixed' }}>
-            <thead>
-              <tr>
-                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'left', width: '12%' }}>Date</th>
-                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'left', width: '38%' }}>Item</th>
-                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '15%' }}>Qty</th>
-                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '15%' }}>Rate</th>
-                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '20%' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {itemsByDate.map(({ date, items }) =>
-                items.map((item, itemIndex) => (
-                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
-                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', whiteSpace: 'nowrap' }}>{itemIndex === 0 ? date : ''}</td>
-                    <td style={{ border: '1px solid #bbb', padding: '4px 6px' }}>{item.product}</td>
-                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}
-                    </td>
-                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
-                      {item.product === 'Delivery' ? '-' : formatINR(item.rate)}
-                    </td>
-                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
-                  </tr>
-                ))
-              )}
-              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
-                <td colSpan={2} style={{ border: '1px solid #bbb', padding: '5px 6px' }}>Total</td>
-                <td style={{ border: '1px solid #bbb', padding: '5px 6px', textAlign: 'right' }}>{totalQtyString}</td>
-                <td style={{ border: '1px solid #bbb', padding: '5px 6px' }}></td>
-                <td style={{ border: '1px solid #bbb', padding: '5px 6px', textAlign: 'right' }}></td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
-            <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
-              <tbody>
-                {[
-                  { label: 'NETT AMT', value: formatINR(totalAmount), bold: true },
-                ].map(({ label, value, bold }) => (
-                  <tr key={label}>
-                    <td style={{ padding: '4px 8px', fontWeight: bold ? 'bold' : 600, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>{label}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'center', width: '18px', color: '#555', borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>:</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: bold ? 'bold' : undefined, fontSize: bold ? '13px' : undefined, borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>₹{value}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <footer style={{ marginTop: '28px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5', textAlign: 'left' }}>Developed by MC &amp; SONS</footer>
-          </div>
-        </div>
-        
+        {/* ── PDF rendered programmatically via jsPDF – these stubs are kept for ID compatibility ── */}
+        <div id="pdf-area-sales" style={{ display: 'none' }} />
+        <div id="pdf-area-sales-no-bal" style={{ display: 'none' }} />
         <style jsx global>{`
         /* ===============================
           SCREEN PREVIEW STYLES
@@ -586,13 +633,10 @@ function PrintPageContent() {
                 color: black;
                 margin: 2rem auto;
                 width: 106mm;
-                padding: 1rem;
-                box-shadow: 0 0 10px rgba(0,0,0,0.1);
             }
         }
 
         /* --- Global Print Reset --- */
-
         @media print {
           * { 
             color: #000 !important; 
@@ -609,7 +653,6 @@ function PrintPageContent() {
             min-height: 0 !important;
             background: white !important;
             overflow: visible !important;
-            min-height: 100vh; 
           }
           #print-area { margin: 0; padding: 0; }
           .print\:hidden { display: none !important; }
@@ -633,11 +676,12 @@ function PrintPageContent() {
             page-break-inside: avoid;
             break-inside: avoid;
           }
+        }
 
         /* ===============================
-          THERMAL STYLING (106mm)
+          THERMAL (106mm)
         ================================ */
-         @media print {
+        @media print {
           .print-root.thermal {
             width: 106mm;
             margin: 0 auto;
@@ -649,64 +693,99 @@ function PrintPageContent() {
              padding: 1.5cm 4mm 10mm 4mm;
              margin: 0 !important;
           }
-        
-        .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
-        .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
-        .header-phone { margin-top: 4px; }
-        .hr-line { border-top: 2px solid #000; margin: 6px 0; }
-        .table-header-line { border-top: 2px solid #000; margin: 0; }
-        
-        .qty-uom {
-          display: inline-flex;
-          justify-content: flex-end;
-          align-items: center;
-        }
+          /* --- Base styles copied from Main Bill Print --- */
+          .header-title { font-size: 22px !important; font-weight: 700; letter-spacing: 0.5px; line-height: 1.2; white-space: nowrap; }
+          .header-sub { display: block; text-align: center; font-size: 13px !important; font-weight: 700; line-height: 1.3; margin-top: 2px; }
+          .header-sub .city { display: block; }
+          .header-phone { margin-top: 4px; }
+          .hr-line { border-top: 2px solid #000; margin: 6px 0; }
+          .table-header-line { border-top: 2px solid #000; margin: 0; }
+          .qty-uom {
+            display: inline-flex;
+            justify-content: flex-end;
+            align-items: center;
+          }
 
-        .uom-text {
-          margin-left: 3px;
-        }
+          .uom-text {
+            margin-left: 3px;
+          }
 
-        .cust-name-highlight {
-          font-size: 16px !important;
-          font-weight: bold !important;
-        }
+          /* --- Customer Name Highlight --- */
+          .cust-name-highlight {
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
 
-        .print-table { 
-          width: 100%; 
-          border-collapse: collapse; 
-          table-layout: fixed; 
-        }
-        .print-table tr, .print-table th, .print-table td { 
-          border: none; 
-          vertical-align: top;
-        }
-        
-        .print-table thead th { 
-          font-weight: 800 !important; 
-          font-size: 14px !important; 
-          padding: 2px 1px; 
-          color: #000; 
-          white-space: nowrap;
-          text-align: left;
-        }
-        .print-table thead th.text-right { text-align: right; }
-        .print-table thead th.text-center { text-align: center; }
-        
-        .print-table tbody td { 
-          padding: 2px 1px; 
-          font-size: 13px;
-          font-weight: 700 !important;
-        }
-        
-        .col-billdate { width: 15%; white-space: nowrap; }
-        .col-itemname { width: 49%; white-space: normal; font-size: 10px !important; padding-right: 4px; word-break: keep-all; }
-        .col-qty { width: 12%; white-space: nowrap; font-size: 14px !important; text-align: right !important; padding-right: 4px; }
-        .col-rate { width: 10%; text-align: right; white-space: nowrap; font-size: 14px !important; font-family: "Courier New", monospace; }
-        .col-amount { width: 14%; text-align: right; white-space: nowrap; font-size: 14px !important; font-family: "Courier New", monospace; }
+          /* --- Sales Report Table Layout --- */
+          .print-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            table-layout: fixed; 
+          }
+          .print-table tr, .print-table th, .print-table td { 
+            border: none; 
+            vertical-align: top;
+          }
+          
+          .print-table thead th { 
+            font-weight: 800 !important; 
+            font-size: 14px !important; 
+            padding: 2px 1px; 
+            color: #000; 
+            white-space: nowrap;
+            text-align: left;
+          }
+          .print-table thead th.text-right { text-align: right; }
+          .print-table thead th.text-center { text-align: center; }
+          
+          .print-table tbody td { 
+            padding: 2px 1px; 
+            font-size: 13px;
+            font-weight: 700 !important;
+          }
+          .print-table td.col-qty,
+          .print-table th.col-qty {
+            text-align: right !important;
+            padding-right: 4px;
+          }
+          
+          /* --- Column Specific Styles (Adjusted for Alignment) --- */
+          .col-billdate { 
+            width: 12%; 
+            white-space: nowrap;
+          }
+          .col-itemname { 
+            width: 52%; 
+            white-space: normal;
+            font-size: 10px !important; 
+            padding-right: 4px;
+            word-break: keep-all;
+          }
+          .col-qty { 
+            width: 12%; 
+            white-space: nowrap;
+            font-size: 14px !important;
+          }
+          .col-rate { 
+            width: 10%; 
+            text-align: right; 
+            white-space: nowrap;
+            font-size: 14px !important;
+            font-family: "Courier New", monospace;
+          }
+          .col-amount { 
+            width: 14%; 
+            text-align: right; 
+            white-space: nowrap;
+            font-size: 14px !important;
+            font-family: "Courier New", monospace;
+          }
 
-        .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
-        .qty-summary-text { white-space: nowrap; }
-        .summary-table {
+          /* --- Totals and Footer --- */
+          .totals-section, .totals-section span { font-size: 15px !important; font-weight: 700 !important; }
+          .totals-section .hr-line { margin: 2px 0; }
+          
+          .summary-table {
             width: 100%;
             max-width: 280px;
             border-collapse: collapse;
@@ -735,7 +814,7 @@ function PrintPageContent() {
             font-size: 16px !important;
             font-weight: 800 !important;
           }
-        .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
+          .print-footer { margin-top: 18px; text-align: left; font-size: 10px; font-weight: 800; font-style: italic; }
         }
       `}</style>
     </div>

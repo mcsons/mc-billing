@@ -55,12 +55,12 @@ import { useToast } from '@/hooks/use-toast';
       }, 100);
     };
 
-    const handlePromote = (userId: string, username: string, role: 'ADMIN' | 'CREATOR') => {
+    const handlePromote = (userId: string, username: string, role: 'ADMIN' | 'CREATOR' | 'MANAGER' | 'BOX') => {
       setTimeout(() => {
         showAlertDialog({
-          title: `Promote ${username} to ${role}?`,
+          title: `Change ${username} role to ${role}?`,
           description: `This will grant them ${role}-level privileges. This action is significant and should be done with caution.`,
-          confirmText: 'Promote',
+          confirmText: 'Confirm',
           onConfirm: () => promoteUser(userId, username, role),
         });
       }, 100);
@@ -101,7 +101,7 @@ import { useToast } from '@/hooks/use-toast';
                     <TableCell className="font-medium">{user.id}</TableCell>
                     <TableCell>{user.username}</TableCell>
                     <TableCell>
-                      <Badge variant={user.role === 'CREATOR' ? 'destructive' : user.role === 'ADMIN' ? 'default' : 'secondary'}>
+                    <Badge variant={user.role === 'CREATOR' ? 'destructive' : user.role === 'ADMIN' ? 'default' : user.role === 'BOX' ? 'outline' : 'secondary'}>
                         {user.role}
                       </Badge>
                     </TableCell>
@@ -129,6 +129,17 @@ import { useToast } from '@/hooks/use-toast';
                                   </DropdownMenuItem>
                                   <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'CREATOR')}>
                                     Promote to Creator
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'BOX')}>
+                                    Change to Box Role
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
+                              {user.role === 'BOX' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handlePromote(user.id, user.username, 'MANAGER')}>
+                                    Change to Manager
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 </>

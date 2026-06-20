@@ -1,3 +1,4 @@
+
 'use client';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -24,6 +25,8 @@ import {
   FolderKanban,
   ChevronDown,
   Users2,
+  Package,
+  FileBarChart2,
 } from 'lucide-react';
 import React from 'react';
 
@@ -47,7 +50,6 @@ import { useData } from '@/context/DataContext';
 import { ThemeToggle } from '../ui/theme-toggle';
 import { cn } from '@/lib/utils';
 import { useLoading } from '@/context/LoadingContext';
-import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import { useBillingGuard } from '@/context/BillingGuardContext';
 import {
   AlertDialog,
@@ -58,31 +60,34 @@ import {
   AlertDialogFooter,
 } from '@/components/ui/alert-dialog';
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-  exact?: boolean;
-  roles?: string[];
-};
-
 /** Maps a nav item label to a contextual loading message */
 function getNavLoadingMessage(label: string): string {
-    const openingItems = [
-      'Dashboard', 'Billing', 'Vehicle Bill', 'Party Bill', 'Payments', 'Profile',
-    ];
-    if (openingItems.includes(label)) return `Opening ${label.toLowerCase()}...`;
-    return `Loading ${label.toLowerCase()}...`;
-  }
+  const openingItems = [
+    'Dashboard', 'Billing', 'Vehicle Bill', 'Party Bill', 'Payments', 'Profile',
+    'Box Billing', 'Box Balance', 'Reports',
+  ];
+  if (openingItems.includes(label)) return `Opening ${label.toLowerCase()}...`;
+  return `Loading ${label.toLowerCase()}...`;
+}
 
-const coreOperations: NavItem[] = [
+const coreOperationsTop = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { href: '/dashboard/billing', label: 'Billing', icon: ClipboardList, exact: true },
+];
+
+const coreOperationsBottom = [
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
-  { href: '/dashboard/sales-report', label: 'Sales Report', icon: BarChart3 },
+  { href: '/dashboard/sales-report', label: 'Reports', icon: BarChart3 },
   { href: '/dashboard/payments', label: 'Payments', icon: IndianRupee },
   { href: '/dashboard/cust-statement', label: 'Cust Statement', icon: History },
+];
+
+const boxBillSubItems: NavItem[] = [
+  { href: '/dashboard/box-billing', label: 'Box Billing', icon: Package },
+  { href: '/dashboard/box-reports', label: 'Reports', icon: FileBarChart2 },
+  { href: '/dashboard/box-balance', label: 'Box Balance', icon: Wallet },
+  { href: '/dashboard/empty-box-entry', label: 'Empty Box Entry', icon: Package },
 ];
 
 const balancesSubItems: NavItem[] = [
@@ -90,20 +95,20 @@ const balancesSubItems: NavItem[] = [
     { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
 ];
 
-const mastersSetup: NavItem[] = [
+const mastersSetup = [
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/products', label: 'Products', icon: Fish, roles: ['CREATOR', 'ADMIN'] },
   { href: '/dashboard/prices', label: 'Set Prices', icon: IndianRupee, roles: ['CREATOR', 'ADMIN'] },
 ];
 
-const manageSubItems: NavItem[] = [
+const manageSubItems = [
     { href: '/dashboard/users', label: 'Manage Users', icon: UserCog, roles: ['CREATOR'] },
     { href: '/dashboard/vehicles', label: 'Manage Vehicles', icon: Truck, roles: ['CREATOR', 'ADMIN'] },
     { href: '/dashboard/drivers', label: 'Manage Drivers', icon: CircleUser, roles: ['CREATOR', 'ADMIN'] },
     { href: '/dashboard/parties', label: 'Manage Parties', icon: Briefcase, roles: ['CREATOR', 'ADMIN'] },
 ];
 
-const systemItems: NavItem[] = [
+const systemItems = [
   { href: '/dashboard/permissions', label: 'Permissions', icon: ShieldCheck, roles: ['CREATOR'] },
   { href: '/dashboard/profile', label: 'Profile', icon: User, exact: true },
 ];
@@ -113,13 +118,34 @@ const settingsSubItems: NavItem[] = [
     { href: '/dashboard/settings/uom', label: 'UOM', icon: Cuboid },
 ];
 
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  exact?: boolean;
+  roles?: string[];
+};
+
 const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
     const pathname = usePathname();
-    const { currentUser } = useData();
+    const { currentUser, rolePermissions } = useData();
     const { setLoading } = useLoading();
-    const { confirmNavigation } = useNavigationGuard();
     const currentUserRole = currentUser?.role;
     const { guardedNavigate } = useGuardedNav();
+
+    const isNavAllowed = (itemLabel: string) => {
+      if (!currentUserRole) return false;
+      if (currentUserRole === 'CREATOR') return true;
+      if (!rolePermissions || !rolePermissions[currentUserRole]) return false;
+      
+      let permLabel = itemLabel;
+      if (itemLabel === 'Cust Statement') permLabel = 'Bill History';
+      if (itemLabel === 'Printer') permLabel = 'Printer Settings';
+      if (itemLabel === 'UOM') permLabel = 'UOM Settings';
+      if (itemLabel === 'Reports') permLabel = 'Sales Report';
+
+      return rolePermissions[currentUserRole].includes(permLabel as any);
+  };
 
     const isMenuItemActive = (href: string, exact = false) => {
         if (exact) {
@@ -133,18 +159,11 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
         setLoading(false);
     }, [pathname, setLoading]);
 
-    const handleItemClick = (e: React.MouseEvent, href: string) => {
-        e.preventDefault();
-        confirmNavigation(href);
-    };
-
-    if (!items) return null;
-
     return items.map((item) => 
-        (!item.roles || (currentUserRole && item.roles.includes(currentUserRole))) && (
+        (isNavAllowed(item.label)) && (
             <SidebarMenuItem key={item.label}>
                 <SidebarMenuButton asChild isActive={isMenuItemActive(item.href, !!item.exact)}>
-                <Link
+                    <Link
                       href={item.href}
                       onClick={(e) => {
                         e.preventDefault();
@@ -162,18 +181,17 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
 
 // ── Guarded Navigation Context (scoped to sidebar) ────────────────────
 type GuardedNavCtx = {
-    guardedNavigate: (href: string, label: string) => void;
-  };
-  const GuardedNavContext = React.createContext<GuardedNavCtx>({
-    guardedNavigate: () => {},
-  });
-  const useGuardedNav = () => React.useContext(GuardedNavContext);
+  guardedNavigate: (href: string, label: string) => void;
+};
+const GuardedNavContext = React.createContext<GuardedNavCtx>({
+  guardedNavigate: () => {},
+});
+const useGuardedNav = () => React.useContext(GuardedNavContext);
 
 export function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser } = useData();
-  const { confirmNavigation } = useNavigationGuard();
+  const { currentUser, rolePermissions } = useData();
   const currentUserRole = currentUser?.role;
   const { setOpenMobile, setOpen } = useSidebar();
   const { setLoading } = useLoading();
@@ -185,6 +203,7 @@ export function DashboardSidebar() {
   const [isBalancesOpen, setIsBalancesOpen] = React.useState(false);
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
+  const [isBoxBillOpen, setIsBoxBillOpen] = React.useState(false);
 
   // ── Unsaved changes dialog state ──────────────────────────────────────
   const [guardDialog, setGuardDialog] = React.useState<{
@@ -201,7 +220,9 @@ export function DashboardSidebar() {
   const guardedNavigate = React.useCallback((href: string, label: string) => {
     // If we're on the billing page and there are unsaved changes
     const isOnBilling = pathname === '/dashboard/billing';
-    if (isOnBilling && billingGuard.hasUnsavedChanges && href !== '/dashboard/billing') {
+    const isOnBoxBilling = pathname === '/dashboard/box-billing';
+    
+    if ((isOnBilling || isOnBoxBilling) && billingGuard.hasUnsavedChanges && href !== pathname) {
       setGuardDialog({ open: true, targetHref: href, targetLabel: label });
       return;
     }
@@ -233,7 +254,6 @@ export function DashboardSidebar() {
   const guardedNavValue = React.useMemo(() => ({ guardedNavigate }), [guardedNavigate]);
   // ─────────────────────────────────────────────────────────────────────
 
-
   const isMenuItemActive = React.useCallback((href: string, exact = false) => {
     if (exact) {
       return pathname === href;
@@ -244,14 +264,18 @@ export function DashboardSidebar() {
     if (href === '/dashboard/manage') {
         return manageSubItems.some(item => pathname.startsWith(item.href));
     }
-     if (href === '/dashboard/settings') {
+    if (href === '/dashboard/settings') {
         return settingsSubItems.some(item => pathname.startsWith(item.href));
+    }
+    if (href === '/dashboard/box-bill') {
+        return boxBillSubItems.some(item => pathname.startsWith(item.href));
     }
     return pathname.startsWith(href);
   }, [pathname]);
   
   React.useEffect(() => {
     // Only apply automatic show/hide rules if the navigation path has changed
+    // This allows manual toggle clicks to stay in their chosen state while on one page
     if (lastPathnameRef.current !== pathname) {
         if (pathname === '/dashboard') {
             setOpen(true);
@@ -266,34 +290,74 @@ export function DashboardSidebar() {
     setIsBalancesOpen(isMenuItemActive('/dashboard/balances'));
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
+    setIsBoxBillOpen(isMenuItemActive('/dashboard/box-bill'));
   }, [pathname, isMenuItemActive, setOpen, setOpenMobile]);
 
-  const canShowBalances = balancesSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
-  const canShowManage = manageSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
-  const canShowSettings = settingsSubItems.some(item => !item.roles || (currentUserRole && item.roles.includes(currentUserRole)));
+  const isNavAllowed = React.useCallback((itemLabel: string) => {
+    if (!currentUserRole) return false;
+    if (currentUserRole === 'CREATOR') return true;
+    if (!rolePermissions || !rolePermissions[currentUserRole]) return false;
+    
+    let permLabel = itemLabel;
+    if (itemLabel === 'Cust Statement') permLabel = 'Bill History';
+    if (itemLabel === 'Printer') permLabel = 'Printer Settings';
+    if (itemLabel === 'UOM') permLabel = 'UOM Settings';
+    if (itemLabel === 'Reports') permLabel = 'Sales Report';
 
-  const handleSubItemClick = (e: React.MouseEvent, href: string) => {
-    e.preventDefault();
-    confirmNavigation(href);
-  };
+    return rolePermissions[currentUserRole].includes(permLabel as any);
+}, [currentUserRole, rolePermissions]);
+
+const canShowBoxBill = boxBillSubItems.some(item => isNavAllowed(item.label));
+const canShowBalances = balancesSubItems.some(item => isNavAllowed(item.label));
+const canShowManage = manageSubItems.some(item => isNavAllowed(item.label));
+const canShowSettings = settingsSubItems.some(item => isNavAllowed(item.label));
+
 
   return (
     <GuardedNavContext.Provider value={guardedNavValue}>
       <Sidebar>
         <SidebarHeader className="flex items-center justify-between p-2">
-            <Button 
-                variant="ghost" 
-                className="h-8 w-full justify-start gap-2 px-2"
-                onClick={() => confirmNavigation('/dashboard')}
-            >
-                <Fish className="size-5 text-primary" />
-                <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
+            <Button asChild variant="ghost" className="h-8 w-full justify-start gap-2 px-2">
+                <Link href="/dashboard">
+                    <Fish className="size-5 text-primary" />
+                    <span className="font-headline text-lg font-bold text-primary">MC Billing</span>
+                </Link>
             </Button>
             <SidebarTrigger />
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            <MenuItemGroup items={coreOperations} />
+            <MenuItemGroup items={coreOperationsTop} />
+            {canShowBoxBill && (
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setIsBoxBillOpen(!isBoxBillOpen)} isActive={isBoxBillOpen} data-state={isBoxBillOpen ? 'open' : 'closed'}>
+                  <Package />
+                  <span>Box Bill</span>
+                  <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isBoxBillOpen && "rotate-180")} />
+              </SidebarMenuButton>
+              <SidebarMenuSub open={isBoxBillOpen}>
+                  {boxBillSubItems.map(subItem => (
+                      isNavAllowed(subItem.label) && (
+                      <SidebarMenuSubItem key={subItem.label}>
+                          <Link
+                            href={subItem.href}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              guardedNavigate(subItem.href, subItem.label);
+                            }}
+                          >
+                              <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                  <subItem.icon />
+                                  <span>{subItem.label}</span>
+                              </SidebarMenuSubButton>
+                          </Link>
+                      </SidebarMenuSubItem>
+                      )
+                  ))}
+              </SidebarMenuSub>
+            </SidebarMenuItem>
+            )}
+            <MenuItemGroup items={coreOperationsBottom} />
             {canShowBalances && (
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={() => setIsBalancesOpen(!isBalancesOpen)} isActive={isBalancesOpen} data-state={isBalancesOpen ? 'open' : 'closed'}>
@@ -303,7 +367,7 @@ export function DashboardSidebar() {
                 </SidebarMenuButton>
                 <SidebarMenuSub open={isBalancesOpen}>
                     {balancesSubItems.map(subItem => (
-                         (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
+                          isNavAllowed(subItem.label) && (
                             <SidebarMenuSubItem key={subItem.label}>
                                 <Link
                                   href={subItem.href}
@@ -336,7 +400,7 @@ export function DashboardSidebar() {
                   </SidebarMenuButton>
                   <SidebarMenuSub open={isManageOpen}>
                       {manageSubItems.map(subItem => (
-                          (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
+                          isNavAllowed(subItem.label) && (
                             <SidebarMenuSubItem key={subItem.label}>
                                 <Link
                                   href={subItem.href}
@@ -369,21 +433,21 @@ export function DashboardSidebar() {
                 </SidebarMenuButton>
                 <SidebarMenuSub open={isSettingsOpen}>
                     {settingsSubItems.map(subItem => (
-                         (!subItem.roles || (currentUserRole && subItem.roles.includes(currentUserRole))) && (
+                         isNavAllowed(subItem.label) && (
                             <SidebarMenuSubItem key={subItem.label}>
-                            <Link
-                              href={subItem.href}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                guardedNavigate(subItem.href, subItem.label);
-                              }}
-                            >
-                                <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
-                                    <subItem.icon />
-                                    <span>{subItem.label}</span>
-                                </SidebarMenuSubButton>
-                            </Link>
-                        </SidebarMenuSubItem>
+                                <Link
+                                  href={subItem.href}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    guardedNavigate(subItem.href, subItem.label);
+                                  }}
+                                >
+                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                        <subItem.icon />
+                                        <span>{subItem.label}</span>
+                                    </SidebarMenuSubButton>
+                                </Link>
+                            </SidebarMenuSubItem>
                          )
                     ))}
                 </SidebarMenuSub>
@@ -396,7 +460,6 @@ export function DashboardSidebar() {
         </SidebarFooter>
       </Sidebar>
 
-      
       {/* Unsaved Billing Changes — 3-option Dialog */}
       <AlertDialog open={guardDialog.open} onOpenChange={(open) => { if (!open) handleGuardCancel(); }}>
         <AlertDialogContent>
