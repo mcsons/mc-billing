@@ -145,6 +145,7 @@ export default function PartyBoxBillingPage() {
   const saveBtnInPopupRef = useRef<HTMLButtonElement>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [entryBoxes, setEntryBoxes] = useState('');
+  const [entryEmptyBoxes, setEntryEmptyBoxes] = useState('');
   const [localTfText, setLocalTfText] = useState('');
   const [isEntriesPanelOpen, setIsEntriesPanelOpen] = useState(false);
   const [manageEntriesBillId, setManageEntriesBillId] = useState<string | null>(null);
@@ -508,7 +509,9 @@ export default function PartyBoxBillingPage() {
   }, [activeBillEntries]);
 
   const computedEmptyBoxes = useMemo(() => {
-    return activeBillEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
+    return activeBillEntries
+      .filter(e => !e.isManualEmpty)
+      .reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
   }, [activeBillEntries]);
 
   const pb = parseInt(prevBalanceBox) || 0;
@@ -561,26 +564,49 @@ export default function PartyBoxBillingPage() {
       const firestoreEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === savedBill.id);
       
       for (const fe of firestoreEntries) {
+         if (fe.isManualEmpty) continue;
          if (!localEntries.find(le => le.id === fe.id)) {
             await deletePartyBoxBillEntry(fe.id);
          }
       }
       
       for (const le of localEntries) {
+         if (le.isManualEmpty) continue;
          if (le.id?.startsWith('temp-')) {
             await addPartyBoxBillEntry({
                partyBoxBillId: savedBill.id,
                partyId: selectedPartyId,
                entryDate: le.entryDate,
                boxesAdded: le.boxesAdded,
+               emptyBoxesAdded: le.emptyBoxesAdded || 0,
             });
          } else {
             const original = firestoreEntries.find(fe => fe.id === le.id);
-            if (original && original.boxesAdded !== le.boxesAdded) {
-               await updatePartyBoxBillEntry(le.id, le.boxesAdded);
+            if (original && (original.boxesAdded !== le.boxesAdded || (original.emptyBoxesAdded || 0) !== (le.emptyBoxesAdded || 0))) {
+               await updatePartyBoxBillEntry(le.id, le.boxesAdded, le.emptyBoxesAdded || 0);
             }
          }
       }
+
+      // Manual Empty Box → persist as a visible entry so it appears in Today's Box Entries.
+      // Always delete the old manual entry then recreate, so editing the bill stays in sync.
+      const existingManualEntry = firestoreEntries.find(e => e.isManualEmpty);
+      if (existingManualEntry) {
+        await deletePartyBoxBillEntry(existingManualEntry.id);
+      }
+      if (manualEmpty > 0) {
+        await addPartyBoxBillEntry({
+          partyBoxBillId: savedBill.id,
+          partyId: selectedPartyId,
+          entryDate: Timestamp.now(),
+          boxesAdded: 0,
+          emptyBoxesAdded: manualEmpty,
+          isManualEmpty: true,
+        });
+      }
+
+      // Cascade balance to all subsequent bills for this party
+      await recalculateFuturePartyBoxBalances(selectedPartyId);
       
       return savedBill;
     }
@@ -634,19 +660,30 @@ export default function PartyBoxBillingPage() {
   const handleSaveEntry = async () => {
     if (!entryBoxes || isNaN(parseInt(entryBoxes))) return;
     const boxes = parseInt(entryBoxes);
+    const emptyBoxes = parseInt(entryEmptyBoxes) || 0;
     const currentEditingEntryId = editingEntryId;
     
     setIsEntryDialogOpen(false);
     setEntryBoxes('');
+    setEntryEmptyBoxes('');
     setEditingEntryId(null);
     
     if (currentEditingEntryId) {
-      setLocalEntries(prev => prev.map(e => e.id === currentEditingEntryId ? { ...e, boxesAdded: boxes } : e));
+      setLocalEntries(prev => prev.map(e => {
+        if (e.id === currentEditingEntryId) {
+          if (e.isManualEmpty) {
+            setManualEmptyBox(emptyBoxes.toString());
+          }
+          return { ...e, boxesAdded: boxes, emptyBoxesAdded: emptyBoxes };
+        }
+        return e;
+      }));
     } else {
       const newEntry = {
         id: `temp-${Date.now()}`,
         entryDate: Timestamp.now(),
         boxesAdded: boxes,
+        emptyBoxesAdded: emptyBoxes,
         createdBy: currentUser?.id || 'Unknown',
       };
       setLocalEntries(prev => [...prev, newEntry]);
@@ -684,7 +721,11 @@ export default function PartyBoxBillingPage() {
       description: 'Are you sure you want to delete this box entry?',
       onConfirm: async () => {
         if (!isHistorical) {
-          setLocalEntries(prev => prev.filter(e => e.id !== entryId));
+          setLocalEntries(prev => {
+            const entry = prev.find(e => e.id === entryId);
+            if (entry?.isManualEmpty) setManualEmptyBox('');
+            return prev.filter(e => e.id !== entryId);
+          });
         } else if (manageEntriesBillId) {
           await deletePartyBoxBillEntry(entryId);
           const bill = partyBoxBills.find(b => b.id === manageEntriesBillId);
@@ -991,6 +1032,7 @@ export default function PartyBoxBillingPage() {
                           e.preventDefault();
                           // Just open the Add Entry popup; do NOT auto-save
                           setEntryBoxes('');
+                          setEntryEmptyBoxes('');
                           setEditingEntryId(null);
                           setIsEntryDialogOpen(true);
                         } else if (e.key === 'Tab') {
@@ -1011,9 +1053,7 @@ export default function PartyBoxBillingPage() {
                     <Input readOnly value={tb} className="bg-muted font-bold h-10" tabIndex={-1} />
                   </div>
                   <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
-                    <Label className="text-xs sm:text-sm truncate" title={entryEmptyBoxTotal > 0 ? `Empty Box (Entries: ${entryEmptyBoxTotal})` : 'Empty Box'}>
-                      Empty Box {entryEmptyBoxTotal > 0 ? `(${entryEmptyBoxTotal})` : ''}
-                    </Label>
+                    <Label className="text-xs sm:text-sm truncate" title="Empty Box">Empty Box</Label>
                     <Input 
                       type="number" 
                       ref={emptyBoxRef} 
@@ -1022,6 +1062,11 @@ export default function PartyBoxBillingPage() {
                       onKeyDown={e => handleKeyDown(e, descriptionRef)}
                       className="h-10"
                     />
+                    {entryEmptyBoxTotal > 0 && (
+                      <span className="text-[13px] font-bold italic text-muted-foreground pl-1 leading-none mt-1">
+                        +{entryEmptyBoxTotal} from entries
+                      </span>
+                    )}
                   </div>
                   <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Balance Box">Balance Box</Label>
@@ -1108,10 +1153,12 @@ export default function PartyBoxBillingPage() {
                                 </TableCell>
                                 <TableCell className="py-2 px-2 text-right">
                                   <div className="flex justify-end gap-1">
+                                     {/* Creator/Admin can edit any entry regardless of who created it. */}
                                     <Button tabIndex={-1} variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingEntryId(entry.id);
-                                      setEntryBoxes(entry.boxesAdded.toString());
+                                      setEntryBoxes((entry.boxesAdded || 0).toString());
+                                      setEntryEmptyBoxes(entry.emptyBoxesAdded ? entry.emptyBoxesAdded.toString() : '');
                                       setIsEntryDialogOpen(true);
                                     }}>
                                       <Pencil className="h-3 w-3" />
@@ -1129,10 +1176,24 @@ export default function PartyBoxBillingPage() {
                           }) : (
                             <TableRow><TableCell colSpan={5} className="h-12 text-center text-muted-foreground">No entries yet.</TableCell></TableRow>
                           )}
+                          {/* Virtual pending row for the manual empty box — shown before Save */}
+                          {manualEmpty > 0 && !localEntries.some(e => e.isManualEmpty) && (
+                            <TableRow className="bg-amber-50 dark:bg-amber-950/20">
+                              <TableCell className="py-2 px-2 text-xs text-amber-600 italic">Pending</TableCell>
+                              <TableCell className="py-2 px-2 text-xs text-amber-600 italic">—</TableCell>
+                              <TableCell className="py-2 px-2 text-right text-amber-600 italic">—</TableCell>
+                              <TableCell className="py-2 px-2 text-right font-bold text-orange-500">
+                                {manualEmpty}
+                              </TableCell>
+                              <TableCell className="py-2 px-2 text-right text-xs text-amber-600 italic">Not saved</TableCell>
+                            </TableRow>
+                          )}
                           <TableRow className="bg-muted/50 border-t-2">
                             <TableCell colSpan={2} className="py-2 px-2 font-bold text-right">Total Added</TableCell>
                             <TableCell className="py-2 px-2 font-bold text-right text-green-600 text-base">{activeTotalAdded}</TableCell>
-                            <TableCell className="py-2 px-2 font-bold text-right text-orange-500 text-base">{activeTotalEmptyAdded}</TableCell>
+                            <TableCell className="py-2 px-2 font-bold text-right text-orange-500 text-base">
+                              {activeTotalEmptyAdded + ((!localEntries.some(e => e.isManualEmpty) && manualEmpty > 0) ? manualEmpty : 0)}
+                            </TableCell>
                             <TableCell></TableCell>
                           </TableRow>
                         </TableBody>
@@ -1314,28 +1375,37 @@ export default function PartyBoxBillingPage() {
         </div>
       </div>
 
-      <Dialog open={isEntryDialogOpen} onOpenChange={setIsEntryDialogOpen}>
+      <Dialog open={isEntryDialogOpen} onOpenChange={(open) => {
+        if (!open) { setEntryBoxes(''); setEntryEmptyBoxes(''); setEditingEntryId(null); }
+        setIsEntryDialogOpen(open);
+      }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{editingEntryId ? 'Edit Box Entry' : 'Add Box Entry'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="boxes" className="text-right">Boxes</Label>
+              <Label htmlFor="entry-boxes" className="text-right">Box Added</Label>
               <Input
-                id="boxes"
+                id="entry-boxes"
                 type="number"
                 value={entryBoxes}
                 onChange={(e) => setEntryBoxes(e.target.value)}
                 className="col-span-3 font-bold"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    // Directly save the entry on Enter for smooth UX
-                    handleSaveEntry();
-                  }
-                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveEntry(); } }}
                 autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="entry-empty" className="text-right">Empty Boxes</Label>
+              <Input
+                id="entry-empty"
+                type="number"
+                placeholder="0"
+                value={entryEmptyBoxes}
+                onChange={(e) => setEntryEmptyBoxes(e.target.value)}
+                className="col-span-3"
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveEntry(); } }}
               />
             </div>
           </div>

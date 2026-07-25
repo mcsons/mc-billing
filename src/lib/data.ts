@@ -402,6 +402,7 @@ export type PartyBoxBillEntry = {
   entryDate: any;
   boxesAdded: number;
   emptyBoxesAdded?: number;
+  isManualEmpty?: boolean;
   createdBy: string;
   createdAt?: any;
   updatedAt?: any;
