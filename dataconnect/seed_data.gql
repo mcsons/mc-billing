@@ -1,0 +1,109 @@
+mutation CreateDemoData @transaction @auth(level: USER, insecureReason: "This operation is for seeding data and should only be run by authenticated users.") {
+  user_insertMany(data: [
+    {
+      id: "6f527a4d-9d41-4c6e-8d07-2a5b4c1e0f3b",
+      username: "adminUser",
+      email: "admin@example.com",
+      passwordHash: "hashedPassword123",
+      role: "admin",
+      createdAt: "2023-01-01T10:00:00Z"
+    },
+    {
+      id: "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      username: "standardUser",
+      email: "user@example.com",
+      passwordHash: "anotherHashedPassword",
+      role: "user",
+      createdAt: "2023-01-02T11:00:00Z",
+      displayName: "Standard User"
+    }
+  ])
+  client_insertMany(data: [
+    {
+      id: "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+      name: "Acme Corp",
+      email: "contact@acmecorp.com",
+      createdAt: "2023-01-03T12:00:00Z",
+      address: "123 Main St, Anytown",
+      phone: "555-123-4567",
+      contactPerson: "Jane Doe"
+    },
+    {
+      id: "f1e2d3c4-b5a6-9f8e-7d6c-5b4a3f2e1d0c",
+      name: "Globex Inc.",
+      email: "info@globex.net",
+      createdAt: "2023-01-04T13:00:00Z",
+      address: "456 Oak Ave, Otherville",
+      phone: "555-987-6543"
+    }
+  ])
+  invoice_insertMany(data: [
+    {
+      id: "i1n2v3o4-i5c6-e7a8-i9t0-i1n2v3o4i5c6",
+      invoiceNumber: "INV-2023-001",
+      issueDate: "2023-01-10",
+      dueDate: "2023-02-10",
+      status: "pending",
+      totalAmount: 1500.00,
+      createdAt: "2023-01-10T10:30:00Z",
+      updatedAt: "2023-01-10T10:30:00Z",
+      description: "Website development project",
+      taxRate: 0.08,
+      clientId: "c1a2b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c",
+      creatorId: "6f527a4d-9d41-4c6e-8d07-2a5b4c1e0f3b"
+    },
+    {
+      id: "j1o2h3n4-d5o6-e7i8-n9v0-o1i2c3e4f5g6",
+      invoiceNumber: "INV-2023-002",
+      issueDate: "2023-01-15",
+      dueDate: "2023-02-15",
+      status: "paid",
+      totalAmount: 500.00,
+      createdAt: "2023-01-15T11:00:00Z",
+      updatedAt: "2023-01-20T14:00:00Z",
+      description: "Consulting services",
+      taxRate: 0.05,
+      clientId: "f1e2d3c4-b5a6-9f8e-7d6c-5b4a3f2e1d0c",
+      creatorId: "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d"
+    }
+  ])
+  invoiceItem_insertMany(data: [
+    {
+      id: "it1e2m3a-i4t5e6-m7a8-i9t0-e1m2a3t4e5m6",
+      invoiceId: "i1n2v3o4-i5c6-e7a8-i9t0-i1n2v3o4i5c6",
+      description: "Homepage design",
+      quantity: 1,
+      unitPrice: 1000.00,
+      lineTotal: 1000.00
+    },
+    {
+      id: "o1n2e3a4-t5w6o7-a8n9d0-t1h2r3e4e5f6g7",
+      invoiceId: "i1n2v3o4-i5c6-e7a8-i9t0-i1n2v3o4i5c6",
+      description: "Backend development",
+      quantity: 1,
+      unitPrice: 500.00,
+      lineTotal: 500.00,
+      notes: "Includes API integration"
+    },
+    {
+      id: "f1o2u3r4-f5i6v7e-s8i9x0-s1e2v3e4n5e6i",
+      invoiceId: "j1o2h3n4-d5o6-e7i8-n9v0-o1i2c3e4f5g6",
+      description: "Hourly consulting",
+      quantity: 10,
+      unitPrice: 50.00,
+      lineTotal: 500.00
+    }
+  ])
+  payment_insertMany(data: [
+    {
+      id: "p1a2y3m4-e5n6t7a-p8r9o0c-e1s2s3e4d5g6",
+      invoiceId: "j1o2h3n4-d5o6-e7i8-n9v0-o1i2c3e4f5g6",
+      recorderId: "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+      paymentDate: "2023-01-20",
+      amount: 500.00,
+      paymentMethod: "Bank Transfer",
+      createdAt: "2023-01-20T14:15:00Z",
+      transactionId: "TXN-12345"
+    }
+  ])
+}

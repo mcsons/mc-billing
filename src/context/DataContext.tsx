@@ -7,6 +7,7 @@ import {
   BillItem,
   LiveBillSummary,
   Payment,
+  PartyPayment,
   User,
   Transaction,
   Uom,
@@ -21,6 +22,8 @@ import {
   StatementPrintHistory,
   BoxBill,
   BoxBillEntry,
+  PartyBoxBill,
+  PartyBoxBillEntry,
   Role,
   Page,
   initialPermissions,
@@ -75,6 +78,7 @@ interface DataContextType {
   openingBalances: CustomerBalances;
   customerBalances: CustomerBalances;
   payments: Payment[];
+  partyPayments: PartyPayment[];
   currentUser: User | null;
   isCurrentUserAdmin: boolean;
   liveBillItems: LiveBillItems;
@@ -114,10 +118,18 @@ interface DataContextType {
   ) => { billNo: string; commitPromise: Promise<void> };
   deleteBills: (billNos: string[]) => Promise<void>;
   updateProductPrice: (productId: string, uom: string, price: number) => void;
+  // Customer-specific pricing
+  // customerProductPrices[customerId][productId][uom] = price
+  customerProductPrices: Record<string, Record<string, Record<string, number>>>;
+  setCustomerProductPrice: (customerId: string, productId: string, uom: string, price: number) => Promise<void>;
+  getCustomerProductPrice: (customerId: string, productId: string, uom: string) => number | undefined;
   addPayment: (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => void;
-  updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI" | "Bill Payment", date?: Date }) => Promise<void>;
+  updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: string; date?: Date }) => Promise<void>;
   softDeletePayment: (paymentId: string) => Promise<void>;
   updateBillPayment: (billNo: string, amountToAdd: number, notes?: string) => Promise<void>;
+  addPartyPayment: (payment: Omit<PartyPayment, 'id' | 'date'> & { date?: Date }) => void;
+  updatePartyPayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI" | "Bill Payment", date?: Date }) => Promise<void>;
+  softDeletePartyPayment: (paymentId: string) => Promise<void>;
   findBillForCustomerToday: (customerId: string) => LiveBillSummary | undefined;
   findBillForCustomerOnDate: (customerId: string, date: Date) => LiveBillSummary | undefined;
   getBill: (billNo: string) => LiveBillSummary | undefined;
@@ -148,6 +160,22 @@ interface DataContextType {
   getBoxBill: (billId: string) => BoxBill | undefined;
 
   boxBillEntries: BoxBillEntry[];
+  partyBoxBills: PartyBoxBill[];
+  partyOpeningBoxBalances: Record<string, number>; 
+  partyBoxBalances: Record<string, number>; 
+
+  setPartyOpeningBoxBalance: (partyId: string, balance: number) => Promise<void>;
+  addOrUpdatePartyBoxBill: (bill: Omit<PartyBoxBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>, existingBillId?: string | null) => Promise<PartyBoxBill | null>;
+  deletePartyBoxBills: (billIds: string[]) => Promise<void>;
+  recalculateFuturePartyBoxBalances: (partyId: string, skipBillIds?: string[]) => Promise<void>;
+  findPartyBoxBillForPartyOnDate: (partyId: string, date: Date) => PartyBoxBill | undefined;
+  getPartyBoxBill: (billId: string) => PartyBoxBill | undefined;
+
+  partyBoxBillEntries: PartyBoxBillEntry[];
+  addPartyBoxBillEntry: (entry: Omit<PartyBoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>) => Promise<PartyBoxBillEntry | null>;
+  updatePartyBoxBillEntry: (entryId: string, boxesAdded: number) => Promise<void>;
+  deletePartyBoxBillEntry: (entryId: string) => Promise<void>;
+
   addBoxBillEntry: (entry: Omit<BoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>) => Promise<BoxBillEntry | null>;
   updateBoxBillEntry: (entryId: string, boxesAdded: number) => Promise<void>;
   deleteBoxBillEntry: (entryId: string) => Promise<void>;
@@ -212,6 +240,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { data: paymentsData } = useCollection<Payment>(paymentsCollection);
   const payments = useMemo(() => paymentsData || [], [paymentsData]);
 
+  const partyPaymentsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyPayments') : null, [firestore, firebaseUser]);
+  const { data: partyPaymentsData } = useCollection<PartyPayment>(partyPaymentsCollection);
+  const partyPayments = useMemo(() => partyPaymentsData || [], [partyPaymentsData]);
+
   const statementPrintHistoryCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'statementPrintHistory') : null, [firestore, firebaseUser]);
   const { data: statementPrintHistoryData } = useCollection<StatementPrintHistory>(statementPrintHistoryCollection);
   const statementPrintHistory = useMemo(() => statementPrintHistoryData || [], [statementPrintHistoryData]);
@@ -223,6 +255,45 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const boxBillEntriesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'box_bill_entries') : null, [firestore, firebaseUser]);
   const { data: boxBillEntriesData } = useCollection<BoxBillEntry>(boxBillEntriesCollection);
   const boxBillEntries = useMemo(() => boxBillEntriesData || [], [boxBillEntriesData]);
+
+   // ── Party Box Bills ──────────────────────────────────────────────────────
+   const partyBoxBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'party_box_bills') : null, [firestore, firebaseUser]);
+   const { data: partyBoxBillsData } = useCollection<PartyBoxBill>(partyBoxBillsCollection);
+   const partyBoxBills = useMemo(() => partyBoxBillsData || [], [partyBoxBillsData]);
+ 
+   const partyBoxBillEntriesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'party_box_bill_entries') : null, [firestore, firebaseUser]);
+   const { data: partyBoxBillEntriesData } = useCollection<PartyBoxBillEntry>(partyBoxBillEntriesCollection);
+   const partyBoxBillEntries = useMemo(() => partyBoxBillEntriesData || [], [partyBoxBillEntriesData]);
+ 
+   const { data: partyBoxBalancesData } = useCollection<{ partyId: string; balanceAmount: number }>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBoxBalances') : null, [firestore, firebaseUser]));
+   const partyOpeningBoxBalances = useMemo(() => {
+     if (!partyBoxBalancesData) return {};
+     return partyBoxBalancesData.reduce((acc, cb) => {
+       acc[cb.partyId] = cb.balanceAmount;
+       return acc;
+     }, {} as Record<string, number>);
+   }, [partyBoxBalancesData]);
+ 
+   const partyBoxBalances = useMemo(() => {
+     const balances: Record<string, number> = {};
+     parties.forEach(p => { balances[p.id] = partyOpeningBoxBalances[p.id] || 0; });
+     const billsByParty: Record<string, PartyBoxBill[]> = {};
+     partyBoxBills.forEach(b => {
+       if (!billsByParty[b.partyId]) billsByParty[b.partyId] = [];
+       billsByParty[b.partyId].push(b);
+     });
+     Object.keys(billsByParty).forEach(partyId => {
+       const bills = billsByParty[partyId];
+       bills.sort((a, b) => {
+         const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
+         const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+         return dateB.getTime() - dateA.getTime();
+       });
+       if (bills.length > 0) balances[partyId] = bills[0].balanceBox;
+     });
+     return balances;
+   }, [parties, partyOpeningBoxBalances, partyBoxBills]);
+ 
 
   // Opening box balances: keyed by customerId, stored in `customerBoxBalances` collection
   const { data: boxBalancesData } = useCollection<{ customerId: string; balanceAmount: number }>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'customerBoxBalances') : null, [firestore, firebaseUser]));
@@ -288,6 +359,59 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return acc;
     }, {} as ProductPrices);
   }, [pricesData]);
+
+  // ── Customer-specific product prices ─────────────────────────────────────
+  const { data: custPricesData } = useCollection<any>(
+    useMemoFirebase(
+      () => firestore && firebaseUser ? collection(firestore, 'customer_product_prices') : null,
+      [firestore, firebaseUser]
+    )
+  );
+  // Nested map: customerId → productId → uom → price
+  const customerProductPrices = useMemo(() => {
+    if (!custPricesData) return {};
+    return custPricesData.reduce((acc, rec) => {
+      const { customerId, productId, uom, pricePerUom } = rec;
+      if (!acc[customerId]) acc[customerId] = {};
+      if (!acc[customerId][productId]) acc[customerId][productId] = {};
+      acc[customerId][productId][uom] = pricePerUom;
+      return acc;
+    }, {} as Record<string, Record<string, Record<string, number>>>);
+  }, [custPricesData]);
+
+  const setCustomerProductPrice = useCallback(async (
+    customerId: string,
+    productId: string,
+    uom: string,
+    price: number
+  ) => {
+    if (!firestore) return;
+    // Doc ID is deterministic so upsert is idempotent
+    const priceId = `${customerId}_${productId}_${uom}`;
+    const priceRef = doc(firestore, 'customer_product_prices', priceId);
+    const payload = {
+      customerId,
+      productId,
+      uom,
+      pricePerUom: price,
+      updatedAt: serverTimestamp(),
+    };
+    await setDoc(priceRef, payload, { merge: true }).catch((e) => {
+      errorEmitter.emit(
+        'permission-error',
+        new FirestorePermissionError({ operation: 'write', path: priceRef.path, requestResourceData: payload })
+      );
+      throw e;
+    });
+  }, [firestore]);
+
+  const getCustomerProductPrice = useCallback((
+    customerId: string,
+    productId: string,
+    uom: string
+  ): number | undefined => {
+    return customerProductPrices[customerId]?.[productId]?.[uom];
+  }, [customerProductPrices]);
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     todaySales: 0,
@@ -1070,6 +1194,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         customerId: payment.customerId,
         amount: Number(payment.amount.toFixed(2)),
         notes: payment.notes || '',
+        paymentMode: payment.paymentMode || 'Cash',
         date: paymentDate,
         createdAt: serverTimestamp()
       };
@@ -1078,7 +1203,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       });
   }
 
-  const updatePayment = async (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI" | "Bill Payment"; date?: Date }) => {
+  const updatePayment = async (paymentId: string, data: { amount: number; notes?: string; paymentMode?: string; date?: Date }) => {
     if (!firestore) return;
     const paymentRef = doc(firestore, 'payments', paymentId);
     try {
@@ -1097,6 +1222,83 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const paymentRef = doc(firestore, 'payments', paymentId);
     try {
       await updateDoc(paymentRef, { isDeleted: true, updatedAt: serverTimestamp() });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path }));
+      throw e;
+    }
+  };
+
+  const addPartyPayment = async (payment: Omit<PartyPayment, 'id' | 'date'> & { date?: Date }) => {
+    if (!firestore) return;
+    const paymentsCol = collection(firestore, 'partyPayments');
+    const { date, ...rest } = payment;
+    const payloadDate = date ? Timestamp.fromDate(date) : serverTimestamp();
+    
+    const batch = writeBatch(firestore);
+    const newPaymentRef = doc(paymentsCol);
+    batch.set(newPaymentRef, { ...rest, date: payloadDate });
+    
+    const partyBalanceRef = doc(firestore, 'partyBalances', payment.partyId);
+    const partyBalanceSnap = await getDoc(partyBalanceRef);
+    const currentBalance = partyBalanceSnap.exists() ? partyBalanceSnap.data().balanceAmount : 0;
+    
+    // We pay the party -> our balance (what we owe) decreases.
+    batch.set(partyBalanceRef, { partyId: payment.partyId, balanceAmount: currentBalance - payment.amount, updatedAt: serverTimestamp() });
+    
+    batch.commit().catch(e => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: paymentsCol.path, requestResourceData: payment }));
+    });
+};
+
+const updatePartyPayment = async (paymentId: string, data: { amount: number; notes?: string; paymentMode?: "Cash" | "ACC" | "UPI" | "Bill Payment"; date?: Date }) => {
+  if (!firestore) return;
+  const paymentRef = doc(firestore, 'partyPayments', paymentId);
+  try {
+    const paymentSnap = await getDoc(paymentRef);
+    if (!paymentSnap.exists()) return;
+    const oldPayment = paymentSnap.data() as PartyPayment;
+    const diff = data.amount - oldPayment.amount; // e.g. 500 -> 600, diff = 100. We paid 100 MORE, so balance decreases by 100 more.
+    
+    const updatePayload: any = { amount: data.amount, notes: data.notes || '', updatedAt: serverTimestamp() };
+    if (data.paymentMode) updatePayload.paymentMode = data.paymentMode;
+    if (data.date) updatePayload.date = Timestamp.fromDate(data.date);
+
+    const batch = writeBatch(firestore);
+      batch.update(paymentRef, updatePayload);
+      
+      if (diff !== 0) {
+          const partyBalanceRef = doc(firestore, 'partyBalances', oldPayment.partyId);
+          const partyBalanceSnap = await getDoc(partyBalanceRef);
+          const currentBalance = partyBalanceSnap.exists() ? partyBalanceSnap.data().balanceAmount : 0;
+          batch.set(partyBalanceRef, { partyId: oldPayment.partyId, balanceAmount: currentBalance - diff, updatedAt: serverTimestamp() });
+      }
+      
+      await batch.commit();
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path, requestResourceData: data }));
+      throw e;
+    }
+  };
+
+  const softDeletePartyPayment = async (paymentId: string) => {
+    if (!firestore) return;
+    const paymentRef = doc(firestore, 'partyPayments', paymentId);
+    try {
+      const paymentSnap = await getDoc(paymentRef);
+      if (!paymentSnap.exists()) return;
+      const oldPayment = paymentSnap.data() as PartyPayment;
+      if (oldPayment.isDeleted) return; // already deleted
+      
+      const batch = writeBatch(firestore);
+      batch.update(paymentRef, { isDeleted: true, updatedAt: serverTimestamp() });
+      
+      // Deleting payment means we didn't pay them, so our balance (what we owe) INCREASES by the amount.
+      const partyBalanceRef = doc(firestore, 'partyBalances', oldPayment.partyId);
+      const partyBalanceSnap = await getDoc(partyBalanceRef);
+      const currentBalance = partyBalanceSnap.exists() ? partyBalanceSnap.data().balanceAmount : 0;
+      batch.set(partyBalanceRef, { partyId: oldPayment.partyId, balanceAmount: currentBalance + oldPayment.amount, updatedAt: serverTimestamp() });
+      
+      await batch.commit();
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: paymentRef.path }));
       throw e;
@@ -1806,27 +2008,37 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const recalculateFutureBoxBalances = useCallback(async (customerId: string, skipBillIds: string[] = []) => {
     if (!firestore) return;
     try {
-      const recalcBatch = writeBatch(firestore);
-      let updates = 0;
+      // Fetch FRESH data from Firestore directly — do NOT use in-memory boxBills state
+      // which may not have propagated the just-saved bill yet.
+      const q = query(collection(firestore, 'box_bills'), where('customerId', '==', customerId));
+      const snapshot = await getDocs(q);
+      const freshBills: BoxBill[] = [];
+      snapshot.forEach(d => {
+        if (!skipBillIds.includes(d.id)) {
+          freshBills.push({ ...d.data(), id: d.id } as BoxBill);
+        }
+      });
 
-      const customerBills = boxBills.filter(b => b.customerId === customerId && !skipBillIds.includes(b.id));
-      customerBills.sort((a, b) => {
-        const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
-        const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+      freshBills.sort((a, b) => {
+        const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate as any);
+        const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate as any);
         return dateA.getTime() - dateB.getTime();
       });
 
+      const recalcBatch = writeBatch(firestore);
+      let updates = 0;
       let runningBalance = openingBoxBalances[customerId] || 0;
-      for (const bill of customerBills) {
-        if (bill.prevBalanceBox !== runningBalance) {
-          const newBalanceBox = runningBalance + bill.todaysFishBox - bill.emptyBox;
+
+      for (const bill of freshBills) {
+        const correctBalance = runningBalance + bill.todaysFishBox - bill.emptyBox;
+        if (bill.prevBalanceBox !== runningBalance || bill.balanceBox !== correctBalance) {
           recalcBatch.update(doc(firestore, 'box_bills', bill.id), {
             prevBalanceBox: runningBalance,
-            balanceBox: newBalanceBox,
+            balanceBox: correctBalance,
             updatedAt: serverTimestamp(),
           });
           updates++;
-          runningBalance = newBalanceBox;
+          runningBalance = correctBalance;
         } else {
           runningBalance = bill.balanceBox;
         }
@@ -1836,9 +2048,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         await recalcBatch.commit();
       }
     } catch (e) {
-      console.error("Failed to recalculate future box balances", e);
+      console.error('Failed to recalculate future box balances', e);
     }
-  }, [firestore, boxBills, openingBoxBalances]);
+  }, [firestore, openingBoxBalances]);
 
   const deleteBoxBills = useCallback(async (billIds: string[]) => {
     if (!firestore || !isCurrentUserAdmin) {
@@ -1852,47 +2064,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const bill = boxBills.find(b => b.id === id);
       if (bill) customersToRecalculate.add(bill.customerId);
       batch.delete(doc(firestore, 'box_bills', id));
+      // Also delete all entries belonging to this bill so they don't linger as orphans
+      boxBillEntries
+        .filter(e => e.boxBillId === id)
+        .forEach(e => batch.delete(doc(firestore, 'box_bill_entries', e.id)));
     });
 
     try {
       await batch.commit();
-
-      // Recalculate future bills for affected customers
-      const recalcBatch = writeBatch(firestore);
-      let updates = 0;
-
+      // Re-use the shared function which fetches fresh data from Firestore
       for (const customerId of customersToRecalculate) {
-        const customerBills = boxBills.filter(b => b.customerId === customerId && !billIds.includes(b.id));
-        customerBills.sort((a, b) => {
-          const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
-          const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
-          return dateA.getTime() - dateB.getTime();
-        });
-
-        let runningBalance = openingBoxBalances[customerId] || 0;
-        for (const bill of customerBills) {
-          if (bill.prevBalanceBox !== runningBalance) {
-            const newBalanceBox = runningBalance + bill.todaysFishBox - bill.emptyBox;
-            recalcBatch.update(doc(firestore, 'box_bills', bill.id), {
-              prevBalanceBox: runningBalance,
-              balanceBox: newBalanceBox,
-              updatedAt: serverTimestamp(),
-            });
-            updates++;
-            runningBalance = newBalanceBox;
-          } else {
-            runningBalance = bill.balanceBox;
-          }
-        }
-      }
-
-      if (updates > 0) {
-        await recalcBatch.commit();
+        await recalculateFutureBoxBalances(customerId, [...billIds]);
       }
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: 'box_bills' }));
     }
-  }, [firestore, isCurrentUserAdmin, toast, boxBills, openingBoxBalances]);
+  }, [firestore, isCurrentUserAdmin, toast, boxBills, boxBillEntries, recalculateFutureBoxBalances]);
 
   const addBoxBillEntry = useCallback(async (entryData: Omit<BoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>): Promise<BoxBillEntry | null> => {
     if (!firestore || !currentUser) return null;
@@ -1933,6 +2120,132 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [firestore]);
 
+  // ── Party Box Billing CRUD ───────────────────────────────────────────────
+
+  const setPartyOpeningBoxBalance = useCallback(async (partyId: string, balance: number): Promise<void> => {
+    if (!firestore) return;
+    const ref = doc(firestore, 'partyBoxBalances', partyId);
+    await setDoc(ref, { partyId, balanceAmount: balance, updatedAt: serverTimestamp() }, { merge: true }).catch(e => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'write', path: ref.path }));
+    });
+  }, [firestore]);
+
+  const findPartyBoxBillForPartyOnDate = useCallback((partyId: string, date: Date): PartyBoxBill | undefined => {
+    const targetDay = new Date(date); targetDay.setHours(0, 0, 0, 0);
+    return (partyBoxBills || []).find(bill => {
+      if (bill.partyId !== partyId) return false;
+      const billDate = bill.billDate?.toDate ? bill.billDate.toDate() : new Date(bill.billDate);
+      const billDay = new Date(billDate); billDay.setHours(0, 0, 0, 0);
+      return billDay.getTime() === targetDay.getTime();
+    });
+  }, [partyBoxBills]);
+
+  const getPartyBoxBill = useCallback((billId: string): PartyBoxBill | undefined => {
+    return (partyBoxBills || []).find(b => b.id === billId);
+  }, [partyBoxBills]);
+
+  const addOrUpdatePartyBoxBill = useCallback(async (
+    billData: Omit<PartyBoxBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>,
+    existingBillId?: string | null
+  ): Promise<PartyBoxBill | null> => {
+    if (!firestore || !currentUser) return null;
+    const { id: _id, ...sanitized } = billData as any;
+    let billId = existingBillId;
+    let billRef;
+    let billPayload: any;
+    try {
+      if (billId) {
+        billRef = doc(firestore, 'party_box_bills', billId);
+        billPayload = { ...sanitized, updatedAt: serverTimestamp() };
+        await setDoc(billRef, billPayload, { merge: true });
+        const original = (partyBoxBills || []).find(b => b.id === billId);
+        return { ...original, ...billPayload, id: billId } as PartyBoxBill;
+      } else {
+        const maxId = (partyBoxBills || [])
+          .map(b => parseInt(b.id.replace('PBB', ''), 10))
+          .filter(n => !isNaN(n))
+          .reduce((max, n) => Math.max(max, n), 0);
+        billId = `PBB${maxId + 1}`;
+        billRef = doc(firestore, 'party_box_bills', billId);
+        billPayload = { ...sanitized, id: billId, createdBy: currentUser.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+        await setDoc(billRef, billPayload);
+        return { ...billPayload, id: billId } as PartyBoxBill;
+      }
+    } catch (e) {
+      const path = billId ? `party_box_bills/${billId}` : 'party_box_bills';
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: existingBillId ? 'update' : 'create', path, requestResourceData: billPayload }));
+      return null;
+    }
+  }, [firestore, currentUser, partyBoxBills]);
+
+  const recalculateFuturePartyBoxBalances = useCallback(async (partyId: string, skipBillIds: string[] = []) => {
+    if (!firestore) return;
+    try {
+      const recalcBatch = writeBatch(firestore);
+      let updates = 0;
+      const partyBillsFiltered = partyBoxBills.filter(b => b.partyId === partyId && !skipBillIds.includes(b.id));
+      partyBillsFiltered.sort((a, b) => {
+        const dateA = a.billDate?.toDate ? a.billDate.toDate() : new Date(a.billDate);
+        const dateB = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
+        return dateA.getTime() - dateB.getTime();
+      });
+      let runningBalance = partyOpeningBoxBalances[partyId] || 0;
+      for (const bill of partyBillsFiltered) {
+        if (bill.prevBalanceBox !== runningBalance) {
+          const newBalanceBox = runningBalance + bill.todaysFishBox - bill.emptyBox;
+          recalcBatch.update(doc(firestore, 'party_box_bills', bill.id), { prevBalanceBox: runningBalance, balanceBox: newBalanceBox, updatedAt: serverTimestamp() });
+          updates++;
+          runningBalance = newBalanceBox;
+        } else {
+          runningBalance = bill.balanceBox;
+        }
+      }
+      if (updates > 0) await recalcBatch.commit();
+    } catch (e) { console.error('Failed to recalculate future party box balances', e); }
+  }, [firestore, partyBoxBills, partyOpeningBoxBalances]);
+
+  const deletePartyBoxBills = useCallback(async (billIds: string[]) => {
+    if (!firestore || !isCurrentUserAdmin) { toast({ variant: 'destructive', title: 'Permission Denied' }); return; }
+    const batch = writeBatch(firestore);
+    billIds.forEach(id => batch.delete(doc(firestore, 'party_box_bills', id)));
+    try {
+      await batch.commit();
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: 'party_box_bills' }));
+    }
+  }, [firestore, isCurrentUserAdmin, toast]);
+
+  const addPartyBoxBillEntry = useCallback(async (entryData: Omit<PartyBoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>): Promise<PartyBoxBillEntry | null> => {
+    if (!firestore || !currentUser) return null;
+    try {
+      const entryRef = doc(collection(firestore, 'party_box_bill_entries'));
+      const payload = { ...entryData, id: entryRef.id, createdBy: currentUser.id, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
+      await setDoc(entryRef, payload);
+      return payload as PartyBoxBillEntry;
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'create', path: 'party_box_bill_entries', requestResourceData: entryData }));
+      return null;
+    }
+  }, [firestore, currentUser]);
+
+  const updatePartyBoxBillEntry = useCallback(async (entryId: string, boxesAdded: number): Promise<void> => {
+    if (!firestore) return;
+    try {
+      await updateDoc(doc(firestore, 'party_box_bill_entries', entryId), { boxesAdded, updatedAt: serverTimestamp() });
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'update', path: `party_box_bill_entries/${entryId}` }));
+    }
+  }, [firestore]);
+
+  const deletePartyBoxBillEntry = useCallback(async (entryId: string): Promise<void> => {
+    if (!firestore) return;
+    try {
+      await deleteDoc(doc(firestore, 'party_box_bill_entries', entryId));
+    } catch (e) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: `party_box_bill_entries/${entryId}` }));
+    }
+  }, [firestore]);
+
   return (
     <DataContext.Provider
       value={{
@@ -1948,9 +2261,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         vehicleBills,
         liveBillSummaries,
         productPrices,
+        customerProductPrices,
+        setCustomerProductPrice,
+        getCustomerProductPrice,
         openingBalances,
         customerBalances,
         payments,
+        partyPayments,
         currentUser,
         isCurrentUserAdmin,
         liveBillItems,
@@ -1988,6 +2305,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         addPayment,
         updatePayment,
         softDeletePayment,
+        addPartyPayment,
+        updatePartyPayment,
+        softDeletePartyPayment,
         updateBillPayment,
         findBillForCustomerToday,
         findBillForCustomerOnDate,
@@ -2003,6 +2323,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         openingBoxBalances,
         customerBoxBalances,
         setOpeningBoxBalance,
+
+        partyBoxBills,
+        partyOpeningBoxBalances,
+        partyBoxBalances,
+        setPartyOpeningBoxBalance,
+        addOrUpdatePartyBoxBill,
+        deletePartyBoxBills,
+        recalculateFuturePartyBoxBalances,
+        findPartyBoxBillForPartyOnDate,
+        getPartyBoxBill,
+        partyBoxBillEntries,
+        addPartyBoxBillEntry,
+        updatePartyBoxBillEntry,
+        deletePartyBoxBillEntry,
 
         addOrUpdateBoxBill,
         deleteBoxBills,

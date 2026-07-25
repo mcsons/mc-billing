@@ -673,15 +673,14 @@ function PrintPageContent() {
                 width: 106mm;
             }
             .print-root.thermal3 #print-area {
-                width: 78mm;
-                padding: 1rem 0;
+                width: 74mm;
+                padding: 1rem 3mm;
                 margin: 1rem auto;
-                margin-left: 0;
-                padding-left: 0;
+                box-sizing: border-box;
             }
             .print-root.thermal3 {
-                width: 78mm;
-                max-width: 78mm;
+                width: 80mm;
+                max-width: 80mm;
                 margin: 0 auto;
                 padding: 0;
             }

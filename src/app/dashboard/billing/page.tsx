@@ -83,6 +83,7 @@ import {
   Timestamp,
   getDocs,
   getDoc,
+  onSnapshot,
 } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -137,6 +138,7 @@ export default function BillingPage() {
     openingBalances,
     setOpeningBalance,
     payments,
+    getCustomerProductPrice,
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -258,6 +260,9 @@ export default function BillingPage() {
   const manualCustomerNameRef = useRef<HTMLInputElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
   const lastSessionKeyRef = useRef('');
+  // Tracks item IDs added in THIS browser session so the realtime listener
+  // can distinguish local vs. remote additions.
+  const localSessionItemIdsRef = useRef<Set<string>>(new Set());
   const isEditingRef = useRef(false);
 
   // Bill Navigation and History Sorting
@@ -495,21 +500,98 @@ export default function BillingPage() {
     initializeSession();
   }, [selectedCustomerId, date, searchParams, customerBalances, getBill, findBillForCustomerOnDate, firestore]);
 
+  // ── Realtime concurrent-user listener ──────────────────────────────────
+  // Subscribes to billItems of the active bill and merges any external
+  // changes (from other logged-in users) into the local view.
+  useEffect(() => {
+    if (!activeBillNo || !firestore) return;
+
+    const itemsRef = collection(firestore, 'bills', activeBillNo, 'billItems');
+    let isFirstSnapshot = true;
+
+    const unsubscribe = onSnapshot(itemsRef, (snapshot) => {
+      // Skip the very first snapshot — it's the initial load, not a remote change.
+      if (isFirstSnapshot) {
+        isFirstSnapshot = false;
+        return;
+      }
+
+      const remoteItems: BillItem[] = snapshot.docs.map(
+        (d) => ({ ...d.data(), id: d.id } as BillItem)
+      );
+
+      setLocalBillItems((prev) => {
+        // Items added by THIS session are in localSessionItemIdsRef.
+        // Remote items are anything NOT in that set.
+        const sessionIds = localSessionItemIdsRef.current;
+
+        // Build a map of existing local items by ID for O(1) lookup.
+        const localMap = new Map(prev.map((i) => [i.id, i]));
+
+        // Detect truly new items from remote (not known locally at all).
+        const brandNewRemote = remoteItems.filter(
+          (ri) => !localMap.has(ri.id) && !sessionIds.has(ri.id)
+        );
+
+        if (brandNewRemote.length > 0) {
+          // Show a toast notification for the external additions.
+          toast({
+            title: 'Bill updated by another user',
+            description: `${brandNewRemote.length} new item${brandNewRemote.length > 1 ? 's' : ''} added.`,
+            duration: 4000,
+          });
+        }
+
+        // Detect items that were deleted remotely (existed locally but
+        // are no longer in the remote snapshot AND were NOT added by this session).
+        const remoteIds = new Set(remoteItems.map((r) => r.id));
+        const survivingLocal = prev.filter(
+          (item) => remoteIds.has(item.id) || sessionIds.has(item.id)
+        );
+
+        // Merge: start with surviving local items (preserves any unsaved local edits),
+        // then append brand-new remote items.
+        const merged = [...survivingLocal];
+        for (const ri of brandNewRemote) {
+          if (!merged.some((m) => m.id === ri.id)) {
+            merged.push(ri);
+          }
+        }
+
+        return merged;
+      });
+    });
+
+    return () => unsubscribe();
+    // NOTE: toast is stable from useToast, no need to list it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBillNo, firestore]);
+
   useEffect(() => {
     if (isEditingRef.current) {
       return;
     }
     if (selectedProductId && uom) {
-      const price = productPrices[selectedProductId]?.[uom];
-      if (price !== undefined && price !== null) {
-        setRate(price.toString());
+      // 1. Try customer-specific price first
+      const custPrice =
+        selectedCustomerId && selectedCustomerId !== 'WALK-IN'
+          ? getCustomerProductPrice(selectedCustomerId, selectedProductId, uom)
+          : undefined;
+      if (custPrice !== undefined && custPrice !== null) {
+        setRate(custPrice.toString());
+        return;
+      }
+      // 2. Fall back to default product price
+      const defaultPrice = productPrices[selectedProductId]?.[uom];
+      if (defaultPrice !== undefined && defaultPrice !== null) {
+        setRate(defaultPrice.toString());
       } else {
         setRate('1');
       }
     } else {
       setRate('');
     }
-  }, [selectedProductId, uom, productPrices]);
+  }, [selectedProductId, uom, selectedCustomerId, productPrices, getCustomerProductPrice]);
 
   useEffect(() => {
     if (localBillItems.length === 0) return;
@@ -601,6 +683,9 @@ export default function BillingPage() {
       billId: activeBillNo || undefined
     };
 
+    // Register this item as session-local so the realtime listener
+    // won't treat it as a remote addition when Firestore echoes it back.
+    localSessionItemIdsRef.current.add(newItem.id);
     setLocalBillItems(prev => [...prev, newItem]);
     
     // Clear inputs
@@ -653,6 +738,7 @@ export default function BillingPage() {
   const performReset = useCallback(() => {
     ignoreUrlBillNoRef.current = searchParams.get('billNo');
     lastSessionKeyRef.current = '';
+    localSessionItemIdsRef.current = new Set(); // clear session tracking for fresh bill
     
     setSelectedCustomerId('');
     setCustomerSearchText('');
@@ -807,14 +893,23 @@ export default function BillingPage() {
       }
     }
 
-    // Purge old items from DB if editing to ensure local state becomes the single source of truth
+    /// Merge-safe save: only delete items that the current user explicitly
+    // removed locally. Items added by other concurrent users are preserved.
     if (activeBillNo && firestore) {
-        try {
-            const itemsSnap = await getDocs(collection(firestore, 'bills', activeBillNo, 'billItems'));
-            const purgeBatch = writeBatch(firestore);
-            itemsSnap.forEach(d => purgeBatch.delete(d.ref));
-            await purgeBatch.commit();
-        } catch (e) { console.error("Item update error:", e); }
+      try {
+        const itemsSnap = await getDocs(collection(firestore, 'bills', activeBillNo, 'billItems'));
+        const localItemIds = new Set(localBillItems.map((i) => i.id));
+        const deleteBatch = writeBatch(firestore);
+        let hasDeletes = false;
+        itemsSnap.forEach((d) => {
+          // Only delete if the item is NOT in the current local list.
+          if (!localItemIds.has(d.id)) {
+            deleteBatch.delete(d.ref);
+            hasDeletes = true;
+          }
+        });
+        if (hasDeletes) await deleteBatch.commit();
+      } catch (e) { console.error('Item selective delete error:', e); }
     }
 
     const billSummary = {

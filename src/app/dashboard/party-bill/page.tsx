@@ -28,7 +28,9 @@ import {
   Search,
   X,
   FilePlus,
-  Share,
+  Share2,
+  Loader2,
+  Pencil,
 } from 'lucide-react';
 import {
   Popover,
@@ -41,23 +43,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Calendar } from '@/components/ui/calendar';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfWeek, endOfWeek } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useLoading } from '@/context/LoadingContext';
 import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
-import { useNavigationGuard } from '@/context/NavigationGuardContext';
 import ReactSelect from 'react-select';
 import { PartyBill, PartyBillItem } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
+
+const formatINR = (val: number | string) => {
+    const num = typeof val === 'string' ? parseFloat(val.toString().replace(/,/g, '')) : val;
+    if (isNaN(num)) return '0.00';
+    return new Intl.NumberFormat('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(num);
+};
 
 const reactSelectStyles = {
     control: (baseStyles: any, state: any) => ({
@@ -108,9 +115,9 @@ export default function PartyBillPage() {
     const searchParams = useSearchParams();
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
-    const { setIsDirty } = useNavigationGuard();
     const { setLoading } = useLoading();
     const [isSaving, setIsSaving] = useState(false);
+    const [isShareLoading, setIsShareLoading] = useState(false);
 
     const {
         products,
@@ -119,8 +126,8 @@ export default function PartyBillPage() {
         partyBalances,
         addOrUpdatePartyBill,
         deletePartyBill,
-        currentUser,
         setPartyBalance,
+        currentUser,
     } = useData();
 
     // Form State
@@ -147,52 +154,65 @@ export default function PartyBillPage() {
     const [editingBillId, setEditingBillId] = useState<string | null>(null);
     const [billOriginalState, setBillOriginalState] = useState<PartyBill | null>(null);
 
+    // Session state for previous balance
+    const [prevBalInput, setPrevBalInput] = useState('0');
+    const [originalPrevBalance, setOriginalPrevBalance] = useState(0);
+    const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+    const [isPrevBalFocused, setIsPrevBalFocused] = useState(false);
+    
+    // Derived numeric value from input
+    const staticPrevBalance = useMemo(() => parseFloat(prevBalInput.toString().replace(/,/g, '')) || 0, [prevBalInput]);
+
     // History State
     const [historyPartyId, setHistoryPartyId] = useState('');
     const [historyDate, setHistoryDate] = useState<Date|undefined>();
     const [filteredHistory, setFilteredHistory] = useState<PartyBill[]>([]);
 
-    // Session Override State
-    const [prevBalInput, setPrevBalInput] = useState('');
-    const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+    const lastSessionRef = useRef({ billId: '', partyId: '' });
 
     const [isMounted, setIsMounted] = useState(false);
     const rateInputRef = useRef<HTMLInputElement>(null);
     const partySelectRef = useRef<any>(null);
-    const productItemSelectRef = useRef<any>(null);
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
 
     const [showWhatsAppShareConfirm, setShowWhatsAppShareConfirm] = useState(false);
 
-    // Track unsaved changes
-    useEffect(() => {
-        const hasChanges = 
-            partyId !== '' || 
-            items.length > 0 || 
-            totalBox !== '' || 
-            totalKgs !== '' || 
-            expenses !== '' || 
-            rent !== '' || 
-            cashReceived !== '' || 
-            bankReceived !== '' ||
-            isPrevBalModified;
-        
-        setIsDirty(hasChanges, handleSave);
-    }, [partyId, items, totalBox, totalKgs, expenses, rent, cashReceived, bankReceived, isPrevBalModified, setIsDirty]);
 
     useEffect(() => {
         setIsMounted(true);
         partySelectRef.current?.focus();
     }, []);
 
-    useEffect(() => {
-        setFilteredHistory((partyBills || []).sort((a,b) => {
+    const filterAndSortBills = useCallback(() => {
+        let results = partyBills || [];
+        if (historyPartyId) {
+            results = results.filter(b => b.partyId === historyPartyId);
+        }
+        if (historyDate) {
+            results = results.filter(b => {
+                const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+                return isSameDay(bDate, historyDate);
+            });
+        }
+        if (!historyPartyId && !historyDate) {
+            const start = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const end = endOfWeek(new Date(), { weekStartsOn: 1 });
+            results = results.filter(b => {
+                const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
+                return bDate >= start && bDate <= end;
+            });
+        }
+        setFilteredHistory(results.sort((a,b) => {
             const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
             const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
             return dateB.getTime() - dateA.getTime();
         }));
-    }, [partyBills]);
+    }, [partyBills, historyPartyId, historyDate]);
+
+    useEffect(() => {
+        filterAndSortBills();
+    }, [filterAndSortBills]);
     
     const resetForm = useCallback(() => {
         setDate(new Date());
@@ -207,17 +227,44 @@ export default function PartyBillPage() {
         setBankReceived('');
         setEditingBillId(null);
         setBillOriginalState(null);
-        setIsPrevBalModified(false);
         setPrevBalInput('0');
-        setIsDirty(false);
+        setOriginalPrevBalance(0);
+        setIsPrevBalModified(false);
         router.replace('/dashboard/party-bill');
         partySelectRef.current?.focus();
-    }, [router, setIsDirty]);
+    }, [router]);
 
-    // Load bill for editing from URL param
+    const hasUnsavedChanges = useMemo(() =>
+        partyId !== '' ||
+        items.length > 0 ||
+        expenses !== '' ||
+        rent !== '' ||
+        cashReceived !== '' ||
+        bankReceived !== '' ||
+        editingBillId !== null ||
+        isPrevBalModified,
+    [partyId, items, expenses, rent, cashReceived, bankReceived, editingBillId, isPrevBalModified]);
+
+    const handleNewBill = useCallback(() => {
+        if (hasUnsavedChanges) {
+            showAlertDialog({
+                title: 'Unsaved Changes',
+                description: 'You have unsaved changes. Are you sure you want to start a new bill? All current data will be lost.',
+                confirmText: 'Yes, Discard and Start New',
+                cancelText: 'Cancel',
+                onConfirm: resetForm,
+            });
+        } else {
+            resetForm();
+        }
+    }, [hasUnsavedChanges, showAlertDialog, resetForm]);
+
+    // Load bill for editing from URL param or handle party change
     useEffect(() => {
         const billIdParam = searchParams.get('partyBillId');
+        
         if (billIdParam) {
+            if (lastSessionRef.current.billId === billIdParam) return;
             const billToEdit = (partyBills || []).find(b => b.id === billIdParam);
             if (billToEdit) {
                 setEditingBillId(billToEdit.id);
@@ -232,29 +279,31 @@ export default function PartyBillPage() {
                 setRent((billToEdit.rent ?? 0).toString());
                 setCashReceived((billToEdit.cashReceived ?? 0).toString());
                 setBankReceived((billToEdit.bankReceived ?? 0).toString());
+
+                const currentBalance = partyBalances[billToEdit.partyId] || 0;
+                const originalNetAmount = billToEdit.netAmount;
+                const originalReceived = billToEdit.totalReceived;
+                const prev = currentBalance - (originalNetAmount - originalReceived);
+                
+                setPrevBalInput(prev.toString());
+                setOriginalPrevBalance(prev);
+                setIsPrevBalModified(false);
+                
+                lastSessionRef.current = { billId: billIdParam, partyId: billToEdit.partyId };
             }
         } else {
-            resetForm();
+            // New Bill Mode
+            if (partyId && lastSessionRef.current.partyId !== partyId) {
+                const prev = partyBalances[partyId] || 0;
+                setPrevBalInput(prev.toString());
+                setOriginalPrevBalance(prev);
+                setIsPrevBalModified(false);
+                lastSessionRef.current = { billId: '', partyId };
+            } else if (!partyId && (lastSessionRef.current.partyId || lastSessionRef.current.billId)) {
+               lastSessionRef.current = { billId: '', partyId: '' };
+            }
         }
-    }, [searchParams, partyBills, resetForm]);
-
-    const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
-      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-      
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const baseDate = currentDate || new Date();
-      const current = new Date(baseDate);
-
-      if (e.key === 'ArrowUp') {
-        current.setDate(current.getDate() + 1);
-      } else if (e.key === 'ArrowDown') {
-        current.setDate(current.getDate() - 1);
-      }
-      
-      setDateFn(new Date(current));
-    };
+    }, [searchParams, partyBills, partyId, partyBalances, resetForm]);
 
 
     // Calculations
@@ -263,27 +312,17 @@ export default function PartyBillPage() {
     const totalDeductions = useMemo(() => commissionAmount + (parseFloat(expenses) || 0) + (parseFloat(rent) || 0), [commissionAmount, expenses, rent]);
     const netAmount = useMemo(() => totalAmount - totalDeductions, [totalAmount, totalDeductions]);
     const totalReceived = useMemo(() => (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0), [cashReceived, bankReceived]);
-    
-    // Core Previous Balance Calculation
-    const actualPreviousBalance = useMemo(() => {
+    const previousBalance = useMemo(() => {
         if (!partyId) return 0;
         const currentBalance = partyBalances[partyId] || 0;
         if (editingBillId && billOriginalState) {
+            // Revert the effect of the original bill to get the balance *before* this bill was saved
             const originalNetAmount = billOriginalState.netAmount;
             const originalReceived = billOriginalState.totalReceived;
             return currentBalance - (originalNetAmount - originalReceived);
         }
         return currentBalance;
     }, [partyId, partyBalances, editingBillId, billOriginalState]);
-
-    // Handle session state for editable balance
-    useEffect(() => {
-        if (!isPrevBalModified) {
-            setPrevBalInput(actualPreviousBalance.toString());
-        }
-    }, [actualPreviousBalance, isPrevBalModified]);
-
-    const staticPrevBalance = parseFloat(prevBalInput) || 0;
     const finalBalance = useMemo(() => staticPrevBalance + netAmount - totalReceived, [staticPrevBalance, netAmount, totalReceived]);
     
     // Auto-calculated totals from items
@@ -316,11 +355,7 @@ export default function PartyBillPage() {
         setRate('');
         setBox('');
         setKgs('');
-        
-        // Return focus to product search for fast continuous entry
-        setTimeout(() => {
-            productItemSelectRef.current?.focus();
-        }, 50);
+        rateInputRef.current?.focus();
     };
 
     const handleItemUpdate = useCallback((itemId: string, field: 'rate' | 'box' | 'kgs', value: string) => {
@@ -374,15 +409,6 @@ export default function PartyBillPage() {
             toast({ variant: 'destructive', title: 'Missing required fields' });
             return null;
         }
-
-        // PERSIST MANUAL BALANCE OVERRIDE
-        if (isPrevBalModified && partyId) {
-            const delta = staticPrevBalance - actualPreviousBalance;
-            if (delta !== 0) {
-                const currentBalance = partyBalances[partyId] || 0;
-                setPartyBalance(partyId, currentBalance + delta);
-            }
-        }
         
         const billData: Omit<PartyBill, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'> = {
             date: Timestamp.fromDate(date),
@@ -400,35 +426,37 @@ export default function PartyBillPage() {
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
             totalReceived,
+            previousBalance: staticPrevBalance,
+            finalBalance,
         };
         
         const savedBill = await addOrUpdatePartyBill(billData, editingBillId);
         
-        if (savedBill) {
-            setIsDirty(false); // Mark as clean after successful save
+        if (savedBill && isPrevBalModified && partyId) {
+            await setPartyBalance(partyId, finalBalance);
         }
         
         return savedBill;
     };
     
     const onSaveClick = async () => {
-        if (isSaving) return;
+      if (isSaving) return;
       
-        try {
-          setIsSaving(true);
-          setLoading(true, 'Saving party bill...');
-          const savedBill = await handleSave();
-          if (savedBill) {
-            if (!editingBillId) {
-                resetForm();
-            } else {
-                setBillOriginalState(savedBill);
-            }
+      try {
+        setIsSaving(true);
+        setLoading(true, 'Saving party bill...');
+        const savedBill = await handleSave();
+        if (savedBill) {
+          if (!editingBillId) {
+              resetForm();
+          } else {
+              setBillOriginalState(savedBill);
           }
-        } finally {
-          setIsSaving(false);
-          setLoading(false);
         }
+      } finally {
+        setIsSaving(false);
+        setLoading(false);
+      }
     };
     
     const handleDelete = (billId: string) => {
@@ -476,7 +504,7 @@ export default function PartyBillPage() {
         const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
         const finalKgsValue = totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs;
 
-        const totalAfterPrevious = netAmount + staticPrevBalance;
+        const totalAfterPrevious = netAmount + previousBalance;
 
         const data = {
             id: editingBillId || 'N/A',
@@ -503,7 +531,7 @@ export default function PartyBillPage() {
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, staticPrevBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
+        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -511,8 +539,8 @@ export default function PartyBillPage() {
             toast({ variant: 'destructive', title: 'Cannot Print', description: 'Missing bill data.' });
             return;
         }
-        const encodedData = encodeURIComponent(JSON.stringify(data));
-        window.open(`/print/party-bill?data=${encodedData}`, '_blank');
+        localStorage.setItem('partyBillPrintData', JSON.stringify(data));
+        window.open(`/print/party-bill`, '_blank');
     }, [toast]);
 
     const handlePrint = () => {
@@ -527,6 +555,7 @@ export default function PartyBillPage() {
     const handleSaveAndPrint = async () => {
         if (isSaving) return;
         setShowPrintConfirm(false);
+
         try {
             setIsSaving(true);
             setLoading(true, 'Saving and printing...');
@@ -553,77 +582,51 @@ export default function PartyBillPage() {
         proceedToPrint(data);
     };
 
-    const handleShareWhatsApp = () => {
+    const handleSharePDF = async () => {
         const party = parties.find(p => p.id === partyId);
         if (!party) {
             toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please select a party.' });
             return;
         }
-        
-        setShowWhatsAppShareConfirm(true);
-    };
+        if (isShareLoading) return;
 
-    const confirmOpenWhatsApp = () => {
-        const party = parties.find(p => p.id === partyId);
-        const partyName = party?.name || 'Unknown Party';
-        const formattedDate = format(date, 'dd-MM-yyyy');
-        
-        const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
-        const finalKgsValue = totalKgs !== '' ? parseFloat(totalKgs) || 0 : calculatedTotalKgs;
+        setIsShareLoading(true);
+        try {
+            // Save first, then open print page with share=pdf flag
+            setLoading(true, 'Preparing PDF...');
+            const savedBill = await handleSave();
+            setLoading(false);
+            if (!savedBill) return;
 
-        let message = `*M.C & SONS FISH COMPANY*\n`;
-        message += `*PARTY BILL*\n`;
-        message += `Date: ${formattedDate}\n`;
-        message += `Party: ${partyName}\n`;
-        message += `Box: ${finalBoxValue} | Kgs: ${finalKgsValue.toFixed(2)}\n`;
-        message += `-------------------------\n`;
-        
-        items.forEach((item, index) => {
-            message += `${index + 1}. ${item.productName} (${item.box} BOX x ₹${item.rate}) = ₹${item.amount.toFixed(2)}\n`;
-        });
-        
-        message += `-------------------------\n`;
-        message += `Total Amt: ₹${totalAmount.toFixed(2)}\n`;
-        message += `Deductions: ₹${totalDeductions.toFixed(2)}\n`;
-        message += `*Net Amt: ₹${netAmount.toFixed(2)}*\n`;
-        message += `Prev Bal: ₹${staticPrevBalance.toFixed(2)}\n`;
-        message += `Received: ₹${totalReceived.toFixed(2)}\n`;
-        message += `*Final Bal: ₹${finalBalance.toFixed(2)}*\n`;
-        message += `-------------------------\n`;
-        message += `Thank you!`;
+            const printData = getPrintData();
+            if (!printData) return;
+            const finalData = { ...printData, id: savedBill.id };
 
-        const encodedMsg = encodeURIComponent(message);
-        window.open(`https://wa.me/?text=${encodedMsg}`, '_blank');
-        setShowWhatsAppShareConfirm(false);
+            const partyName = party.name.replace(/\s+/g, '_');
+            const formattedDate = format(date, 'dd-MM-yyyy');
+            localStorage.setItem('partyBillPrintData', JSON.stringify(finalData));
+            localStorage.setItem('partyBillFileName', `MC_PartyBill_${partyName}_${formattedDate}.pdf`);
+            window.open(`/print/party-bill?share=pdf`, '_blank');
+
+            if (!editingBillId) {
+                resetForm();
+            } else {
+                setBillOriginalState(savedBill);
+            }
+        } finally {
+            setIsShareLoading(false);
+            setLoading(false);
+        }
     };
 
 
     const handleSearchHistory = useCallback(() => {
-        let results = partyBills || [];
-        if (historyPartyId) {
-            results = results.filter(b => b.partyId === historyPartyId);
-        }
-        if (historyDate) {
-            results = results.filter(b => {
-                const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-                return isSameDay(bDate, historyDate);
-            });
-        }
-        setFilteredHistory(results.sort((a,b) => {
-            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-            return dateB.getTime() - dateA.getTime();
-        }));
-    }, [partyBills, historyDate, historyPartyId]);
+        filterAndSortBills();
+    }, [filterAndSortBills]);
 
     const clearSearchHistory = () => {
         setHistoryPartyId('');
         setHistoryDate(undefined);
-        setFilteredHistory((partyBills || []).sort((a,b) => {
-            const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-            const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-            return dateB.getTime() - dateA.getTime();
-        }));
     };
 
     const handleHistoryPartyKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -640,8 +643,26 @@ export default function PartyBillPage() {
         if (e.key === 'Enter') {
             e.preventDefault();
             router.push(`/dashboard/party-bill?partyBillId=${billId}`);
+        } else if (e.key === 'ArrowDown') {
+            // No default behavior change needed
+        } else if (e.key === 'ArrowUp') {
+            // No default behavior change needed
         }
     };
+
+  const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      const current = currentDate ? new Date(currentDate) : new Date();
+      if (e.key === 'ArrowUp') {
+        current.setDate(current.getDate() + 1);
+      } else {
+        current.setDate(current.getDate() - 1);
+      }
+      setDateFn(new Date(current));
+    }
+  };
 
   return (
     <>
@@ -653,60 +674,61 @@ export default function PartyBillPage() {
                         <p className="font-bold text-lg">M.C & SONS FISH COMPANY</p>
                         <p className="text-sm">Cell : 98432 23078, 99444 44497</p>
                     </div>
-                    <div className="absolute top-0 right-0">
+                    <div className="absolute top-0 right-0 flex items-center gap-2">
                          <Popover>
                             <PopoverTrigger asChild>
-                            <Button variant={'outline'} className={cn('w-[180px] justify-start text-left font-normal select-none',!date && 'text-muted-foreground')} onFocus={() => { if(!date) setDate(new Date()) }} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, date, (d) => d && setDate(d))}>
+                            <Button 
+                                variant={'outline'} 
+                                className={cn('w-[180px] justify-start text-left font-normal select-none',!date && 'text-muted-foreground')}
+                                onFocus={() => { if (!date) setDate(new Date()); }}
+                                onKeyDown={(e) => handleDateKeyDown(e, date, setDate as (d: Date) => void)}
+                                onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                            >
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {date ? `Date : ${format(date, 'dd-MM-yyyy')}` : <span>Pick a date</span>}
                             </Button>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={(d) => setDate(d || new Date())} initialFocus /></PopoverContent>
                         </Popover>
+                        <Button variant="outline" onClick={handleNewBill}>
+                            <FilePlus className="mr-2 h-4 w-4" />New Bill
+                        </Button>
                     </div>
                 </div>
                 <Separator className="my-2"/>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-                    <div className="flex items-center gap-2">
-                        <Label className="w-24 shrink-0">To M/S</Label>
-                        <span className="font-bold">:</span>
-                        <div className="flex-1">
-                            <ReactSelect
-                                ref={partySelectRef}
-                                instanceId="party-select"
-                                options={parties.map(p => ({ value: p.id, label: p.name }))}
-                                value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
-                                onChange={(option) => setPartyId(option ? option.value : '')}
-                                placeholder="Select Party..."
-                                isClearable
-                                styles={reactSelectStyles}
-                            />
-                        </div>
+                <div className="flex justify-between items-center">
+                    <div className="w-2/3">
+                        <Label>To M/S :</Label>
+                         <ReactSelect
+                            ref={partySelectRef}
+                            instanceId="party-select"
+                            options={parties.map(p => ({ value: p.id, label: p.name }))}
+                            value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
+                            onChange={(option) => setPartyId(option ? option.value : '')}
+                            placeholder="Select Party..."
+                            isClearable
+                            styles={reactSelectStyles}
+                        />
                     </div>
-                    <div className="flex items-center gap-4 justify-end">
-                        <div className="flex items-center gap-2">
-                            <Label className="whitespace-nowrap">Total Box</Label>
-                            <span className="font-bold">:</span>
-                            <Input 
-                                type="number" 
-                                value={totalBox} 
-                                onChange={e => setTotalBox(e.target.value)} 
-                                className="w-24 h-9"
-                                placeholder={calculatedTotalBox.toString()}
-                            />
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Label className="whitespace-nowrap">Total Weight</Label>
-                            <span className="font-bold">:</span>
-                            <Input 
-                                type="number" 
-                                value={totalKgs} 
-                                onChange={e => setTotalKgs(e.target.value)} 
-                                className="w-24 h-9"
-                                placeholder={calculatedTotalKgs.toString()}
-                            />
-                        </div>
+                     <div className="flex items-center gap-2">
+                        <Label>Total Box :</Label>
+                        <Input 
+                            type="number" 
+                            value={totalBox} 
+                            onChange={e => setTotalBox(e.target.value)} 
+                            className="w-24"
+                            placeholder={calculatedTotalBox.toString()}
+                        />
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Label>Total Weight :</Label>
+                        <Input 
+                            type="number" 
+                            value={totalKgs} 
+                            onChange={e => setTotalKgs(e.target.value)} 
+                            className="w-24"
+                            placeholder={calculatedTotalKgs.toString()}
+                        />
                     </div>
                 </div>
                 <Separator className="my-2"/>
@@ -762,7 +784,6 @@ export default function PartyBillPage() {
                          <TableRow>
                             <TableCell>
                                 <ReactSelect
-                                    ref={productItemSelectRef}
                                     instanceId="product-select"
                                     options={products.map(p => ({ value: p.id, label: p.name_en }))}
                                     value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
@@ -799,12 +820,6 @@ export default function PartyBillPage() {
                                     value={rate} 
                                     onChange={e => setRate(e.target.value)}
                                     className="w-full text-center text-base font-mono"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            handleAddItem();
-                                        }
-                                    }}
                                 />
                             </TableCell>
                             <TableCell></TableCell>
@@ -823,50 +838,63 @@ export default function PartyBillPage() {
                          <div className="flex justify-between items-center"><Label>Expenses</Label><Input className="max-w-32" type="number" value={expenses} onChange={e => setExpenses(e.target.value)} /></div>
                          <div className="flex justify-between items-center"><Label>Rent</Label><Input className="max-w-32" type="number" value={rent} onChange={e => setRent(e.target.value)} /></div>
                          <Separator/>
-                         <div className="flex justify-between items-center font-semibold"><Label>Total Less</Label><span>{totalDeductions.toFixed(2)}</span></div>
+                         <div className="flex justify-between items-center font-semibold"><Label>Total Less</Label><span>{formatINR(totalDeductions)}</span></div>
                     </div>
                     <div className="space-y-2">
                         <div className="flex justify-between items-center font-bold text-lg"><Label>Live Total Box</Label><span>{calculatedTotalBox}</span></div>
                         <Separator />
-                        <div className="flex justify-between items-center font-bold text-lg"><Label>Total Bill Value</Label><span>{totalAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between items-center font-bold text-lg"><Label>Total Bill Value</Label><span>{formatINR(totalAmount)}</span></div>
                         <Separator/>
-                        <div className="flex justify-between items-center font-bold"><Label>Net Bill Value</Label><span>{netAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between items-center font-bold"><Label>Net Bill Value</Label><span>{formatINR(netAmount)}</span></div>
                     </div>
 
                     <div className="space-y-2">
                         <div className="flex justify-between items-center"><Label>Cash</Label><Input className="max-w-32" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} /></div>
                         <div className="flex justify-between items-center"><Label>Bank / Acc</Label><Input className="max-w-32" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} /></div>
                         <Separator/>
-                        <div className="flex justify-between items-center font-semibold"><Label>Total Received</Label><span>{totalReceived.toFixed(2)}</span></div>
+                         <div className="flex justify-between items-center font-semibold"><Label>Total Received</Label><span>{formatINR(totalReceived)}</span></div>
                     </div>
 
                      <div className="space-y-2 text-right">
                          <div className="flex justify-between items-center">
                             <Label>Previous Balance</Label>
-                            <Input 
+                            <Input
                                 className={cn(
-                                    "max-w-32 text-right font-mono",
+                                    "ml-auto max-w-32 text-right font-mono",
                                     isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
-                                )} 
-                                type="number" 
-                                value={prevBalInput} 
-                                onChange={e => {
+                                )}
+                                value={isPrevBalFocused ? prevBalInput : formatINR(prevBalInput)}
+                                onChange={(e) => {
                                     setPrevBalInput(e.target.value);
                                     setIsPrevBalModified(true);
-                                }} 
+                                }}
+                                onFocus={(e) => {
+                                    setIsPrevBalFocused(true);
+                                    e.target.select();
+                                }}
+                                onBlur={() => setIsPrevBalFocused(false)}
                             />
                          </div>
                          <Separator/>
-                         <div className="flex justify-between items-center font-bold text-xl"><Label>Final Balance</Label><span>{finalBalance.toFixed(2)}</span></div>
+                         <div className="flex justify-between items-center py-1">
+                             <Label className="text-[20px] font-[700] sm:text-[22px]">Final Balance</Label>
+                             <span className="text-[28px] font-[800] sm:text-[32px] tracking-tight">{formatINR(finalBalance)}</span>
+                         </div>
                          <Separator/>
                      </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
-                    <Button variant="outline" onClick={resetForm}><FilePlus className="mr-2 h-4 w-4"/>New</Button>
-                    <Button onClick={onSaveClick} disabled={isSaving}><Save className="mr-2 h-4 w-4"/>{isSaving ? "Saving..." : (editingBillId ? 'Update' : 'Save')}</Button>
-                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print</Button>
-                    <Button variant="outline" onClick={handleShareWhatsApp}>
-                        <Share className="mr-2 h-4 w-4" /> Share
+                    <Button onClick={onSaveClick} disabled={isSaving}><Save className="mr-2 h-4 w-4"/>{isSaving ? "Saving..." : (editingBillId ? 'Update Bill' : 'Save Bill')}</Button>
+                    <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4"/>Print Receipt</Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleSharePDF}
+                        disabled={!partyId || isShareLoading}
+                        className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                    >
+                        {isShareLoading
+                            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Preparing...</>
+                            : <><Share2 className="mr-2 h-4 w-4" />Share (PDF)</>}
                     </Button>
                 </div>
             </CardContent>
@@ -886,24 +914,7 @@ export default function PartyBillPage() {
                                 options={parties.map(p => ({ value: p.id, label: p.name}))}
                                 value={parties.map(p => ({ value: p.id, label: p.name})).find(p => p.value === historyPartyId) || null}
                                 onChange={(option) => {
-                                    const newPartyId = option ? option.value : '';
-                                    setHistoryPartyId(newPartyId);
-                                
-                                    let results = partyBills || [];
-                                    if (newPartyId) {
-                                        results = results.filter(b => b.partyId === newPartyId);
-                                    }
-                                    if (historyDate) {
-                                        results = results.filter(b => {
-                                            const bDate = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-                                            return isSameDay(bDate, historyDate);
-                                        });
-                                    }
-                                    setFilteredHistory(results.sort((a,b) => {
-                                        const dateA = a.date instanceof Timestamp ? a.date.toDate() : new Date(a.date);
-                                        const dateB = b.date instanceof Timestamp ? b.date.toDate() : new Date(b.date);
-                                        return dateB.getTime() - dateA.getTime();
-                                    }));
+                                    setHistoryPartyId(option ? option.value : '');
                                 }}
                                 isClearable
                                 placeholder="Filter by party..."
@@ -915,7 +926,13 @@ export default function PartyBillPage() {
                         <Label>Date</Label>
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                                <Button 
+                                    variant="outline" 
+                                    className={cn('w-full justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')}
+                                    onFocus={() => { if (!historyDate) setHistoryDate(new Date()); }}
+                                    onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date) => void)}
+                                    onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                                >
                                     <CalendarIcon className="mr-2 h-4 w-4" />
                                     {historyDate ? format(historyDate, 'PPP') : <span>Pick a date</span>}
                                 </Button>
@@ -934,12 +951,22 @@ export default function PartyBillPage() {
                             <TableRow>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Party</TableHead>
+                                <TableHead className="text-right">Prev Bal</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Final Balance</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody ref={historyTableBodyRef}>
-                            {filteredHistory.map(bill => (
+                            {filteredHistory.map(bill => {
+                                const prev = bill.previousBalance !== undefined
+                                    ? bill.previousBalance
+                                    : (partyBalances[bill.partyId] || 0) - ((bill.netAmount || 0) - (bill.totalReceived || 0));
+                                const final = bill.finalBalance !== undefined
+                                    ? bill.finalBalance
+                                    : (partyBalances[bill.partyId] || 0);
+
+                                return (
                                 <TableRow 
                                     key={bill.id} 
                                     onDoubleClick={() => router.push(`/dashboard/party-bill?partyBillId=${bill.id}`)} 
@@ -949,14 +976,23 @@ export default function PartyBillPage() {
                                 >
                                     <TableCell>{format(bill.date instanceof Timestamp ? bill.date.toDate() : new Date(bill.date), 'dd-MM-yy')}</TableCell>
                                     <TableCell>{bill.partyName}</TableCell>
-                                    <TableCell className="text-right">{bill.netAmount.toFixed(2)}</TableCell>
-                                    <TableCell className="text-right">
+                                    <TableCell className="text-right font-bold whitespace-nowrap">{formatINR(prev)}</TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">{formatINR(bill.netAmount)}</TableCell>
+                                    <TableCell className="text-right font-bold whitespace-nowrap">{formatINR(final)}</TableCell>
+                                    <TableCell className="text-right flex justify-end gap-1">
+                                        <Button variant="ghost" size="icon" onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            router.push(`/dashboard/party-bill?partyBillId=${bill.id}`); 
+                                        }}>
+                                            <Pencil className="h-4 w-4 text-primary"/>
+                                        </Button>
                                         <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(bill.id);}}>
                                             <Trash2 className="h-4 w-4 text-destructive"/>
                                         </Button>
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                                );
+                            })}
                         </TableBody>
                     </Table>
                 </div>
@@ -972,27 +1008,15 @@ export default function PartyBillPage() {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <div className="flex flex-col gap-2 pt-2">
-            <Button onClick={handleSaveAndPrint} disabled={isSaving}>{isSaving ? "Saving..." : "Save & Print"}</Button>
+                <Button onClick={handleSaveAndPrint} disabled={isSaving}>{isSaving ? "Saving..." : "Save & Print"}</Button>
                 <Button variant="outline" onClick={handlePrintWithoutSaving}>Print Without Saving</Button>
                 <Button variant="ghost" onClick={() => setShowPrintConfirm(false)}>Cancel</Button>
             </div>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={showWhatsAppShareConfirm} onOpenChange={setShowWhatsAppShareConfirm}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Share on WhatsApp</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Do you want to open WhatsApp now to share this party bill summary?
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setShowWhatsAppShareConfirm(false)}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={confirmOpenWhatsApp}>Open WhatsApp</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+
     </>
   );
 }
+

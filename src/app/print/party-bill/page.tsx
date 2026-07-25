@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { PartyBillItem } from '@/lib/data';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 
@@ -12,18 +12,36 @@ function PartyBillPrintContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [billData, setBillData] = useState<any | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const autoShare = searchParams.get('share') === 'pdf';
 
   useEffect(() => {
+    // Try localStorage first (used by Share PDF flow)
+    const sessionData = localStorage.getItem('partyBillPrintData');
+    if (sessionData) {
+      try {
+        const parsed = JSON.parse(sessionData);
+        if (parsed.date) {
+          if (typeof parsed.date === 'object' && parsed.date.seconds) {
+            parsed.date = new Date(parsed.date.seconds * 1000);
+          } else {
+            parsed.date = new Date(parsed.date);
+          }
+        }
+        setBillData(parsed);
+        return;
+      } catch (e) { console.error('Failed to parse localStorage data:', e); }
+    }
+    // Fallback to URL param
     const data = searchParams.get('data');
     if (data) {
       try {
         const decodedData = JSON.parse(decodeURIComponent(data));
         if (decodedData.date) {
             if (typeof decodedData.date === 'object' && decodedData.date.seconds) {
-                // Handle Firestore Timestamp that was JSON.stringified
                 decodedData.date = new Date(decodedData.date.seconds * 1000);
             } else {
-                // Handle ISO date string
                 decodedData.date = new Date(decodedData.date);
             }
         }
@@ -36,6 +54,68 @@ function PartyBillPrintContent() {
       router.push('/dashboard/party-bill');
     }
   }, [searchParams, router]);
+
+  const handleSharePDF = useCallback(async () => {
+    const captureEl = document.getElementById('print-area');
+    if (!captureEl || !billData) return;
+    setIsSharing(true);
+    setShareError(null);
+    try {
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
+      const canvas = await html2canvas(captureEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: captureEl.scrollWidth,
+        windowHeight: captureEl.scrollHeight,
+      });
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdfWidth = 147;
+      const pdfHeight = (canvas.height / canvas.width) * pdfWidth;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      const pdfBlob = pdf.output('blob');
+      const storedName = localStorage.getItem('partyBillFileName');
+      const billDateFormatted = billData.date ? format(new Date(billData.date), 'dd-MM-yyyy') : 'bill';
+      const partyName = (billData.partyName || 'Party').replace(/\s+/g, '_');
+      const fileName = storedName || `MC_PartyBill_${partyName}_${billDateFormatted}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      let sharedViaWebShare = false;
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title: fileName, text: `Party Bill - ${partyName} - ${billDateFormatted}`, files: [file] });
+          sharedViaWebShare = true;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') return;
+          console.warn('Web Share API failed, using fallback:', shareErr);
+        }
+      }
+      if (!sharedViaWebShare) {
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 400);
+        setShareError('PDF downloaded! You can now share it via WhatsApp or any app.');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Share PDF failed:', err);
+        setShareError('Could not generate PDF. Please try printing instead.');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [billData]);
 
   if (!billData) {
     return (
@@ -59,26 +139,59 @@ function PartyBillPrintContent() {
   const totalBoxes = billData.totalBox;
 
   return (
-    <>
-      <div className="p-4 print:hidden flex justify-between items-center">
+    <div className="preview-wrapper">
+      {/* Green share banner (shown when opened via Share PDF button) */}
+      {autoShare && (
+        <div className="print:hidden bg-green-600 text-white px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Share2 className="h-6 w-6 shrink-0" />
+            <div>
+              <p className="font-semibold text-sm leading-tight">Party bill ready to share!</p>
+              <p className="text-xs text-green-100 leading-tight mt-0.5">Tap the button to send this bill as a PDF.</p>
+            </div>
+          </div>
+          <Button
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="w-full sm:w-auto bg-white text-green-700 hover:bg-green-50 font-bold text-sm px-6 shrink-0"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating PDF...</>
+              : <><Share2 className="mr-2 h-4 w-4" />Share via WhatsApp</>}
+          </Button>
+        </div>
+      )}
+      {shareError && (
+        <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm">{shareError}</div>
+      )}
+      <div className="p-4 print:hidden flex justify-between items-center bg-background">
         <Button variant="outline" onClick={() => window.close()} className="text-foreground">
           <X className="mr-2 h-4 w-4" />
           Close
         </Button>
-        <Button onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          Print
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Preparing...</>
+              : <><Share2 className="mr-2 h-4 w-4" />Share (PDF)</>}
+          </Button>
+          <Button onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
+        </div>
       </div>
       <div className="party-bill-invoice">
         <div id="print-area">
           <header className="invoice-header">
             <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
             <p className="sub-header">Dealer : SEA & TANK FOODS</p>
-            <p className="sub-header-address">
-              No. 1, Fish Market, Palladam Road,<br />
-              Tiruppur - 641604
-            </p>
+            <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
             <p className="sub-header-address">📞 9843223078, 9944444497</p>
           </header>
 
@@ -116,10 +229,10 @@ function PartyBillPrintContent() {
               {items.map((item: PartyBillItem, index: number) => (
                 <tr key={item.id}>
                   <td className="col-sn">{index + 1}</td>
-                  <td className="col-item">{item.productName}</td>
+                  <td className="col-item"><strong>{item.productName}</strong></td>
                   <td className="col-box">{item.box}</td>
                   <td className="col-kgs">{item.kgs.toFixed(2)}</td>
-                  <td className="col-rate">{item.rate.toFixed(2)}</td>
+                  <td className="col-rate"><strong>{item.rate.toFixed(2)}</strong></td>
                   <td className="col-total">{item.amount.toFixed(2)}</td>
                 </tr>
               ))}
@@ -137,14 +250,14 @@ function PartyBillPrintContent() {
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
             <div className="left-totals">
                 <div className="deductions-group">
-                    {commission > 0 && <div className="detail-row"><span>Commission ({commissionPercent.toFixed(1)}%):</span><span>₹{commissionAmount.toFixed(2)}</span></div>}
-                    {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span>₹{expenses.toFixed(2)}</span></div>}
-                    {rent > 0 && <div className="detail-row"><span>Rent:</span><span>₹{rent.toFixed(2)}</span></div>}
+                    {commission > 0 && <div className="detail-row"><span>Commission ({commissionPercent.toFixed(1)}%):</span><span><strong>₹{commissionAmount.toFixed(2)}</strong></span></div>}
+                    {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span><strong>₹{expenses.toFixed(2)}</strong></span></div>}
+                    {rent > 0 && <div className="detail-row"><span>Rent:</span><span><strong>₹{rent.toFixed(2)}</strong></span></div>}
                 </div>
                 <Separator className="my-1 border-black" />
                 <div className="payments-group">
-                    {cashReceived > 0 && <div className="detail-row"><span>By Cash:</span><span>₹{cashReceived.toFixed(2)}</span></div>}
-                    {bankReceived > 0 && <div className="detail-row"><span>By Bank:</span><span>₹{bankReceived.toFixed(2)}</span></div>}
+                    {cashReceived > 0 && <div className="detail-row"><span>By Cash:</span><span><strong>₹{cashReceived.toFixed(2)}</strong></span></div>}
+                    {bankReceived > 0 && <div className="detail-row"><span>By Bank:</span><span><strong>₹{bankReceived.toFixed(2)}</strong></span></div>}
                 </div>
                 <Separator className="my-1 border-black" />
             </div>
@@ -163,20 +276,15 @@ function PartyBillPrintContent() {
           <footer className="print-footer">Developed by MC & SONS</footer>
         </div>
       </div>
+
       <style jsx global>{`
-        /* Screen-only styles for preview */
-        @media screen {
-            .party-bill-invoice {
-                margin: 2rem auto;
-            }
-        }
         /* ===============================
-          PRINT SETUP (147mm x 208mm)
+          PRINT SETUP (145mm x 210mm)
         ================================ */
         @media print {
           @page {
-            size: 147mm 208mm;
-            margin: 0mm;
+            size: 145mm 210mm;
+            margin: 5mm;
           }
           body {
             background: white !important;
@@ -196,10 +304,27 @@ function PartyBillPrintContent() {
             left: 0;
             top: 0;
             width: 100%;
-            padding: 4mm 6mm 6mm 6mm;
+            padding: 0;
             box-sizing: border-box;
           }
           .print\\:hidden { display: none !important; }
+        }
+
+        /* Screen-only styles for preview */
+        @media screen {
+            .preview-wrapper {
+                background-color: #1e293b;
+                min-height: 100vh;
+                padding-bottom: 2rem;
+            }
+            .party-bill-invoice {
+                margin: 2rem auto;
+                width: 800px !important;
+                max-width: 95vw !important;
+                padding: 40px !important;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+                border-radius: 4px;
+            }
         }
 
         /* ===============================
@@ -208,9 +333,12 @@ function PartyBillPrintContent() {
         .party-bill-invoice {
           font-family: Arial, sans-serif;
           font-size: 10pt;
-          width: 135mm;
+          width: 97%;
+          max-width: 97%;
           background: white;
           color: black;
+          box-sizing: border-box;
+          margin: 0 auto;
         }
 
         .font-bold { font-weight: bold; }
@@ -221,8 +349,9 @@ function PartyBillPrintContent() {
         ================================ */
         .invoice-header {
           text-align: center;
-          padding-bottom: 8px;
-          margin-bottom: 8px;
+          padding-bottom: 6px;
+          margin-bottom: 6px;
+          width: 100%;
         }
         .invoice-header .company-name { font-weight: bold; font-size: 16pt; margin: 0; }
         .invoice-header .sub-header { font-size: 10pt; margin: 1px 0; font-weight: 500; }
@@ -235,6 +364,8 @@ function PartyBillPrintContent() {
           border: 1.5px solid black;
           display: grid;
           grid-template-columns: 1fr 1fr;
+          width: 100%;
+          box-sizing: border-box;
         }
         .party-details .grid-item { 
           padding: 4px 6px; 
@@ -254,22 +385,22 @@ function PartyBillPrintContent() {
           display: inline-block;
           flex-shrink: 0;
         }
-        .party-details .value { font-size: 10pt; }
+        .party-details .value { font-size: 10pt; overflow-wrap: anywhere; }
 
         /* ===============================
           ITEMS TABLE
         ================================ */
-        .items-table { width: 100%; margin-top: 8px; border-collapse: collapse; table-layout: fixed; }
-        .items-table th, .items-table td { border: 1.5px solid black; padding: 6px; vertical-align: top; }
+        .items-table { width: 100%; margin-top: 8px; border-collapse: collapse; table-layout: fixed; box-sizing: border-box; }
+        .items-table th, .items-table td { border: 1.5px solid black; padding: 5px 4px; vertical-align: top; }
         .items-table thead tr { background-color: #f2f2f2 !important; }
         .items-table thead th { font-weight: bold; text-align: center; font-size: 9pt; }
         
-        .items-table .col-sn { width: 8mm; text-align: center; white-space: nowrap; }
-        .items-table .col-item { width: auto; word-break: break-word; text-align: left; font-size: 8pt; }
-        .items-table .col-box { width: 15mm; text-align: center; white-space: nowrap; }
-        .items-table .col-kgs { width: 15mm; text-align: center; white-space: nowrap; }
-        .items-table .col-rate { width: 20mm; white-space: nowrap; text-align: center; }
-        .items-table .col-total { width: 25mm; white-space: nowrap; text-align: center; }
+        .items-table .col-sn  { width: 6%;  text-align: center; white-space: nowrap; }
+        .items-table .col-item { width: 30%; word-break: break-word; text-align: left; font-size: 10pt; }
+        .items-table .col-box  { width: 10%; text-align: center; white-space: nowrap; }
+        .items-table .col-kgs  { width: 14%; text-align: center; white-space: nowrap; }
+        .items-table .col-rate { width: 14%; white-space: nowrap; text-align: center; }
+        .items-table .col-total{ width: 26%; white-space: nowrap; text-align: center; }
 
         .items-table td.col-box {
             text-align: right;
@@ -279,7 +410,7 @@ function PartyBillPrintContent() {
         .items-table td.col-kgs {
             text-align: right;
             font-weight: bold;
-            color: #444; /* Reduced darkness for separation */
+            color: #444;
         }
 
         .items-table td.col-rate { 
@@ -290,7 +421,7 @@ function PartyBillPrintContent() {
         .items-table td.col-total { 
             text-align: right; 
             font-family: "Courier New", monospace; 
-            font-weight: bold; /* Bolded amount val */
+            font-weight: bold;
         }
 
         /* ===============================
@@ -299,11 +430,13 @@ function PartyBillPrintContent() {
         .table-summary-row {
           display: flex;
           justify-content: flex-end;
-          gap: 15mm;
-          padding: 6px;
+          gap: 10mm;
+          padding: 5px 6px;
           border: 1.5px solid black;
           border-top: none;
           background-color: #f9f9f9;
+          width: 100%;
+          box-sizing: border-box;
         }
         .table-summary-row .summary-item {
           display: flex;
@@ -316,10 +449,10 @@ function PartyBillPrintContent() {
         /* ===============================
           TOTALS SECTION
         ================================ */
-        .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; }
+        .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; box-sizing: border-box; }
         .left-totals { width: 50%; }
         .right-totals { width: 48%; }
-        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 1px 4px; font-size: 10pt;}
+        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 1px 4px; font-size: 10pt; }
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         
@@ -363,14 +496,14 @@ function PartyBillPrintContent() {
           FOOTER
         ================================ */
         .print-footer {
-          margin-top: calc(2 * 1.2em);
+          margin-top: 6px;
           text-align: left;
-          font-size: 10px;
+          font-size: 9pt;
           font-weight: 800;
           font-style: italic;
         }
       `}</style>
-    </>
+    </div>
   );
 }
 

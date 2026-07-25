@@ -14,7 +14,6 @@ import {
 import { Customer, SalesReportData, BillItem } from '@/lib/data';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { setupTamilFont } from '@/lib/pdf-fonts';
 
 type SalesReportPrintData = any;
 
@@ -120,264 +119,203 @@ function PrintPageContent() {
     .join(', ');
 
   // ─────────────────────────────────────────────────────────────
-  //  Share PDF: captures hidden #pdf-area-sales div
+  //  Share PDF — same html2canvas engine as Main Billing
+  //  Dynamically builds one hidden 480px div per PDF page,
+  //  captures each with html2canvas, stitches into jsPDF.
+  //  Page 1 = full header; Page 2+ = table header only.
+  //  Tamil fonts render via the browser's own engine (no font
+  //  embedding needed, same as billing PDF).
   // ─────────────────────────────────────────────────────────────
   const handleSharePDF = async (withoutBalance: boolean = false) => {
     if (!printData) return;
-
-    if (withoutBalance) setIsSharingNoBal(true);
-    else setIsSharing(true);
+    if (withoutBalance) setIsSharingNoBal(true); else setIsSharing(true);
     setShareError(null);
 
+    // ── Constants ────────────────────────────────────────────────
+    const PAGE_W     = 480;   // px — same as Main Billing pdf-area
+    const PADDING    = 16;    // px inner padding
+    const ROWS_P1    = 18;    // max data rows on page 1 (header takes space)
+    const ROWS_PN    = 28;    // max data rows on subsequent pages
+
+    const colStyle = (w: string, align = 'left') =>
+      `width:${w};padding:4px 3px;border:1px solid #ddd;font-size:10px;text-align:${align};box-sizing:border-box;word-break:break-word;`;
+    const thStyle  = (w: string, align = 'left') =>
+      `width:${w};padding:5px 3px;text-align:${align};border:1px solid #ccc;font-weight:bold;box-sizing:border-box;`;
+
+    const itemLabel = mode === 'PRODUCT' ? 'Cust Name' : 'Item';
+    const fromFmt   = dateRange?.from ? format(new Date(dateRange.from), 'dd-MM-yyyy') : '';
+    const toFmt     = dateRange?.to   ? format(new Date(dateRange.to),   'dd-MM-yyyy') : '';
+    const nameValue = mode === 'PRODUCT'
+      ? productName
+      : mode === 'CUSTOMER_PRODUCT'
+      ? `${customerName} | ${productName}`
+      : (customer?.name_ta || customer?.name_en || '-');
+    const nameKey   = mode === 'PRODUCT' ? 'Product' : 'Customer';
+    const reportTitle = mode === 'PRODUCT' ? 'Product Report'
+                      : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report'
+                      : withoutBalance ? 'Sales Report (Without Prev Bal)'
+                      : 'Sales Report';
+
+    // ── Flatten all rows ─────────────────────────────────────────
+    const allRows: { date: string; item: any; isFirst: boolean }[] = [];
+    for (const { date, items } of (itemsByDate || [])) {
+      items.forEach((item: any, i: number) => {
+        allRows.push({ date, item, isFirst: i === 0 });
+      });
+    }
+
+    // ── Split rows into pages ────────────────────────────────────
+    const pages: (typeof allRows)[] = [];
+    let remaining = [...allRows];
+    pages.push(remaining.splice(0, ROWS_P1));
+    while (remaining.length > 0) pages.push(remaining.splice(0, ROWS_PN));
+
+    // ── Build HTML string for the table header row ───────────────
+    const tableHeaderHTML = `
+      <thead>
+        <tr style="background:#f0f0f0;">
+          <th style="${thStyle('14%')}">Date</th>
+          <th style="${thStyle('34%')}">${itemLabel}</th>
+          <th style="${thStyle('16%','right')}">Qty</th>
+          <th style="${thStyle('16%','right')}">Rate</th>
+          <th style="${thStyle('20%','right')}">Amount</th>
+        </tr>
+      </thead>`;
+
+    // ── Build HTML for a set of rows ─────────────────────────────
+    const rowsHTML = (rows: typeof allRows) => rows.map(({ date, item, isFirst }, ri) => {
+      const bg   = ri % 2 === 1 ? '#fafafa' : '#fff';
+      const isDelivery = item.product === 'Delivery';
+      const qtyTxt  = isDelivery ? '-' : `${Number(item.qty).toFixed(1)} ${item.uom || ''}`.trim();
+      const rateTxt = isDelivery ? '-' : formatINR(item.rate);
+      const amtTxt  = formatINR(item.amount);
+      return `<tr style="background:${bg};">
+        <td style="${colStyle('14%')} white-space:nowrap;">${isFirst ? date : ''}</td>
+        <td style="${colStyle('34%')}">${item.product || ''}</td>
+        <td style="${colStyle('16%','right')} white-space:nowrap;">${qtyTxt}</td>
+        <td style="${colStyle('16%','right')} white-space:nowrap;">${rateTxt}</td>
+        <td style="${colStyle('20%','right')} white-space:nowrap;font-weight:600;">${amtTxt}</td>
+      </tr>`;
+    }).join('');
+
+    // ── Build the full HTML for each page ────────────────────────
+    const pageHTMLs: string[] = pages.map((rows, pgIdx) => {
+      const isFirst = pgIdx === 0;
+      const isLast  = pgIdx === pages.length - 1;
+
+      const header = isFirst ? `
+        <div style="text-align:center;margin-bottom:8px;border-bottom:2px solid #333;padding-bottom:6px;">
+          <div style="font-size:15px;font-weight:bold;margin:0 0 2px 0;">M.C &amp; SONS FISH COMPANY</div>
+          <div style="font-size:10px;color:#444;margin:1px 0;">No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+          <div style="font-size:10px;color:#444;margin:1px 0;">📞 9597833277, 9894089889</div>
+          <div style="font-size:13px;font-weight:bold;margin-top:5px;">${reportTitle}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px;">
+          <div><strong>${nameKey}:</strong> ${nameValue}</div>
+          <div style="text-align:right;">
+            ${fromFmt ? `<div><strong>From:</strong> ${fromFmt}</div>` : ''}
+            ${toFmt   ? `<div><strong>To:</strong> ${toFmt}</div>` : ''}
+          </div>
+        </div>
+        <div style="border-top:1.5px solid #444;margin:5px 0 8px;"></div>` : '';
+
+      const footer = isLast ? `
+        <tr style="font-weight:bold;background:#f0f0f0;">
+          <td colspan="2" style="${colStyle('50%')} border:1px solid #ccc;border-top:1.5px solid #444;">Total | ${totalQtyString}</td>
+          <td colspan="3" style="${colStyle('50%','right')} border:1px solid #ccc;border-top:1.5px solid #444;">${formatINR(totalAmount)}</td>
+        </tr>` : '';
+
+      const summary = isLast ? `
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:10px;">
+          <tbody>
+            ${mode === 'CUSTOMER' && !withoutBalance
+              ? `<tr><td style="padding:4px 6px;font-weight:600;border-bottom:1px solid #eee;">PREVIOUS BALANCE</td>
+                     <td style="padding:4px 2px;text-align:center;color:#555;border-bottom:1px solid #eee;width:12px;">:</td>
+                     <td style="padding:4px 6px;text-align:right;border-bottom:1px solid #eee;">₹${formatINR(previousBalance)}</td></tr>`
+              : ''}
+            <tr style="border-top:2px solid #333;">
+              <td style="padding:6px;font-weight:bold;font-size:13px;">NETT AMT</td>
+              <td style="padding:6px 2px;text-align:center;color:#555;">:</td>
+              <td style="padding:6px;text-align:right;font-weight:bold;font-size:13px;">₹${formatINR(withoutBalance ? totalAmount : netAmount)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:12px;font-size:9px;font-style:italic;color:#1a6db5;">Developed by MC &amp; SONS</div>` : '';
+
+      return `
+        <div style="width:${PAGE_W}px;padding:${PADDING}px;background:#fff;color:#000;font-family:Arial,sans-serif;font-size:12px;box-sizing:border-box;">
+          ${header}
+          <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;">
+            ${tableHeaderHTML}
+            <tbody>
+              ${rowsHTML(rows)}
+              ${footer}
+            </tbody>
+          </table>
+          ${summary}
+        </div>`;
+    });
+
     try {
-      const { jsPDF } = await import('jspdf');
-
-      // ── Page constants ──────────────────────────────────────────
-      const PAGE_W   = 210;   // A4 mm
-      const PAGE_H   = 297;
-      const ML       = 10;    // left margin
-      const MR       = 10;    // right margin
-      const MT       = 10;    // top margin
-      const MB       = 12;    // bottom margin
-      const CW       = PAGE_W - ML - MR;  // content width
-
-      // Column widths
-      const C_DATE   = 18;
-      const C_AMT    = 26;
-      const C_RATE   = 22;
-      const C_QTY    = 24;
-      const C_ITEM   = CW - C_DATE - C_QTY - C_RATE - C_AMT;
-
-      const X: number[] = [
-        ML,
-        ML + C_DATE,
-        ML + C_DATE + C_ITEM,
-        ML + C_DATE + C_ITEM + C_QTY,
-        ML + C_DATE + C_ITEM + C_QTY + C_RATE,
-      ];
-
-      const ROW_H    = 5.5;
-      const HDR_H    = 6.5;
-      const TOTALS_RESERVE = 32; // mm reserved at page bottom for totals block
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
 
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      await setupTamilFont(pdf);
-      let y = MT;
-      let pageNum = 1;
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
 
-      // ── Helpers ─────────────────────────────────────────────────
-      const setFont = (style: 'normal' | 'bold' | 'italic', size: number, color = 0) => {
-        // Use the registered 'Tamil' font which supports both English and Tamil
-        // Style support depends on the font file, for now we map all to 'normal' 
-        // as we only embedded the Regular weight.
-        pdf.setFont('Tamil', 'normal'); 
-        pdf.setFontSize(size);
-        pdf.setTextColor(color, color, color);
-      };
+      // Render each page
+      for (let pgIdx = 0; pgIdx < pageHTMLs.length; pgIdx++) {
+        // Create a temporary hidden container
+        const container = document.createElement('div');
+        container.style.cssText = 'position:fixed;left:-9999px;top:0;';
+        container.innerHTML = pageHTMLs[pgIdx];
+        document.body.appendChild(container);
 
-      const hline = (yy: number, w = 0.4, x1 = ML, x2 = PAGE_W - MR) => {
-        pdf.setDrawColor(100, 100, 100);
-        pdf.setLineWidth(w);
-        pdf.line(x1, yy, x2, yy);
-      };
-
-      const drawTableHeader = () => {
-        pdf.setFillColor(235, 235, 235);
-        pdf.rect(ML, y, CW, HDR_H, 'F');
-        setFont('bold', 9);
-        const ty = y + HDR_H - 1.8;
-        pdf.text('Date',                          X[0] + 1,              ty);
-        pdf.text(mode === 'PRODUCT' ? 'Cust Name' : 'Item', X[1] + 1,  ty);
-        pdf.text('Qty',    X[2] + C_QTY  - 1,    ty, { align: 'right' });
-        pdf.text('Rate',   X[3] + C_RATE - 1,    ty, { align: 'right' });
-        pdf.text('Amount', X[4] + C_AMT  - 1,    ty, { align: 'right' });
-        hline(y + HDR_H, 0.3);
-        y += HDR_H;
-      };
-
-      const addPage = () => {
-        pdf.addPage();
-        pageNum++;
-        y = MT;
-        drawTableHeader();
-        setFont('normal', 9);
-      };
-
-      // ── Page 1 Header ────────────────────────────────────────────
-      setFont('bold', 15);
-      pdf.text('M.C & SONS FISH COMPANY', PAGE_W / 2, y + 1, { align: 'center' });
-      y += 7;
-
-      setFont('normal', 8, 60);
-      pdf.text('No. 1, Fish Market, Palladam Road, Tiruppur - 641604', PAGE_W / 2, y, { align: 'center' });
-      y += 4.5;
-      pdf.text('Ph: 9894089889, 9597833277', PAGE_W / 2, y, { align: 'center' });
-      y += 5;
-
-      hline(y, 0.5);
-      y += 4;
-
-      const reportTitle = mode === 'PRODUCT'
-        ? 'Product Report'
-        : mode === 'CUSTOMER_PRODUCT'
-          ? 'Customer Product Report'
-          : 'Sales Report';
-
-      setFont('bold', 13, 0);
-      pdf.text(reportTitle, PAGE_W / 2, y, { align: 'center' });
-      y += 6;
-
-      // Customer / Product label
-      const custLabel = mode === 'PRODUCT' ? 'Product:' : 'Customer:';
-      const custValue = mode === 'PRODUCT'
-        ? (productName || '')
-        : mode === 'CUSTOMER_PRODUCT'
-          ? `${customerName || ''} | ${productName || ''}`
-          : (customer?.name_ta || customer?.name_en || '-');
-
-      const fromStr = dateRange?.from ? format(new Date(dateRange.from), 'dd-MM-yyyy') : '';
-      const toStr   = dateRange?.to   ? format(new Date(dateRange.to),   'dd-MM-yyyy') : '';
-
-      setFont('bold', 10);
-      pdf.text(custLabel, ML, y);
-      setFont('normal', 10);
-      const labelW = pdf.getTextWidth(custLabel) + 1;
-      // Truncate customer name if too wide
-      let cvDisplay = custValue;
-      const maxCvW  = CW - labelW - (fromStr ? 38 : 0);
-      while (pdf.getTextWidth(cvDisplay) > maxCvW && cvDisplay.length > 4)
-        cvDisplay = cvDisplay.slice(0, -1);
-      if (cvDisplay !== custValue) cvDisplay += '…';
-      pdf.text(cvDisplay, ML + labelW, y);
-
-      if (fromStr) {
-        setFont('normal', 9, 60);
-        pdf.text(`From: ${fromStr}`, PAGE_W - MR, y, { align: 'right' });
-        y += 4.5;
-        if (toStr) pdf.text(`To:   ${toStr}`, PAGE_W - MR, y, { align: 'right' });
-      } else {
-        y -= 0;
-      }
-      y += 6;
-
-      hline(y, 0.5);
-      y += 4;
-
-      // ── Table header (page 1) ────────────────────────────────────
-      drawTableHeader();
-      setFont('normal', 9, 0);
-
-      // ── Data rows ────────────────────────────────────────────────
-      itemsByDate.forEach(({ date, items }: { date: string; items: any[] }) => {
-        items.forEach((item: any, idx: number) => {
-          // Reserve bottom space for totals on every page check
-          const spaceNeeded = ROW_H + (idx === items.length - 1 ? TOTALS_RESERVE : 0);
-          if (y + spaceNeeded > PAGE_H - MB) addPage();
-
-          // Alternating row tint
-          if (idx % 2 === 1) {
-            pdf.setFillColor(250, 250, 250);
-            pdf.rect(ML, y, CW, ROW_H, 'F');
-          }
-
-          setFont('normal', 9, 0);
-          const ty = y + ROW_H - 1.5;
-
-          // Date (first item of group only)
-          if (idx === 0) pdf.text(date, X[0] + 1, ty);
-
-          // Item name – truncate to fit column
-          let iName = String(item.product || '');
-          const maxIW = C_ITEM - 3;
-          while (pdf.getTextWidth(iName) > maxIW && iName.length > 3)
-            iName = iName.slice(0, -1);
-          if (iName !== String(item.product || '')) iName += '…';
-          pdf.text(iName, X[1] + 1, ty);
-
-          const isDelivery = item.product === 'Delivery';
-
-          // Qty
-          pdf.text(
-            isDelivery ? '-' : `${Number(item.qty).toFixed(1)} ${item.uom || ''}`,
-            X[2] + C_QTY - 1, ty, { align: 'right' }
-          );
-
-          // Rate
-          pdf.text(
-            isDelivery ? '-' : String(Math.round(item.rate)),
-            X[3] + C_RATE - 1, ty, { align: 'right' }
-          );
-
-          // Amount
-          setFont('bold', 9, 0);
-          pdf.text(String(Math.round(item.amount)), X[4] + C_AMT - 1, ty, { align: 'right' });
-          setFont('normal', 9, 0);
-
-          y += ROW_H;
+        const el = container.firstElementChild as HTMLElement;
+        const canvas = await html2canvas(el, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: PAGE_W,
+          windowHeight: el.scrollHeight,
         });
-      });
+        document.body.removeChild(container);
 
-      // ── Divider after rows ───────────────────────────────────────
-      hline(y, 0.5);
-      y += 3;
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const imgH    = pdfW * (canvas.height / canvas.width);
 
-      // ── Totals – always on the final page ───────────────────────
-      // Total row
-      setFont('bold', 10);
-      pdf.text('Total  ==>', X[0] + 1, y + 4);
-      pdf.text(totalQtyString,            X[1] + 1,              y + 4);
-      pdf.text(
-        String(Math.round(totalAmount)),  X[4] + C_AMT - 1,     y + 4,
-        { align: 'right' }
-      );
-      y += 8;
-      hline(y, 0.3);
-      y += 5;
-
-      // Summary box (right-aligned)
-      const SX  = PAGE_W - MR - 72; // label start x
-      const CX  = SX + 52;           // colon x
-      const VX  = PAGE_W - MR;       // value x (right-aligned)
-
-      if (mode === 'CUSTOMER' && !withoutBalance) {
-        setFont('normal', 10);
-        pdf.text('PREVIOUS BALANCE', SX, y + 4.5);
-        pdf.text(':',                CX, y + 4.5);
-        pdf.text(
-          String(Math.round(previousBalance)),
-          VX, y + 4.5, { align: 'right' }
-        );
-        y += 7;
-        hline(y, 0.3, SX - 2, VX);
-        y += 1;
+        if (pgIdx > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, Math.min(imgH, pdfH));
       }
 
-      setFont('bold', 12);
-      const nettAmt = withoutBalance ? Math.round(totalAmount) : Math.round(netAmount);
-      pdf.text('NETT AMT', SX, y + 5.5);
-      pdf.text(':',        CX, y + 5.5);
-      pdf.text(String(nettAmt), VX, y + 5.5, { align: 'right' });
-      y += 9;
-      hline(y, 0.5, SX - 2, VX);
-      y += 8;
+      // Page numbers
+      const totalPdfPages = (pdf as any).internal.getNumberOfPages();
+      for (let p = 1; p <= totalPdfPages; p++) {
+        pdf.setPage(p);
+        pdf.setFontSize(7);
+        pdf.setTextColor(150, 150, 150);
+        pdf.text(`Page ${p} of ${totalPdfPages}`, pdfW - 5, pdfH - 4, { align: 'right' });
+      }
 
-      // Footer
-      setFont('italic', 8, 26);
-      pdf.setTextColor(26, 109, 181);
-      pdf.text('Developed by MC & SONS', ML, y);
-
-      // ── Output / Share ───────────────────────────────────────────
       const pdfBlob = pdf.output('blob');
-      let title = 'Sales Report';
+      let title    = 'Sales Report';
       let custName = customer?.name_en || 'Customer';
       if (mode === 'PRODUCT') { title = 'Product Report'; custName = productName; }
       else if (mode === 'CUSTOMER_PRODUCT') { title = 'Customer Product Report'; custName = customerName; }
 
+      const fromStr = fromFmt;
+      const toStr   = toFmt;
       const fileName = `MC_${title.replace(/\s+/g, '')}_${custName}_${fromStr}.pdf`;
-      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
-      const phone = (mode === 'CUSTOMER' && customer?.phone) ? customer.phone.replace(/\D/g, '') : '';
+      const file     = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      const phone    = (mode === 'CUSTOMER' && customer?.phone) ? customer.phone.replace(/\D/g, '') : '';
       const waMessage =
-        `*M.C & SONS FISH COMPANY*\n*${title}*\n\n${mode === 'PRODUCT' ? 'Product' : 'Customer'}: ${custName}\nPeriod: ${fromStr} to ${toStr}\n\nPlease find the attached report PDF.\n\nThank you!`;
+        `*M.C & SONS FISH COMPANY*\n*${title}*\n\n${nameKey}: ${custName}\nPeriod: ${fromStr} to ${toStr}\n\nPlease find the attached report PDF.\n\nThank you!`;
       const waUrl = phone
         ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
         : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
@@ -399,8 +337,8 @@ function PrintPageContent() {
 
       if (!sharedViaWebShare) {
         const url = URL.createObjectURL(pdfBlob);
-        const a = document.createElement('a');
-        a.href = url;
+        const a   = document.createElement('a');
+        a.href    = url;
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
@@ -417,10 +355,10 @@ function PrintPageContent() {
         setShareError('Could not generate PDF. Please try printing instead.');
       }
     } finally {
-      if (withoutBalance) setIsSharingNoBal(false);
-      else setIsSharing(false);
+      if (withoutBalance) setIsSharingNoBal(false); else setIsSharing(false);
     }
   };
+
 
   return (
     <div>
@@ -620,9 +558,264 @@ function PrintPageContent() {
           </div>
         </div>
 
-        {/* ── PDF rendered programmatically via jsPDF – these stubs are kept for ID compatibility ── */}
-        <div id="pdf-area-sales" style={{ display: 'none' }} />
-        <div id="pdf-area-sales-no-bal" style={{ display: 'none' }} />
+        {/* ── Hidden compact div for PDF capture (mobile-first) ── */}
+        <div
+          id="pdf-area-sales"
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            width: '480px',
+            padding: '16px',
+            background: '#fff',
+            color: '#000',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '12px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>M.C &amp; SONS FISH COMPANY</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '5px' }}>{mode === 'PRODUCT' ? 'Product Report' : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report' : 'Sales Report'}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
+            <div><strong>{mode === 'PRODUCT' ? 'Product:' : 'Customer:'}</strong> {mode === 'PRODUCT' ? productName : mode === 'CUSTOMER_PRODUCT' ? `${customerName} | ${productName}` : (customer?.name_ta || customer?.name_en || '-')}</div>
+            <div style={{ textAlign: 'right' }}>
+              {dateRange.from && <div><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</div>}
+              {dateRange.to && <div><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</div>}
+            </div>
+          </div>
+          <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px' }}>
+            <thead>
+              <tr style={{ background: '#f0f0f0' }}>
+                <th style={{ width: '14%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Date</th>
+                <th style={{ width: '34%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>{mode === 'PRODUCT' ? 'Cust Name' : 'Item'}</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
+                <th style={{ width: '20%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsByDate.map(({ date, items }: { date: string, items: any[] }) =>
+                items.map((item: any, itemIndex: number) => (
+                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', whiteSpace: 'nowrap', fontSize: '10px' }}>{itemIndex === 0 ? date : ''}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{item.product}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : formatINR(item.rate)}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
+                  </tr>
+                ))
+              )}
+              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                <td colSpan={2} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444' }}>Total &nbsp;|&nbsp; {totalQtyString}</td>
+                <td colSpan={3} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right' }}>{formatINR(totalAmount)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+            <tbody>
+              {mode === 'CUSTOMER' && (
+                <tr><td style={{ padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid #eee' }}>PREVIOUS BALANCE</td><td style={{ padding: '4px 2px', textAlign: 'center', color: '#555', borderBottom: '1px solid #eee', width: '12px' }}>:</td><td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>₹{formatINR(previousBalance)}</td></tr>
+              )}
+              <tr style={{ borderTop: '2px solid #333' }}><td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>NETT AMT</td><td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td><td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(netAmount)}</td></tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
+        </div>
+
+
+        {/* ── Hidden compact div for PDF capture (Without Balance) ── */}
+        <div
+          id="pdf-area-sales-no-bal"
+          style={{ position: 'fixed', left: '-9999px', top: 0, width: '480px', padding: '16px', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', fontSize: '12px', boxSizing: 'border-box' }}
+        >
+          <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>M.C &amp; SONS FISH COMPANY</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '5px' }}>{mode === 'PRODUCT' ? 'Product Report' : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report' : 'Sales Report'}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
+            <div><strong>{mode === 'PRODUCT' ? 'Product:' : 'Customer:'}</strong> {mode === 'PRODUCT' ? productName : mode === 'CUSTOMER_PRODUCT' ? `${customerName} | ${productName}` : (customer?.name_ta || customer?.name_en || '-')}</div>
+            <div style={{ textAlign: 'right' }}>
+              {dateRange.from && <div><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</div>}
+              {dateRange.to && <div><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</div>}
+            </div>
+          </div>
+          <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px' }}>
+            <thead>
+              <tr style={{ background: '#f0f0f0' }}>
+                <th style={{ width: '14%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Date</th>
+                <th style={{ width: '34%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>{mode === 'PRODUCT' ? 'Cust Name' : 'Item'}</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
+                <th style={{ width: '20%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsByDate.map(({ date, items }: { date: string, items: any[] }) =>
+                items.map((item: any, itemIndex: number) => (
+                  <tr key={`nob-${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', whiteSpace: 'nowrap', fontSize: '10px' }}>{itemIndex === 0 ? date : ''}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{item.product}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : formatINR(item.rate)}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
+                  </tr>
+                ))
+              )}
+              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                <td colSpan={2} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444' }}>Total &nbsp;|&nbsp; {totalQtyString}</td>
+                <td colSpan={3} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right' }}>{formatINR(totalAmount)}</td>
+              </tr>
+            </tbody>
+          </table>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+            <tbody>
+              <tr style={{ borderTop: '2px solid #333' }}><td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>NETT AMT</td><td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td><td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(totalAmount)}</td></tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
+          <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0' }}>M.C &amp; SONS FISH COMPANY</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+            <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9597833277, 9894089889</div>
+            <div style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '5px' }}>{mode === 'PRODUCT' ? 'Product Report' : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report' : 'Sales Report'}</div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '6px' }}>
+            <div><strong>{mode === 'PRODUCT' ? 'Product:' : 'Customer:'}</strong> {mode === 'PRODUCT' ? productName : mode === 'CUSTOMER_PRODUCT' ? `${customerName} | ${productName}` : (customer?.name_ta || customer?.name_en || '-')}</div>
+            <div style={{ textAlign: 'right' }}>
+              {dateRange.from && <div><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</div>}
+              {dateRange.to && <div><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</div>}
+            </div>
+          </div>
+          <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '11px' }}>
+            <thead>
+              <tr style={{ background: '#f0f0f0' }}>
+                <th style={{ width: '14%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>Date</th>
+                <th style={{ width: '34%', padding: '5px 3px', textAlign: 'left', border: '1px solid #ccc', fontWeight: 'bold' }}>{mode === 'PRODUCT' ? 'Cust Name' : 'Item'}</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Qty</th>
+                <th style={{ width: '16%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Rate</th>
+                <th style={{ width: '20%', padding: '5px 3px', textAlign: 'right', border: '1px solid #ccc', fontWeight: 'bold' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsByDate.map(({ date, items }: { date: string, items: any[] }) =>
+                items.map((item: any, itemIndex: number) => (
+                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', whiteSpace: 'nowrap', fontSize: '10px' }}>{itemIndex === 0 ? date : ''}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{item.product}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', whiteSpace: 'nowrap' }}>{item.product === 'Delivery' ? '-' : formatINR(item.rate)}</td>
+                    <td style={{ padding: '4px 3px', border: '1px solid #ddd', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
+                  </tr>
+                ))
+              )}
+              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                <td colSpan={2} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444' }}>Total &nbsp;|&nbsp; {totalQtyString}</td>
+                <td colSpan={3} style={{ padding: '5px 3px', border: '1px solid #ccc', borderTop: '1.5px solid #444', textAlign: 'right' }}></td>
+              </tr>
+            </tbody>
+          </table>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+            <tbody>
+              <tr style={{ borderTop: '2px solid #333' }}><td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>NETT AMT</td><td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td><td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{formatINR(totalAmount)}</td></tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
+        </div>
+        <div
+          id="pdf-area-sales-no-bal"
+          style={{
+            position: 'fixed',
+            left: '-9999px',
+            top: 0,
+            width: '210mm',
+            minHeight: '297mm',
+            padding: '15mm',
+            background: '#fff',
+            color: '#000',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: '12px',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ width: '160mm', margin: '0 auto', padding: '15mm 0' }}>
+          <header style={{ textAlign: 'center', marginBottom: '10px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 3px 0' }}>M.C &amp; SONS FISH COMPANY</h1>
+            <p style={{ fontSize: '11px', margin: '2px 0' }}>No. 1, Fish Market, Palladam Road,</p>
+            <p style={{ fontSize: '11px', margin: '2px 0' }}>Tiruppur - 641604</p>
+            <p style={{ fontSize: '11px', margin: '4px 0 0 0' }}>📞 9597833277, 9894089889</p>
+          </header>
+          <h2 style={{ textAlign: 'center', fontSize: '15px', fontWeight: 'bold', margin: '6px 0' }}>{mode === 'PRODUCT' ? 'Product Report' : mode === 'CUSTOMER_PRODUCT' ? 'Customer Product Report' : 'Sales Report'}</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px' }}>
+            <div>
+              <p style={{ margin: '2px 0' }}><strong>{mode === 'PRODUCT' ? 'Product:' : 'Customer:'}</strong> {mode === 'PRODUCT' ? productName : mode === 'CUSTOMER_PRODUCT' ? `${customerName} | ${productName}` : (customer?.name_ta || customer?.name_en || '-')}</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              {dateRange.from && <p style={{ margin: '2px 0' }}><strong>From:</strong> {format(new Date(dateRange.from), 'dd-MM-yyyy')}</p>}
+              {dateRange.to && <p style={{ margin: '2px 0' }}><strong>To:</strong> {format(new Date(dateRange.to), 'dd-MM-yyyy')}</p>}
+            </div>
+          </div>
+          <div style={{ borderTop: '1.5px solid #444', margin: '6px 0 10px' }} />
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #444', fontSize: '11px', tableLayout: 'fixed' }}>
+            <thead>
+              <tr>
+                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'left', width: '12%' }}>Date</th>
+                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'left', width: '38%' }}>{mode === 'PRODUCT' ? 'Cust Name' : 'Item'}</th>
+                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '15%' }}>Qty</th>
+                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '15%' }}>Rate</th>
+                <th style={{ border: '1px solid #bbb', padding: '5px 6px', background: '#f4f4f4', fontWeight: 'bold', textAlign: 'right', width: '20%' }}>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itemsByDate.map(({ date, items }: { date: string, items: any[] }) =>
+                items.map((item: any, itemIndex: number) => (
+                  <tr key={`${date}-${item.id}`} style={{ background: itemIndex % 2 === 1 ? '#fafafa' : '#fff' }}>
+                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', whiteSpace: 'nowrap' }}>{itemIndex === 0 ? date : ''}</td>
+                    <td style={{ border: '1px solid #bbb', padding: '4px 6px' }}>{item.product}</td>
+                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {item.product === 'Delivery' ? '-' : `${item.qty.toFixed(1)} ${item.uom}`}
+                    </td>
+                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {item.product === 'Delivery' ? '-' : formatINR(item.rate)}
+                    </td>
+                    <td style={{ border: '1px solid #bbb', padding: '4px 6px', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatINR(item.amount)}</td>
+                  </tr>
+                ))
+              )}
+              <tr style={{ fontWeight: 'bold', background: '#f0f0f0' }}>
+                <td colSpan={2} style={{ border: '1px solid #bbb', padding: '5px 6px' }}>Total</td>
+                <td style={{ border: '1px solid #bbb', padding: '5px 6px', textAlign: 'right' }}>{totalQtyString}</td>
+                <td style={{ border: '1px solid #bbb', padding: '5px 6px' }}></td>
+                <td style={{ border: '1px solid #bbb', padding: '5px 6px', textAlign: 'right' }}></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '14px' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: '12px', minWidth: '260px' }}>
+              <tbody>
+                {[
+                  { label: 'NETT AMT', value: formatINR(totalAmount), bold: true },
+                ].map(({ label, value, bold }) => (
+                  <tr key={label}>
+                    <td style={{ padding: '4px 8px', fontWeight: bold ? 'bold' : 600, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>{label}</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'center', width: '18px', color: '#555', borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>:</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: bold ? 'bold' : undefined, fontSize: bold ? '13px' : undefined, borderBottom: bold ? '1.5px solid #333' : '1px solid #e0e0e0', borderTop: bold ? '1.5px solid #333' : undefined }}>₹{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <footer style={{ marginTop: '28px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5', textAlign: 'left' }}>Developed by MC &amp; SONS</footer>
+          </div>
+        </div>
         <style jsx global>{`
         /* ===============================
           SCREEN PREVIEW STYLES

@@ -339,7 +339,7 @@ export default function ReportsPage() {
                         <div className="mt-6 flex flex-col items-end space-y-2 text-sm">
                             <div className="w-full max-w-[300px] flex justify-between font-medium">
                                 <span>Total Qty:</span>
-                                <span>{Object.entries(reportData.totalQty).map(([uom, qty]) => `${qty} ${uom}`).join(', ')}</span>
+                                <span>{Object.entries(reportData.totalQty).map(([uom, qty]) => `${Number(qty).toFixed(2)} ${uom}`).join(', ')}</span>
                             </div>
                             <div className="w-full max-w-[300px] flex justify-between font-medium">
                                 <span>Total Amount:</span>

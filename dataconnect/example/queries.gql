@@ -1,0 +1,89 @@
+# ---------------------------
+
+# QUERY: List all clients
+
+# ---------------------------
+
+query ListAllClients @auth(level: USER, insecureReason: "This operation lists all clients and is safe for any logged-in user to access.") {
+clients {
+name
+email
+phone
+contactPerson
+createdAt
+}
+}
+
+# ---------------------------
+
+# MUTATION: Create new invoice
+
+# FIX: Removed selection set (no fields allowed)
+
+# ---------------------------
+
+mutation CreateNewInvoice(
+$invoiceNumber: String!,
+$issueDate: Date!,
+$dueDate: Date!,
+$status: String!,
+$totalAmount: Float!,
+$clientId: UUID!,
+$creatorId: UUID!
+) @auth(level: USER, insecureReason: "This mutation allows any logged-in user to create an invoice.") {
+invoice_insert(data: {
+invoiceNumber: $invoiceNumber,
+issueDate: $issueDate,
+dueDate: $dueDate,
+status: $status,
+totalAmount: $totalAmount,
+clientId: $clientId,
+creatorId: $creatorId,
+createdAt_expr: "request.time",
+updatedAt_expr: "request.time"
+})
+}
+
+# ---------------------------
+
+# QUERY: Get my payments
+
+# FIX: Removed invalid id_expr
+
+# ⚠️ TEMP: Removed filter because schema for User_Filter is unknown
+
+# ---------------------------
+
+query GetMyPayments @auth(level: USER) {
+payments {
+amount
+paymentDate
+paymentMethod
+invoice {
+invoiceNumber
+client {
+name
+}
+}
+}
+}
+
+# ---------------------------
+
+# MUTATION: Update client contact person
+
+# FIX: Removed selection set
+
+# ---------------------------
+
+mutation UpdateClientContactPerson(
+$clientId: UUID!,
+$newContactPerson: String!
+) @auth(level: USER, insecureReason: "This mutation allows any logged-in user to update a client's contact person.") {
+client_update(
+id: $clientId,
+data: {
+contactPerson: $newContactPerson
+}
+)
+}

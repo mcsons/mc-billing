@@ -77,7 +77,6 @@ const coreOperationsTop = [
 
 const coreOperationsBottom = [
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
-  { href: '/dashboard/party-bill', label: 'Party Bill', icon: BookUser },
   { href: '/dashboard/sales-report', label: 'Reports', icon: BarChart3 },
   { href: '/dashboard/payments', label: 'Payments', icon: IndianRupee },
   { href: '/dashboard/cust-statement', label: 'Cust Statement', icon: History },
@@ -85,15 +84,22 @@ const coreOperationsBottom = [
 
 const boxBillSubItems: NavItem[] = [
   { href: '/dashboard/box-billing', label: 'Box Billing', icon: Package },
-  { href: '/dashboard/box-reports', label: 'Reports', icon: FileBarChart2 },
-  { href: '/dashboard/box-balance', label: 'Box Balance', icon: Wallet },
+  { href: '/dashboard/party-box-billing', label: 'Party Box Billing', icon: Package },
   { href: '/dashboard/empty-box-entry', label: 'Empty Box Entry', icon: Package },
+  { href: '/dashboard/box-reports', label: 'Reports', icon: FileBarChart2 },
+  { href: '/dashboard/party-box-reports', label: 'Party Reports', icon: FileBarChart2 },
+  { href: '/dashboard/box-balance', label: 'Box Balance', icon: Wallet },
+  { href: '/dashboard/party-box-balance', label: 'Party Box Balance', icon: Wallet },
 ];
 
-const balancesSubItems: NavItem[] = [
-    { href: '/dashboard/balances/customer', label: 'Customer Balance', icon: Users },
-    { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
+const partyBillSubItems: NavItem[] = [
+  { href: '/dashboard/party-bill', label: 'Party Billing', icon: BookUser },
+  { href: '/dashboard/party-reports', label: 'Party Reports', icon: FileBarChart2 },
+  { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
+  { href: '/dashboard/party-payments', label: 'Party Payments', icon: IndianRupee },
 ];
+
+const custBalanceItem: NavItem = { href: '/dashboard/balances/customer', label: 'Cust Balance', icon: Users };
 
 const mastersSetup = [
   { href: '/dashboard/customers', label: 'Customers', icon: Users, roles: ['CREATOR', 'ADMIN'] },
@@ -143,6 +149,11 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
       if (itemLabel === 'Printer') permLabel = 'Printer Settings';
       if (itemLabel === 'UOM') permLabel = 'UOM Settings';
       if (itemLabel === 'Reports') permLabel = 'Sales Report';
+      if (itemLabel === 'Party Reports') permLabel = 'Party Bill';
+      if (itemLabel === 'Party Billing') permLabel = 'Party Bill';
+      if (itemLabel === 'Party Box Reports') permLabel = 'Party Bill';
+      if (itemLabel === 'Cust Balance') permLabel = 'Customer Balance';
+      if (itemLabel === 'Party Payments') permLabel = 'Party Bill';
 
       return rolePermissions[currentUserRole].includes(permLabel as any);
   };
@@ -204,6 +215,7 @@ export function DashboardSidebar() {
   const [isManageOpen, setIsManageOpen] = React.useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
   const [isBoxBillOpen, setIsBoxBillOpen] = React.useState(false);
+  const [isPartyBillOpen, setIsPartyBillOpen] = React.useState(false);
 
   // ── Unsaved changes dialog state ──────────────────────────────────────
   const [guardDialog, setGuardDialog] = React.useState<{
@@ -258,9 +270,6 @@ export function DashboardSidebar() {
     if (exact) {
       return pathname === href;
     }
-    if (href === '/dashboard/balances') {
-        return balancesSubItems.some(item => pathname.startsWith(item.href));
-    }
     if (href === '/dashboard/manage') {
         return manageSubItems.some(item => pathname.startsWith(item.href));
     }
@@ -269,6 +278,9 @@ export function DashboardSidebar() {
     }
     if (href === '/dashboard/box-bill') {
         return boxBillSubItems.some(item => pathname.startsWith(item.href));
+    }
+    if (href === '/dashboard/party-bill-menu') {
+      return partyBillSubItems.some(item => pathname.startsWith(item.href));
     }
     return pathname.startsWith(href);
   }, [pathname]);
@@ -287,10 +299,10 @@ export function DashboardSidebar() {
     }
 
     // Always keep sub-menus synced with active section
-    setIsBalancesOpen(isMenuItemActive('/dashboard/balances'));
     setIsManageOpen(isMenuItemActive('/dashboard/manage'));
     setIsSettingsOpen(isMenuItemActive('/dashboard/settings'));
     setIsBoxBillOpen(isMenuItemActive('/dashboard/box-bill'));
+    setIsPartyBillOpen(isMenuItemActive('/dashboard/party-bill-menu'));
   }, [pathname, isMenuItemActive, setOpen, setOpenMobile]);
 
   const isNavAllowed = React.useCallback((itemLabel: string) => {
@@ -303,12 +315,18 @@ export function DashboardSidebar() {
     if (itemLabel === 'Printer') permLabel = 'Printer Settings';
     if (itemLabel === 'UOM') permLabel = 'UOM Settings';
     if (itemLabel === 'Reports') permLabel = 'Sales Report';
+    if (itemLabel === 'Party Reports') permLabel = 'Party Bill';
+    if (itemLabel === 'Party Box Reports') permLabel = 'Party Bill';
+    if (itemLabel === 'Party Billing') permLabel = 'Party Bill';
+    if (itemLabel === 'Party Payments') permLabel = 'Party Bill';
+    if (itemLabel === 'Cust Balance') permLabel = 'Customer Balance';
 
     return rolePermissions[currentUserRole].includes(permLabel as any);
 }, [currentUserRole, rolePermissions]);
 
 const canShowBoxBill = boxBillSubItems.some(item => isNavAllowed(item.label));
-const canShowBalances = balancesSubItems.some(item => isNavAllowed(item.label));
+const canShowPartyBill = partyBillSubItems.some(item => isNavAllowed(item.label));
+const canShowCustBalance = isNavAllowed(custBalanceItem.label);
 const canShowManage = manageSubItems.some(item => isNavAllowed(item.label));
 const canShowSettings = settingsSubItems.some(item => isNavAllowed(item.label));
 
@@ -357,34 +375,44 @@ const canShowSettings = settingsSubItems.some(item => isNavAllowed(item.label));
               </SidebarMenuSub>
             </SidebarMenuItem>
             )}
+            {canShowPartyBill && (
+            <SidebarMenuItem>
+              <SidebarMenuButton onClick={() => setIsPartyBillOpen(!isPartyBillOpen)} isActive={isPartyBillOpen} data-state={isPartyBillOpen ? 'open' : 'closed'}>
+                  <BookUser />
+                  <span>Party Bill</span>
+                  <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isPartyBillOpen && "rotate-180")} />
+              </SidebarMenuButton>
+              <SidebarMenuSub open={isPartyBillOpen}>
+                  {partyBillSubItems.map(subItem => (
+                      isNavAllowed(subItem.label) && (
+                      <SidebarMenuSubItem key={subItem.label}>
+                          <Link
+                            href={subItem.href}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              guardedNavigate(subItem.href, subItem.label);
+                            }}
+                          >
+                              <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
+                                  <subItem.icon />
+                                  <span>{subItem.label}</span>
+                              </SidebarMenuSubButton>
+                          </Link>
+                      </SidebarMenuSubItem>
+                      )
+                  ))}
+              </SidebarMenuSub>
+            </SidebarMenuItem>
+            )}
             <MenuItemGroup items={coreOperationsBottom} />
-            {canShowBalances && (
+            {canShowCustBalance && (
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setIsBalancesOpen(!isBalancesOpen)} isActive={isBalancesOpen} data-state={isBalancesOpen ? 'open' : 'closed'}>
-                    <Wallet />
-                    <span>Balances</span>
-                    <ChevronDown className={cn("ml-auto h-4 w-4 shrink-0 transition-transform duration-200", isBalancesOpen && "rotate-180")} />
+                <SidebarMenuButton asChild isActive={isMenuItemActive(custBalanceItem.href)}>
+                  <Link href={custBalanceItem.href} onClick={(e) => { e.preventDefault(); guardedNavigate(custBalanceItem.href, custBalanceItem.label); }}>
+                    <custBalanceItem.icon />
+                    <span>{custBalanceItem.label}</span>
+                  </Link>
                 </SidebarMenuButton>
-                <SidebarMenuSub open={isBalancesOpen}>
-                    {balancesSubItems.map(subItem => (
-                          isNavAllowed(subItem.label) && (
-                            <SidebarMenuSubItem key={subItem.label}>
-                                <Link
-                                  href={subItem.href}
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    guardedNavigate(subItem.href, subItem.label);
-                                  }}
-                                >
-                                    <SidebarMenuSubButton isActive={isMenuItemActive(subItem.href)}>
-                                        <subItem.icon />
-                                        <span>{subItem.label}</span>
-                                    </SidebarMenuSubButton>
-                                </Link>
-                            </SidebarMenuSubItem>
-                         )
-                    ))}
-                </SidebarMenuSub>
               </SidebarMenuItem>
             )}
             <SidebarSeparator className="my-2" />

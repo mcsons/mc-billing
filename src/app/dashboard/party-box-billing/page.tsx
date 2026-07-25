@@ -55,7 +55,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useBillingGuard } from '@/context/BillingGuardContext';
 
-export default function BoxBillingPage() {
+export default function PartyBoxBillingPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { toast } = useToast();
@@ -64,24 +64,24 @@ export default function BoxBillingPage() {
   const { setLoading } = useLoading();
 
   const {
-    customers,
-    boxBills,
-    openingBoxBalances,
-    addOrUpdateBoxBill,
-    deleteBoxBills,
-    findBoxBillForCustomerOnDate,
-    getBoxBill,
+    parties,
+    partyBoxBills,
+    partyOpeningBoxBalances,
+    addOrUpdatePartyBoxBill,
+    deletePartyBoxBills,
+    findPartyBoxBillForPartyOnDate,
+    getPartyBoxBill,
     users,
     currentUser,
-    boxBillEntries,
-    addBoxBillEntry,
-    updateBoxBillEntry,
-    deleteBoxBillEntry,
-    recalculateFutureBoxBalances,
+    partyBoxBillEntries,
+    addPartyBoxBillEntry,
+    updatePartyBoxBillEntry,
+    deletePartyBoxBillEntry,
+    recalculateFuturePartyBoxBalances,
   } = useData();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedPartyId, setselectedPartyId] = useState<string>('');
   const [activeBillId, setActiveBillId] = useState<string | null>(null);
 
   // Form Fields
@@ -97,7 +97,7 @@ export default function BoxBillingPage() {
   const lastInitializedBillId = useRef<string | null>(null);
 
   const hasUnsavedChanges = useMemo(() => {
-    return selectedCustomerId !== '' ||
+    return selectedPartyId !== '' ||
       localEntries.length > 0 ||
       manualEmptyBox !== '' ||
       description !== '' ||
@@ -105,7 +105,7 @@ export default function BoxBillingPage() {
       driverName !== '' ||
       vehicleNo !== '' ||
       activeBillId !== null;
-  }, [selectedCustomerId, localEntries, manualEmptyBox, description, driverMobile, driverName, vehicleNo, activeBillId]);
+  }, [selectedPartyId, localEntries, manualEmptyBox, description, driverMobile, driverName, vehicleNo, activeBillId]);
 
   useEffect(() => {
     billingGuard.setHasUnsavedChanges(hasUnsavedChanges);
@@ -123,8 +123,8 @@ export default function BoxBillingPage() {
 
   useEffect(() => {
     if (activeBillId && activeBillId !== lastInitializedBillId.current) {
-      const currentEntries = boxBillEntries.filter(e => e.boxBillId === activeBillId);
-      if (boxBills.length > 0) {
+      const currentEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === activeBillId);
+      if (partyBoxBills.length > 0) {
         setLocalEntries(currentEntries);
         lastInitializedBillId.current = activeBillId;
       }
@@ -132,11 +132,11 @@ export default function BoxBillingPage() {
       setLocalEntries([]);
       lastInitializedBillId.current = null;
     }
-  }, [activeBillId, boxBillEntries, boxBills]);
+  }, [activeBillId, partyBoxBillEntries, partyBoxBills]);
 
   // History State
   const [historyDate, setHistoryDate] = useState<Date | undefined>();
-  const [historySelectedCustomer, setHistorySelectedCustomer] = useState<string>('');
+  const [historySelectedParty, sethistorySelectedParty] = useState<string>('');
   const [filteredHistoryBills, setFilteredHistoryBills] = useState<any[]>([]);
   const [selectedBills, setSelectedBills] = useState<Set<string>>(new Set());
 
@@ -194,8 +194,8 @@ export default function BoxBillingPage() {
   };
 
   const customerOptions = useMemo(() =>
-    customers.map((c) => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` })),
-  [customers]);
+    parties.map((p) => ({ value: p.id, label: p.name })),
+  [parties]);
 
   const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date) => void) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -214,10 +214,10 @@ export default function BoxBillingPage() {
     }
   };
 
-  const computeBoxBalanceUpToDate = useCallback((customerId: string, targetDate: Date) => {
-    const initial = openingBoxBalances[customerId] || 0;
-    const priorBills = boxBills.filter(b => {
-      if (b.customerId !== customerId) return false;
+  const computeBoxBalanceUpToDate = useCallback((partyId: string, targetDate: Date) => {
+    const initial = partyOpeningBoxBalances[partyId] || 0;
+    const priorBills = partyBoxBills.filter(b => {
+      if (b.partyId !== partyId) return false;
       const bDate = b.billDate?.toDate ? b.billDate.toDate() : new Date(b.billDate);
       const bDay = new Date(bDate); bDay.setHours(0,0,0,0);
       const tDay = new Date(targetDate); tDay.setHours(0,0,0,0);
@@ -230,15 +230,15 @@ export default function BoxBillingPage() {
       return bD.getTime() - aD.getTime();
     });
     return priorBills[0].balanceBox;
-  }, [boxBills, openingBoxBalances]);
+  }, [partyBoxBills, partyOpeningBoxBalances]);
 
   // Handle URL Param Loading
   const billIdParam = searchParams.get('billId');
   useEffect(() => {
     if (billIdParam) {
-      const bill = getBoxBill(billIdParam);
+      const bill = getPartyBoxBill(billIdParam);
       if (bill) {
-        setSelectedCustomerId(bill.customerId);
+        setselectedPartyId(bill.partyId);
         setDate(bill.billDate?.toDate ? bill.billDate.toDate() : new Date(bill.billDate));
         setActiveBillId(bill.id);
         setPrevBalanceBox(bill.prevBalanceBox.toString());
@@ -258,13 +258,13 @@ export default function BoxBillingPage() {
     } else {
       setLoading(false);
     }
-  }, [billIdParam, getBoxBill, setLoading]);
+  }, [billIdParam, getPartyBoxBill, setLoading]);
 
-  // Auto-fetch on customer/date change
+  // Auto-fetch on Party/date change
   useEffect(() => {
     if (billIdParam) return; // Managed by param effect
-    if (selectedCustomerId && date) {
-      const existingBill = findBoxBillForCustomerOnDate(selectedCustomerId, date);
+    if (selectedPartyId && date) {
+      const existingBill = findPartyBoxBillForPartyOnDate(selectedPartyId, date);
       if (existingBill) {
         setActiveBillId(existingBill.id);
         setPrevBalanceBox(existingBill.prevBalanceBox.toString());
@@ -275,7 +275,7 @@ export default function BoxBillingPage() {
         setVehicleNo(existingBill.vehicleNo || '');
       } else {
         setActiveBillId(null);
-        const prevBal = computeBoxBalanceUpToDate(selectedCustomerId, date);
+        const prevBal = computeBoxBalanceUpToDate(selectedPartyId, date);
         setPrevBalanceBox(prevBal.toString());
         setManualEmptyBox('');
         setDescription('');
@@ -292,7 +292,7 @@ export default function BoxBillingPage() {
       setDriverName('');
       setVehicleNo('');
     }
-  }, [selectedCustomerId, date, billIdParam, findBoxBillForCustomerOnDate, computeBoxBalanceUpToDate]);
+  }, [selectedPartyId, date, billIdParam, findPartyBoxBillForPartyOnDate, computeBoxBalanceUpToDate]);
 
   const sortBills = useCallback((bills: any[]) => {
     return [...bills].sort((a, b) => {
@@ -302,7 +302,7 @@ export default function BoxBillingPage() {
     });
   }, []);
 
-  const sortedBills = useMemo(() => sortBills(boxBills), [boxBills, sortBills]);
+  const sortedBills = useMemo(() => sortBills(partyBoxBills), [partyBoxBills, sortBills]);
 
   const currentBillIndex = useMemo(() => {
     if (!activeBillId) return -1;
@@ -314,33 +314,28 @@ export default function BoxBillingPage() {
       setNavDialog({ open: true, targetId });
     } else {
       setLoading(true, 'Opening box bill...');
-      router.push(`/dashboard/box-billing?billId=${targetId}`);
+      router.push(`/dashboard/party-box-billing?billId=${targetId}`);
       setTimeout(() => setLoading(false), 500);
     }
   };
 
-  // Navigation buttons always load immediately — no unsaved dialog for browsing.
-  const goToBillImmediate = (targetId: string) => {
-    if (isSaving) return; // Block navigation while a save is in progress
-    setLoading(true, 'Opening box bill...');
-    router.push(`/dashboard/box-billing?billId=${targetId}`);
-    setTimeout(() => setLoading(false), 500);
-  };
-
   const handlePrevBill = () => {
     if (currentBillIndex < sortedBills.length - 1 && currentBillIndex !== -1) {
-      goToBillImmediate(sortedBills[currentBillIndex + 1].id);
+      goToBill(sortedBills[currentBillIndex + 1].id);
     } else if (currentBillIndex === -1 && sortedBills.length > 0) {
-      goToBillImmediate(sortedBills[0].id);
+      goToBill(sortedBills[0].id);
     }
   };
 
   const handleNextBill = () => {
     if (currentBillIndex > 0) {
-      goToBillImmediate(sortedBills[currentBillIndex - 1].id);
+      goToBill(sortedBills[currentBillIndex - 1].id);
     } else if (currentBillIndex === 0) {
-      // At the newest bill — pressing > goes to New Bill without a dialog
-      if (!isSaving) router.push(`/dashboard/box-billing`);
+      if (hasUnsavedChanges) {
+        setNavDialog({ open: true, targetId: 'new' });
+      } else {
+        router.push(`/dashboard/party-box-billing`);
+      }
     }
   };
 
@@ -351,7 +346,7 @@ export default function BoxBillingPage() {
       return isSameDay(bDate, date);
     });
     if (billsOfDay.length > 0) {
-      goToBillImmediate(billsOfDay[billsOfDay.length - 1].id);
+      goToBill(billsOfDay[billsOfDay.length - 1].id);
     }
   };
 
@@ -362,7 +357,7 @@ export default function BoxBillingPage() {
       return isSameDay(bDate, date);
     });
     if (billsOfDay.length > 0) {
-      goToBillImmediate(billsOfDay[0].id);
+      goToBill(billsOfDay[0].id);
     }
   };
 
@@ -392,13 +387,35 @@ export default function BoxBillingPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handlePrevBill, handleNextBill, goToFirstBillOfDay, goToLastBillOfDay]);
 
+  // Auto-heal all drifted bills (runs once on mount when data is ready)
+  const hasAutoHealed = useRef(false);
+  useEffect(() => {
+    if (hasAutoHealed.current || !partyBoxBills.length || !partyBoxBillEntries.length) return;
+    hasAutoHealed.current = true;
 
+    partyBoxBills.forEach(bill => {
+      const existingEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === bill.id);
+      const trueTf = existingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
+      const trueEb = existingEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
+      
+      if (bill.todaysFishBox !== trueTf || bill.emptyBox !== trueEb) {
+        const trueTb = bill.prevBalanceBox + trueTf;
+        const trueBb = trueTb - trueEb;
+        // Silent background fix
+        addOrUpdatePartyBoxBill({
+           ...bill, todaysFishBox: trueTf, emptyBox: trueEb, totalBox: trueTb, balanceBox: trueBb
+        }, bill.id).then(() => {
+           recalculateFuturePartyBoxBalances(bill.partyId);
+        }).catch(console.error);
+      }
+    });
+  }, [partyBoxBills, partyBoxBillEntries, addOrUpdatePartyBoxBill, recalculateFuturePartyBoxBalances]);
 
   // History filtering
   useEffect(() => {
-    let results = boxBills;
-    if (historySelectedCustomer) {
-      results = results.filter(b => b.customerId === historySelectedCustomer);
+    let results = partyBoxBills;
+    if (historySelectedParty) {
+      results = results.filter(b => b.partyId === historySelectedParty);
     }
     if (historyDate) {
       results = results.filter(bill => {
@@ -408,7 +425,7 @@ export default function BoxBillingPage() {
       });
     }
 
-    if (!historySelectedCustomer && !historyDate) {
+    if (!historySelectedParty && !historyDate) {
       const start = startOfWeek(new Date(), { weekStartsOn: 1 });
       const end = endOfWeek(new Date(), { weekStartsOn: 1 });
       results = results.filter(bill => {
@@ -425,11 +442,11 @@ export default function BoxBillingPage() {
     });
 
     setFilteredHistoryBills(results);
-  }, [boxBills, historySelectedCustomer, historyDate]);
+  }, [partyBoxBills, historySelectedParty, historyDate]);
 
   const handleNewBillConfirmed = () => {
-    router.replace('/dashboard/box-billing');
-    setSelectedCustomerId('');
+    router.replace('/dashboard/party-box-billing');
+    setselectedPartyId('');
     setDate(new Date());
     setPrevBalanceBox('');
     setManualEmptyBox('');
@@ -444,7 +461,7 @@ export default function BoxBillingPage() {
   };
 
   const handleNewBill = () => {
-    const hasContent = selectedCustomerId || localEntries.length > 0 || manualEmptyBox || description || driverMobile || driverName || vehicleNo;
+    const hasContent = selectedPartyId || localEntries.length > 0 || manualEmptyBox || description || driverMobile || driverName || vehicleNo;
 
     if (hasContent) {
       showAlertDialog({
@@ -469,18 +486,14 @@ export default function BoxBillingPage() {
 
   const manageEntries = useMemo(() => {
     if (!manageEntriesBillId) return [];
-    // Guard: if the bill itself no longer exists (e.g. was deleted), return nothing
-    // to prevent orphaned entries from a deleted bill appearing in the dialog.
-    const billExists = boxBills.some(b => b.id === manageEntriesBillId);
-    if (!billExists) return [];
-    return boxBillEntries
-      .filter(e => e.boxBillId === manageEntriesBillId)
+    return partyBoxBillEntries
+      .filter(e => e.partyBoxBillId === manageEntriesBillId)
       .sort((a, b) => {
         const dateA = a.entryDate?.toDate ? a.entryDate.toDate() : new Date(a.entryDate);
         const dateB = b.entryDate?.toDate ? b.entryDate.toDate() : new Date(b.entryDate);
         return dateA.getTime() - dateB.getTime();
       });
-  }, [boxBillEntries, manageEntriesBillId, boxBills]);
+  }, [partyBoxBillEntries, manageEntriesBillId]);
 
   const activeTotalAdded = activeBillEntries.reduce((sum, e) => e.boxesAdded > 0 ? sum + e.boxesAdded : sum, 0);
   const activeTotalEmptyAdded = activeBillEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
@@ -495,11 +508,7 @@ export default function BoxBillingPage() {
   }, [activeBillEntries]);
 
   const computedEmptyBoxes = useMemo(() => {
-    // Exclude isManualEmpty entries — their value is tracked via the manualEmptyBox
-    // state input to avoid double-counting in: eb = entryEmptyBoxTotal + manualEmpty.
-    return activeBillEntries
-      .filter(e => !e.isManualEmpty)
-      .reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
+    return activeBillEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
   }, [activeBillEntries]);
 
   const pb = parseInt(prevBalanceBox) || 0;
@@ -518,18 +527,18 @@ export default function BoxBillingPage() {
   // manualEmptyBox is bound to the input, entryEmptyBoxTotal is computed. No need to keep an emptyBox state.
 
   const commitBillData = async () => {
-    if (!selectedCustomerId || !date) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Please select a customer and date.' });
+    if (!selectedPartyId || !date) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Please select a Party and date.' });
       return null;
     }
-    const customer = customers.find(c => c.id === selectedCustomerId);
+    const Party = parties.find(c => c.id === selectedPartyId);
     
     const currentTb = pb + tf;
     const currentBb = currentTb - eb;
 
     const payload = {
-      customerId: selectedCustomerId,
-      customerName: customer ? `${customer.name_en} (${customer.name_ta})` : 'Unknown',
+      partyId: selectedPartyId,
+      partyName: Party ? Party.name : 'Unknown',
       billDate: Timestamp.fromDate(date),
       prevBalanceBox: pb,
       todaysFishBox: tf,
@@ -545,56 +554,33 @@ export default function BoxBillingPage() {
       vehicleNo
     };
 
-    const savedBill = await addOrUpdateBoxBill(payload, activeBillId);
+    const savedBill = await addOrUpdatePartyBoxBill(payload, activeBillId);
     if (savedBill) {
       setActiveBillId(savedBill.id);
       
-      const firestoreEntries = boxBillEntries.filter(e => e.boxBillId === savedBill.id);
+      const firestoreEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === savedBill.id);
       
       for (const fe of firestoreEntries) {
-        if (fe.isManualEmpty) continue;
          if (!localEntries.find(le => le.id === fe.id)) {
-            await deleteBoxBillEntry(fe.id);
+            await deletePartyBoxBillEntry(fe.id);
          }
       }
       
       for (const le of localEntries) {
-        if (le.isManualEmpty) continue;
          if (le.id?.startsWith('temp-')) {
-            await addBoxBillEntry({
-               boxBillId: savedBill.id,
-               customerId: selectedCustomerId,
+            await addPartyBoxBillEntry({
+               partyBoxBillId: savedBill.id,
+               partyId: selectedPartyId,
                entryDate: le.entryDate,
                boxesAdded: le.boxesAdded,
             });
          } else {
             const original = firestoreEntries.find(fe => fe.id === le.id);
             if (original && original.boxesAdded !== le.boxesAdded) {
-               await updateBoxBillEntry(le.id, le.boxesAdded);
+               await updatePartyBoxBillEntry(le.id, le.boxesAdded);
             }
          }
       }
-
-      // Manual Empty Box → persist as a visible entry so it appears in Today's Box Entries.
-      // Always delete the old manual entry then recreate, so editing the bill stays in sync.
-      const existingManualEntry = firestoreEntries.find(e => e.isManualEmpty);
-      if (existingManualEntry) {
-        await deleteBoxBillEntry(existingManualEntry.id);
-      }
-      if (manualEmpty > 0) {
-        await addBoxBillEntry({
-          boxBillId: savedBill.id,
-          customerId: selectedCustomerId,
-          entryDate: Timestamp.now(),
-          boxesAdded: 0,
-          emptyBoxesAdded: manualEmpty,
-          isManualEmpty: true,
-        });
-      }
-
-
-      // Cascade balance to all subsequent bills for this customer
-      await recalculateFutureBoxBalances(selectedCustomerId);
       
       return savedBill;
     }
@@ -604,14 +590,15 @@ export default function BoxBillingPage() {
   useEffect(() => {
     billingGuard.saveBillRef.current = async (): Promise<boolean> => {
       if (isSaving) return false;
-      if (!selectedCustomerId || !date) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Please select a customer and date.' });
+      if (!selectedPartyId || !date) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Please select a Party and date.' });
         return false;
       }
       try {
         setIsSaving(true);
         setLoading(true, 'Saving bill...');
         const savedData = await commitBillData();
+        setLoading(false);
         if (savedData) {
           handleNewBillConfirmed();
           return true;
@@ -621,7 +608,6 @@ export default function BoxBillingPage() {
         return false;
       } finally {
         setIsSaving(false);
-        setLoading(false);
       }
     };
     return () => { billingGuard.saveBillRef.current = null; };
@@ -631,27 +617,17 @@ export default function BoxBillingPage() {
     if (isSaving) return;
     setIsSaving(true);
     setLoading(true, 'Saving Box Bill...');
-    let success = false;
     try {
       const savedBill = await commitBillData();
-      if (!savedBill) return; // finally will setLoading(false)
-      success = true;
-      // Form reset + navigation — loader stays visible throughout
-      handleNewBillConfirmed();
+      if (!savedBill) return;
       toast({ title: 'Box Bill Saved Successfully' });
+      handleNewBillConfirmed();
     } catch (err) {
       console.error(err);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to save bill.' });
     } finally {
       setIsSaving(false);
-      if (!success) {
-        // Only hide loader immediately on failure/no-bill; on success wait for nav
-        setLoading(false);
-      } else {
-        // Give the router navigation and form reset enough time to render
-        // before dismissing the loader so the user never sees a flash of stale form
-        setTimeout(() => setLoading(false), 600);
-      }
+      setLoading(false);
     }
   };
 
@@ -710,22 +686,18 @@ export default function BoxBillingPage() {
         if (!isHistorical) {
           setLocalEntries(prev => prev.filter(e => e.id !== entryId));
         } else if (manageEntriesBillId) {
-          await deleteBoxBillEntry(entryId);
-          const bill = boxBills.find(b => b.id === manageEntriesBillId);
+          await deletePartyBoxBillEntry(entryId);
+          const bill = partyBoxBills.find(b => b.id === manageEntriesBillId);
           if (bill) {
-             const remainingEntries = boxBillEntries.filter(e => e.boxBillId === manageEntriesBillId && e.id !== entryId);
+             const remainingEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === manageEntriesBillId && e.id !== entryId);
              const newTf = remainingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
-            // Preserve manualEmptyBox — only recalculate todaysFishBox from entries.
-             // Exclude isManualEmpty entries: their value is already in bill.manualEmptyBox.
-             const entryEmptyTotal = remainingEntries.filter(e => !e.isManualEmpty).reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
-             const savedManualEmpty = bill.manualEmptyBox || 0;
-             const newEmpty = entryEmptyTotal + savedManualEmpty;
+             const newEmpty = remainingEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
              const newTb = bill.prevBalanceBox + newTf;
              const newBb = newTb - newEmpty;
              const payload = { ...bill, todaysFishBox: newTf, emptyBox: newEmpty, totalBox: newTb, balanceBox: newBb };
              const { id, ...rest } = payload as any;
-             await addOrUpdateBoxBill(rest, manageEntriesBillId);
-             await recalculateFutureBoxBalances(bill.customerId);
+             await addOrUpdatePartyBoxBill(rest, manageEntriesBillId);
+             await recalculateFuturePartyBoxBalances(bill.partyId);
           }
           toast({ title: 'Success', description: 'Entry deleted successfully.' });
         }
@@ -735,24 +707,24 @@ export default function BoxBillingPage() {
 
   const handleDeleteAllEntries = () => {
     if (!manageEntriesBillId) return;
-    const bill = boxBills.find(b => b.id === manageEntriesBillId);
+    const bill = partyBoxBills.find(b => b.id === manageEntriesBillId);
     if (!bill) return;
 
     showAlertDialog({
       title: 'Delete All Entries',
-      description: `This will permanently delete ALL box entries for this customer on this date.\n\nCustomer: ${bill.customerName}\nDate: ${bill.billDate ? format((bill.billDate as any).toDate ? (bill.billDate as any).toDate() : new Date(bill.billDate), 'dd MMM yyyy') : 'N/A'}\nTotal Entries: ${manageEntries.length}\n\nThis action cannot be undone.`,
+      description: `This will permanently delete ALL box entries for this Party on this date.\n\nCustomer: ${bill.partyName}\nDate: ${bill.billDate ? format((bill.billDate as any).toDate ? (bill.billDate as any).toDate() : new Date(bill.billDate), 'dd MMM yyyy') : 'N/A'}\nTotal Entries: ${manageEntries.length}\n\nThis action cannot be undone.`,
       confirmText: 'Delete All',
       cancelText: 'Cancel',
       onConfirm: async () => {
         for (const entry of manageEntries) {
-          await deleteBoxBillEntry(entry.id);
+          await deletePartyBoxBillEntry(entry.id);
         }
-        const billToUpdate = boxBills.find(b => b.id === manageEntriesBillId);
+        const billToUpdate = partyBoxBills.find(b => b.id === manageEntriesBillId);
         if (billToUpdate) {
             const payload = { ...billToUpdate, todaysFishBox: 0, emptyBox: 0, totalBox: billToUpdate.prevBalanceBox, balanceBox: billToUpdate.prevBalanceBox };
             const { id, ...rest } = payload as any;
-            await addOrUpdateBoxBill(rest, manageEntriesBillId);
-            await recalculateFutureBoxBalances(billToUpdate.customerId);
+            await addOrUpdatePartyBoxBill(rest, manageEntriesBillId);
+            await recalculateFuturePartyBoxBalances(billToUpdate.partyId);
         }
         setManageEntriesBillId(null);
         toast({ title: 'Success', description: 'All entries deleted successfully. Bill reset to 0.' });
@@ -761,12 +733,12 @@ export default function BoxBillingPage() {
   };
 
   const getBillPrintData = () => {
-    if (!selectedCustomerId || !date) return null;
-    const customer = customers.find(c => c.id === selectedCustomerId);
+    if (!selectedPartyId || !date) return null;
+    const Party = parties.find(c => c.id === selectedPartyId);
     return {
       id: activeBillId || 'New',
-      customerId: selectedCustomerId,
-      customerName: customer?.name_en || '',
+      partyId: selectedPartyId,
+      partyName: Party?.name || '',
       billDate: date,
       prevBalanceBox: parseInt(prevBalanceBox) || 0,
       todaysFishBox: tf,
@@ -788,8 +760,8 @@ export default function BoxBillingPage() {
     if (!hasUnsavedChanges && activeBillId) {
       const d = getBillPrintData();
       if (d) {
-        sessionStorage.setItem('boxBillPrintData', JSON.stringify(d));
-        window.open(`/print/box-bill?paper=${paper}`, '_blank');
+        sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(d));
+        window.open(`/print/party-box-bill?paper=${paper}`, '_blank');
       }
     } else {
       setShowPrintConfirm(true);
@@ -798,15 +770,15 @@ export default function BoxBillingPage() {
 
   const handleSharePDF = async () => {
     if (isSavingAndPrinting) return;
-    if (hasUnsavedChanges && selectedCustomerId && date) {
+    if (hasUnsavedChanges && selectedPartyId && date) {
       // Auto-save silently, then open PDF
       setIsSavingAndPrinting(true);
       setLoading(true, 'Saving & Preparing PDF...');
       try {
         const savedBill = await commitBillData();
         if (savedBill) {
-          sessionStorage.setItem('boxBillPrintData', JSON.stringify(savedBill));
-          window.open('/print/box-bill?paper=a4&share=pdf', '_blank');
+          sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(savedBill));
+          window.open('/print/party-box-bill?paper=a4&share=pdf', '_blank');
           handleNewBillConfirmed();
         }
       } finally {
@@ -818,8 +790,8 @@ export default function BoxBillingPage() {
       const d = getBillPrintData();
       if (d) {
         setLoading(true, 'Preparing PDF...');
-        sessionStorage.setItem('boxBillPrintData', JSON.stringify(d));
-        window.open('/print/box-bill?paper=a4&share=pdf', '_blank');
+        sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(d));
+        window.open('/print/party-box-bill?paper=a4&share=pdf', '_blank');
         setTimeout(() => setLoading(false), 800);
       }
     }
@@ -833,8 +805,8 @@ export default function BoxBillingPage() {
       try {
         const savedBill = await commitBillData();
         if (savedBill) {
-          sessionStorage.setItem('boxBillPrintData', JSON.stringify(savedBill));
-          window.open(`/print/box-bill?paper=${printPaperType}`, '_blank');
+          sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(savedBill));
+          window.open(`/print/party-box-bill?paper=${printPaperType}`, '_blank');
           handleNewBillConfirmed();
           setShowPrintConfirm(false);
         }
@@ -845,8 +817,8 @@ export default function BoxBillingPage() {
     } else if (action === "printWithoutSave") {
       const d = getBillPrintData();
       if (d) {
-        sessionStorage.setItem('boxBillPrintData', JSON.stringify(d));
-        window.open(`/print/box-bill?paper=${printPaperType}`, '_blank');
+        sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(d));
+        window.open(`/print/party-box-bill?paper=${printPaperType}`, '_blank');
       }
       setShowPrintConfirm(false);
     } else if (action === "cancel") {
@@ -894,10 +866,10 @@ export default function BoxBillingPage() {
     try {
       const savedBill = await commitBillData();
       if (savedBill) {
-        const customer = customers.find((c) => c.id === selectedCustomerId);
-        const phone = customer?.phone || '';
+        const Party = parties.find((c) => c.id === selectedPartyId);
+        const phone = ''; // Parties do not have a phone number in the schema
         const billDate = savedBill.billDate?.toDate ? savedBill.billDate.toDate() : new Date(savedBill.billDate);
-        let message = `*M.C & SONS FISH COMPANY*\n*BOX BILL SUMMARY*\n\nBill No: ${savedBill.id}\nDate: ${format(billDate, 'dd-MM-yyyy')}\nCustomer: ${savedBill.customerName}\n\n`;
+        let message = `*M.C & SONS FISH COMPANY*\n*BOX BILL SUMMARY*\n\nBill No: ${savedBill.id}\nDate: ${format(billDate, 'dd-MM-yyyy')}\nCustomer: ${savedBill.partyName}\n\n`;
         message += `Prev Balance Box: ${savedBill.prevBalanceBox}\n`;
         message += `Today's Fish Box: ${savedBill.todaysFishBox}\n`;
         message += `Total Box: ${savedBill.totalBox}\n`;
@@ -920,7 +892,7 @@ export default function BoxBillingPage() {
       title: 'Delete Box Bills?',
       description: `Are you sure you want to delete ${selectedBills.size} bill(s)?`,
       onConfirm: async () => {
-        await deleteBoxBills(Array.from(selectedBills));
+        await deletePartyBoxBills(Array.from(selectedBills));
         setSelectedBills(new Set());
         toast({ title: 'Deleted', description: 'Box bills deleted successfully.' });
       }
@@ -934,7 +906,7 @@ export default function BoxBillingPage() {
         return;
     }
     await new Promise(resolve => setTimeout(resolve, 50));
-    router.push(`/dashboard/box-billing?billId=${billId}`);
+    router.push(`/dashboard/party-box-billing?billId=${billId}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -948,7 +920,7 @@ export default function BoxBillingPage() {
             <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between pb-2">
               <div>
                 <CardTitle className="font-headline">{activeBillId ? `Editing Box Bill ${activeBillId}` : 'Box Billing'}</CardTitle>
-                <CardDescription>Manage customer box transactions.</CardDescription>
+                <CardDescription>Manage Party box transactions.</CardDescription>
               </div>
               <div className="flex flex-col items-end gap-3 w-full sm:w-auto">
                 <div className="grid gap-2 w-full sm:w-[200px]">
@@ -975,18 +947,18 @@ export default function BoxBillingPage() {
             </CardHeader>
             <CardContent className="p-4 md:p-6 grid gap-4 flex-1">
               <div className="grid gap-2">
-                <Label>Customer</Label>
+                <Label>Party</Label>
                 <ReactSelect
                   ref={customerSelectRef}
-                  instanceId="box-billing-customer-select"
-                  placeholder="Search customer..."
+                  instanceId="box-billing-party-select"
+                  placeholder="Search Party..."
                   isClearable
                   autoFocus
                   tabSelectsValue={true}
                   options={customerOptions}
-                  value={customerOptions.find((o) => o.value === selectedCustomerId) || null}
+                  value={customerOptions.find((o) => o.value === selectedPartyId) || null}
                   onChange={(option) => {
-                    setSelectedCustomerId(option ? option.value : '');
+                    setselectedPartyId(option ? option.value : '');
                     if (option) setTimeout(() => document.getElementById('todays-fish-box-input')?.focus(), 100);
                   }}
                   styles={reactSelectStyles}
@@ -994,7 +966,7 @@ export default function BoxBillingPage() {
               </div>
 
               <div className="italic text-sm text-muted-foreground font-semibold mt-1">
-                Opening Balance: {selectedCustomerId ? (openingBoxBalances[selectedCustomerId] || 0) : 0}
+                Opening Balance: {selectedPartyId ? (partyOpeningBoxBalances[selectedPartyId] || 0) : 0}
               </div>
 
               <Separator className="my-2" />
@@ -1006,7 +978,7 @@ export default function BoxBillingPage() {
                     <Input type="number" value={prevBalanceBox} onChange={e => setPrevBalanceBox(e.target.value)} tabIndex={-1} className="h-10 font-medium" />
                   </div>
                   <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
-                    <Label className="text-xs sm:text-sm truncate" title="Today's Fish Box">Today's Box</Label>
+                    <Label className="text-xs sm:text-sm truncate" title="Today's Box">Today's Box</Label>
                     <Input
                       id="todays-fish-box-input"
                       ref={todaysFishBoxRef}
@@ -1028,9 +1000,9 @@ export default function BoxBillingPage() {
                         }
                       }}
                       className="font-bold h-10 px-3"
-                      disabled={!selectedCustomerId || !date}
+                      disabled={!selectedPartyId || !date}
                     />
-                    {selectedCustomerId && localTfText !== '' && (
+                    {selectedPartyId && localTfText !== '' && (
                       <span className="text-[10px] text-muted-foreground italic pl-1 leading-none mt-1">Press Enter to Add an Entry</span>
                     )}
                   </div>
@@ -1039,7 +1011,9 @@ export default function BoxBillingPage() {
                     <Input readOnly value={tb} className="bg-muted font-bold h-10" tabIndex={-1} />
                   </div>
                   <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
-                  <Label className="text-xs sm:text-sm truncate" title="Empty Box">Empty Box</Label>
+                    <Label className="text-xs sm:text-sm truncate" title={entryEmptyBoxTotal > 0 ? `Empty Box (Entries: ${entryEmptyBoxTotal})` : 'Empty Box'}>
+                      Empty Box {entryEmptyBoxTotal > 0 ? `(${entryEmptyBoxTotal})` : ''}
+                    </Label>
                     <Input 
                       type="number" 
                       ref={emptyBoxRef} 
@@ -1047,12 +1021,7 @@ export default function BoxBillingPage() {
                       onChange={e => setManualEmptyBox(e.target.value)}
                       onKeyDown={e => handleKeyDown(e, descriptionRef)}
                       className="h-10"
-                    /> 
-                    {entryEmptyBoxTotal > 0 && (
-                      <span className="text-[13px] font-bold italic text-muted-foreground pl-1 leading-none mt-1">
-                        +{entryEmptyBoxTotal} from entries
-                      </span>
-                    )}
+                    />
                   </div>
                   <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Balance Box">Balance Box</Label>
@@ -1060,8 +1029,8 @@ export default function BoxBillingPage() {
                   </div>
                 </div>
                 <div className="flex justify-center sm:justify-start w-full mt-1">
-                <Button variant="outline" onClick={handleSharePDF} disabled={!selectedCustomerId || isSavingAndPrinting} className="border-green-500 text-green-700 hover:bg-green-50 px-6">
-                <Share className="mr-2 h-4 w-4" /> {isSavingAndPrinting ? 'Preparing PDF...' : 'Share (PDF)'}
+                  <Button variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="border-green-500 text-green-700 hover:bg-green-50 px-6">
+                    <Share className="mr-2 h-4 w-4" /> {isSavingAndPrinting ? 'Preparing PDF...' : 'Share (PDF)'}
                   </Button>
                 </div>
               </div>
@@ -1139,8 +1108,6 @@ export default function BoxBillingPage() {
                                 </TableCell>
                                 <TableCell className="py-2 px-2 text-right">
                                   <div className="flex justify-end gap-1">
-                                     {/* Hide edit for isManualEmpty entries — edit via the Empty Box input instead */}
-                                     {!entry.isManualEmpty && (
                                     <Button tabIndex={-1} variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingEntryId(entry.id);
@@ -1149,7 +1116,6 @@ export default function BoxBillingPage() {
                                     }}>
                                       <Pencil className="h-3 w-3" />
                                     </Button>
-                                    )}
                                     <Button tabIndex={-1} variant="ghost" size="icon" className="h-6 w-6 text-red-500" onClick={(e) => {
                                       e.stopPropagation();
                                       handleDeleteEntry(entry.id, entry.boxesAdded || 0, entry.emptyBoxesAdded || 0);
@@ -1163,24 +1129,10 @@ export default function BoxBillingPage() {
                           }) : (
                             <TableRow><TableCell colSpan={5} className="h-12 text-center text-muted-foreground">No entries yet.</TableCell></TableRow>
                           )}
-                          {/* Virtual pending row for the manual empty box — shown before Save */}
-                          {manualEmpty > 0 && !localEntries.some(e => e.isManualEmpty) && (
-                            <TableRow className="bg-amber-50 dark:bg-amber-950/20">
-                              <TableCell className="py-2 px-2 text-xs text-amber-600 italic">Pending</TableCell>
-                              <TableCell className="py-2 px-2 text-xs text-amber-600 italic">—</TableCell>
-                              <TableCell className="py-2 px-2 text-right text-amber-600 italic">—</TableCell>
-                              <TableCell className="py-2 px-2 text-right font-bold text-orange-500">
-                                {manualEmpty}
-                              </TableCell>
-                              <TableCell className="py-2 px-2 text-right text-xs text-amber-600 italic">Not saved</TableCell>
-                            </TableRow>
-                          )}
                           <TableRow className="bg-muted/50 border-t-2">
                             <TableCell colSpan={2} className="py-2 px-2 font-bold text-right">Total Added</TableCell>
                             <TableCell className="py-2 px-2 font-bold text-right text-green-600 text-base">{activeTotalAdded}</TableCell>
-                            <TableCell className="py-2 px-2 font-bold text-right text-orange-500 text-base">
-                              {activeTotalEmptyAdded + ((!localEntries.some(e => e.isManualEmpty) && manualEmpty > 0) ? manualEmpty : 0)}
-                            </TableCell>
+                            <TableCell className="py-2 px-2 font-bold text-right text-orange-500 text-base">{activeTotalEmptyAdded}</TableCell>
                             <TableCell></TableCell>
                           </TableRow>
                         </TableBody>
@@ -1192,24 +1144,24 @@ export default function BoxBillingPage() {
             </CardContent>
             
             <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
-            <div className="flex flex-wrap justify-end gap-2 w-full">
-                <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0 || isSaving} tabIndex={-1}>{"<<"}</Button>
+              <div className="flex flex-wrap justify-end gap-2 w-full">
+                <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{"<<"}</Button>
                 
-                <Button variant="outline" className="nav-btn" onClick={handlePrevBill} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1 || isSaving} tabIndex={-1}>{"<"}</Button>
+                <Button variant="outline" className="nav-btn" onClick={handlePrevBill} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1} tabIndex={-1}>{"<"}</Button>
 
-                <Button ref={saveBtnRef} size="lg" className="btn-save flex-1 sm:flex-none" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}>
+                <Button ref={saveBtnRef} size="lg" className="btn-save flex-1 sm:flex-none" onClick={handleSaveBill} disabled={!selectedPartyId || isSaving}>
                   <Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}
                 </Button>
 
-                <Button ref={printBtnRef} onClick={() => handlePrintAction('thermal')} disabled={!selectedCustomerId || isSaving}>Print Receipt</Button>
+                <Button ref={printBtnRef} onClick={() => handlePrintAction('thermal')} disabled={!selectedPartyId || isSaving}>Print Receipt</Button>
 
-                <Button ref={shareBtnRef} variant="outline" onClick={handleSharePDF} disabled={!selectedCustomerId || isSavingAndPrinting || isSaving} className="border-green-500 text-green-700 hover:bg-green-50">
+                <Button ref={shareBtnRef} variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="border-green-500 text-green-700 hover:bg-green-50">
                   <Share className="mr-2 h-4 w-4" /> {isSavingAndPrinting ? 'Preparing PDF...' : 'Share (PDF)'}
                 </Button>
 
-                <Button variant="outline" className="nav-btn" onClick={handleNextBill} disabled={currentBillIndex === -1 || isSaving} tabIndex={-1}>{">"}</Button>
+                <Button variant="outline" className="nav-btn" onClick={handleNextBill} disabled={currentBillIndex === -1} tabIndex={-1}>{">"}</Button>
                 
-                <Button variant="outline" className="nav-btn" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0 || isSaving} tabIndex={-1}>{">>"}</Button>
+                <Button variant="outline" className="nav-btn" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{">>"}</Button>
               </div>
             </CardFooter>
           </Card>
@@ -1232,14 +1184,14 @@ export default function BoxBillingPage() {
             <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
                 <div className="grid flex-1 gap-1.5 w-full">
-                  <Label>Customer</Label>
+                  <Label>Party</Label>
                   <ReactSelect
-                    instanceId="history-customer-select"
+                    instanceId="history-party-select"
                     options={customerOptions}
-                    value={customerOptions.find(o => o.value === historySelectedCustomer) || null}
-                    onChange={(option) => setHistorySelectedCustomer(option ? option.value : '')}
+                    value={customerOptions.find(o => o.value === historySelectedParty) || null}
+                    onChange={(option) => sethistorySelectedParty(option ? option.value : '')}
                     isClearable
-                    placeholder="Filter by customer..."
+                    placeholder="Filter by Party..."
                     styles={reactSelectStyles}
                   />
                 </div>
@@ -1257,7 +1209,7 @@ export default function BoxBillingPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <Button variant="ghost" className="h-[44px] w-full md:w-auto" onClick={() => { setHistoryDate(undefined); setHistorySelectedCustomer(''); }}>
+                <Button variant="ghost" className="h-[44px] w-full md:w-auto" onClick={() => { setHistoryDate(undefined); sethistorySelectedParty(''); }}>
                   <X className="mr-2 h-4 w-4" /> Clear
                 </Button>
               </div>
@@ -1281,8 +1233,8 @@ export default function BoxBillingPage() {
                         </div>
                         <div className="text-sm space-y-2">
                           <div className="flex flex-col gap-1">
-                            <span className="text-muted-foreground text-xs">Customer</span>
-                            <span className="font-medium whitespace-normal break-words">{bill.customerName}</span>
+                            <span className="text-muted-foreground text-xs">Party</span>
+                            <span className="font-medium whitespace-normal break-words">{bill.partyName}</span>
                           </div>
                           <Separator className="my-2" />
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Date</span><span className="font-medium">{format(bDate, 'dd-MM-yyyy')}</span></div>
@@ -1291,7 +1243,7 @@ export default function BoxBillingPage() {
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Empty Box</span><span className="font-mono">{bill.emptyBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs font-semibold">Balance Box</span><span className="font-mono font-bold text-primary text-base">{bill.balanceBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Entries</span>
-                            <span className="font-mono">{boxBillEntries.filter(e => e.boxBillId === bill.id).length}</span>
+                            <span className="font-mono">{partyBoxBillEntries.filter(e => e.partyBoxBillId === bill.id).length}</span>
                           </div>
                         </div>
                         <div className="flex justify-end mt-3 border-t pt-3">
@@ -1314,7 +1266,7 @@ export default function BoxBillingPage() {
                       {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && <TableHead className="w-10 px-2"></TableHead>}
                       <TableHead className="px-2">Bill No</TableHead>
                       <TableHead className="px-2">Date</TableHead>
-                      <TableHead className="px-2">Customer</TableHead>
+                      <TableHead className="px-2">Party</TableHead>
                       <TableHead className="px-2 text-right">Prev Bal</TableHead>
                       <TableHead className="px-2 text-right">Today's Box</TableHead>
                       <TableHead className="px-2 text-right">Empty</TableHead>
@@ -1337,7 +1289,7 @@ export default function BoxBillingPage() {
                             )}
                             <TableCell className="font-medium px-2">{bill.id}</TableCell>
                             <TableCell className="px-2 whitespace-nowrap">{format(bDate, 'dd-MM-yyyy')}</TableCell>
-                            <TableCell className="px-2 truncate max-w-[120px]">{bill.customerName}</TableCell>
+                            <TableCell className="px-2 truncate max-w-[120px]">{bill.partyName}</TableCell>
                             <TableCell className="px-2 text-right font-mono">{bill.prevBalanceBox}</TableCell>
                             <TableCell className="px-2 text-right font-mono">{bill.todaysFishBox}</TableCell>
                             <TableCell className="px-2 text-right font-mono">{bill.emptyBox}</TableCell>
@@ -1463,7 +1415,7 @@ export default function BoxBillingPage() {
             <Button
               className={selectedIndex === 0 ? "ring-2 ring-primary ring-offset-2" : ""}
               onClick={() => handlePrintModalAction('save')}
-              disabled={!selectedCustomerId || isSavingAndPrinting}
+              disabled={!selectedPartyId || isSavingAndPrinting}
             >
               {isSavingAndPrinting ? "Saving & Printing..." : "Save & Print"}
             </Button>
@@ -1500,16 +1452,16 @@ export default function BoxBillingPage() {
               const success = await billingGuard.saveBillRef.current?.();
               if (success) {
                 setNavDialog({ open: false, targetId: '' });
-                if (navDialog.targetId === 'new') router.push('/dashboard/box-billing');
-                else router.push(`/dashboard/box-billing?billId=${navDialog.targetId}`);
+                if (navDialog.targetId === 'new') router.push('/dashboard/party-box-billing');
+                else router.push(`/dashboard/party-box-billing?billId=${navDialog.targetId}`);
               }
             }} className="w-full">
               Save Bill & Continue
             </Button>
             <Button variant="secondary" onClick={() => {
               setNavDialog({ open: false, targetId: '' });
-              if (navDialog.targetId === 'new') router.push('/dashboard/box-billing');
-              else router.push(`/dashboard/box-billing?billId=${navDialog.targetId}`);
+              if (navDialog.targetId === 'new') router.push('/dashboard/party-box-billing');
+              else router.push(`/dashboard/party-box-billing?billId=${navDialog.targetId}`);
             }} className="w-full">
               Continue Without Saving
             </Button>
@@ -1552,3 +1504,6 @@ export default function BoxBillingPage() {
     </div>
   );
 }
+
+
+

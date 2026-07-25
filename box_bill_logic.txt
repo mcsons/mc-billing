@@ -1,0 +1,380 @@
+﻿
+> src\context\DataContext.tsx:1289:  const setOpeningBoxBalance = async (customerId: string, balance: number) => {
+  src\context\DataContext.tsx:1290:    if (!firestore) return;
+  src\context\DataContext.tsx:1291:    const balanceRef = doc(firestore, 'customerBoxBalances', customerId);
+  src\context\DataContext.tsx:1292:    const balanceData = { customerId: customerId, balanceAmount: balance, 
+updatedAt: serverTimestamp() };
+  src\context\DataContext.tsx:1293:    setDoc(balanceRef, balanceData, { merge: true }).catch(e => {
+  src\context\DataContext.tsx:1294:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
+  src\context\DataContext.tsx:1295:    });
+  src\context\DataContext.tsx:1296:  };
+  src\context\DataContext.tsx:1297:
+  src\context\DataContext.tsx:1298:  const setPartyBalance = async (partyId: string, balance: number) => {
+  src\context\DataContext.tsx:1299:    if (!firestore) return;
+  src\context\DataContext.tsx:1300:    const balanceRef = doc(firestore, 'partyBalances', partyId);
+  src\context\DataContext.tsx:1301:    const balanceData = { partyId, balanceAmount: balance, updatedAt: 
+serverTimestamp() };
+  src\context\DataContext.tsx:1302:    setDoc(balanceRef, balanceData, { merge: true }).catch(e => {
+  src\context\DataContext.tsx:1303:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'write', path: balanceRef.path, requestResourceData: balanceData }));
+  src\context\DataContext.tsx:1304:    });
+  src\context\DataContext.tsx:1305:  };
+  src\context\DataContext.tsx:1306:
+  src\context\DataContext.tsx:1307:  const updateProductPrice = async (productId: string, uom: string, price: number) 
+=> {
+  src\context\DataContext.tsx:1308:    if (!firestore) return;
+  src\context\DataContext.tsx:1309:    const priceId = `${productId}_${uom}_${new Date().toISOString().split('T')[0]}`;
+  src\context\DataContext.tsx:1310:    const priceRef = doc(firestore, 'productPrices', priceId);
+  src\context\DataContext.tsx:1311:    const priceData = { productId, uom, pricePerUom: price, priceDate: new 
+Date().toISOString().split('T')[0] };
+  src\context\DataContext.tsx:1312:    setDoc(priceRef, priceData, {merge: true}).catch(e => {
+  src\context\DataContext.tsx:1313:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'write', path: priceRef.path, requestResourceData: priceData }));
+  src\context\DataContext.tsx:1314:    });
+  src\context\DataContext.tsx:1315:  };
+  src\context\DataContext.tsx:1316:
+  src\context\DataContext.tsx:1317:  const getSafeDate = (dateField: any): Date => {
+  src\context\DataContext.tsx:1318:      if (!dateField) return new Date(0);
+  src\context\DataContext.tsx:1319:      return dateField.toDate ? dateField.toDate() : new Date(dateField);
+  src\context\DataContext.tsx:1320:  };
+  src\context\DataContext.tsx:1321:
+  src\context\DataContext.tsx:1322:  const getCustomerLedger = useCallback((
+  src\context\DataContext.tsx:1323:    customerId: string, 
+  src\context\DataContext.tsx:1324:    dateRange: { from: Date, to: Date }
+  src\context\DataContext.tsx:1325:  ): { transactions: Transaction[], openingBalance: number } => {
+  src\context\DataContext.tsx:1326:    
+  src\context\DataContext.tsx:1327:    const fromDateStart = startOfDay(dateRange.from);
+  src\context\DataContext.tsx:1328:    const toDateEnd = endOfDay(dateRange.to);
+  src\context\DataContext.tsx:1329:
+  src\context\DataContext.tsx:1330:    const initialOpeningBalance = openingBalances[customerId] || 0;
+  src\context\DataContext.tsx:1331:
+  src\context\DataContext.tsx:1332:    const allBills = (liveBillSummaries || []).filter(b => b.customerId === 
+customerId && b.date && b.amount > 0);
+  src\context\DataContext.tsx:1333:    const allPayments = (payments || []).filter(p => p.customerId === customerId && 
+!p.isDeleted);
+  src\context\DataContext.tsx:1334:
+  src\context\DataContext.tsx:1335:    const priorBills = allBills.filter(b => getSafeDate(b.date) < fromDateStart);
+  src\context\DataContext.tsx:1336:    const priorPayments = allPayments.filter(p => getSafeDate(p.date) < 
+fromDateStart);
+  src\context\DataContext.tsx:1337:
+  src\context\DataContext.tsx:1338:    const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
+  src\context\DataContext.tsx:1339:    const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
+  src\context\DataContext.tsx:1340:    const openingBalanceForPeriod = initialOpeningBalance + totalPriorBilled - 
+totalPriorPaid;
+  src\context\DataContext.tsx:1341:    
+  src\context\DataContext.tsx:1342:    const interval = { start: fromDateStart, end: toDateEnd };
+  src\context\DataContext.tsx:1343:    
+  src\context\DataContext.tsx:1344:    const billsInRange = allBills.filter(b => isWithinInterval(getSafeDate(b.date), 
+interval));
+  src\context\DataContext.tsx:1345:    const paymentsInRange = allPayments.filter(p => 
+isWithinInterval(getSafeDate(p.date), interval));
+  src\context\DataContext.tsx:1346:
+  src\context\DataContext.tsx:1347:    const rawTransactions: any[] = [];
+  src\context\DataContext.tsx:1348:
+  src\context\DataContext.tsx:1349:    billsInRange.forEach(b => {
+  src\context\DataContext.tsx:1350:      const txDate = getSafeDate(b.date);
+  src\context\DataContext.tsx:1351:      const createdAtDate = b.createdAt ? getSafeDate(b.createdAt) : txDate;
+  src\context\DataContext.tsx:1352:      rawTransactions.push({
+  src\context\DataContext.tsx:1353:        date: txDate,
+  src\context\DataContext.tsx:1354:        createdAt: createdAtDate,
+  src\context\DataContext.tsx:1355:        description: `Bill No: ${b.billNo}`,
+  src\context\DataContext.tsx:1356:        billedAmount: b.amount,
+  src\context\DataContext.tsx:1357:        balance: 0,
+  src\context\DataContext.tsx:1358:        type: 'bill',
+  src\context\DataContext.tsx:1359:        sortKey: 1,
+  src\context\DataContext.tsx:1360:      });
+  src\context\DataContext.tsx:1361:    });
+  src\context\DataContext.tsx:1362:
+  src\context\DataContext.tsx:1363:    paymentsInRange.forEach(p => {
+  src\context\DataContext.tsx:1364:      const txDate = getSafeDate(p.date);
+  src\context\DataContext.tsx:1365:      const createdAtDate = (p as any).createdAt ? getSafeDate((p as 
+any).createdAt) : txDate;
+  src\context\DataContext.tsx:1366:      rawTransactions.push({
+  src\context\DataContext.tsx:1367:        date: txDate,
+  src\context\DataContext.tsx:1368:        createdAt: createdAtDate,
+  src\context\DataContext.tsx:1369:        description: p.notes || `${p.paymentMode || 'Cash'} Payment`,
+  src\context\DataContext.tsx:1370:        receivedAmount: p.amount,
+  src\context\DataContext.tsx:1371:        paymentMode: p.paymentMode || 'Cash',
+  src\context\DataContext.tsx:1372:        paymentId: p.id,
+  src\context\DataContext.tsx:1373:        balance: 0,
+  src\context\DataContext.tsx:1374:        type: 'payment',
+  src\context\DataContext.tsx:1375:        sortKey: 2,
+  src\context\DataContext.tsx:1376:      });
+  src\context\DataContext.tsx:1377:    });
+  src\context\DataContext.tsx:1378:
+  src\context\DataContext.tsx:1379:    rawTransactions.sort((a, b) => {
+  src\context\DataContext.tsx:1380:      const dayA = startOfDay(a.date).getTime();
+  src\context\DataContext.tsx:1381:      const dayB = startOfDay(b.date).getTime();
+  src\context\DataContext.tsx:1382:      if (dayA !== dayB) return dayA - dayB;
+  src\context\DataContext.tsx:1383:      
+  src\context\DataContext.tsx:1384:      const timeA = a.createdAt.getTime();
+  src\context\DataContext.tsx:1385:      const timeB = b.createdAt.getTime();
+  src\context\DataContext.tsx:1386:      if (timeA !== timeB) return timeA - timeB;
+  src\context\DataContext.tsx:1387:      
+  src\context\DataContext.tsx:1388:      return a.sortKey - b.sortKey;
+  src\context\DataContext.tsx:1389:    });
+  src\context\DataContext.tsx:1390:
+  src\context\DataContext.tsx:1391:    const groupedByDay = new Map<number, any[]>();
+  src\context\DataContext.tsx:1392:    for (const t of rawTransactions) {
+  src\context\DataContext.tsx:1393:      const dayTime = startOfDay(t.date).getTime();
+  src\context\DataContext.tsx:1394:      if (!groupedByDay.has(dayTime)) groupedByDay.set(dayTime, []);
+  src\context\DataContext.tsx:1395:      groupedByDay.get(dayTime)!.push(t);
+  src\context\DataContext.tsx:1396:    }
+  src\context\DataContext.tsx:1397:
+  src\context\DataContext.tsx:1398:    const mergedTransactions: any[] = [];
+  src\context\DataContext.tsx:1399:    const sortedDays = Array.from(groupedByDay.keys()).sort((a, b) => a - b);
+  src\context\DataContext.tsx:1400:    
+  src\context\DataContext.tsx:1401:    for (const day of sortedDays) {
+  src\context\DataContext.tsx:1402:      const dailyTx = groupedByDay.get(day)!;
+  src\context\DataContext.tsx:1403:      const bills = dailyTx.filter(t => t.type === 'bill');
+  src\context\DataContext.tsx:1404:      const payments = dailyTx.filter(t => t.type === 'payment');
+  src\context\DataContext.tsx:1405:
+  src\context\DataContext.tsx:1406:      if (bills.length > 0 && payments.length > 0) {
+  src\context\DataContext.tsx:1407:        const totalBilled = bills.reduce((sum, b) => sum + b.billedAmount, 0);
+  src\context\DataContext.tsx:1408:        const billDescriptions = bills.map(b => b.description).join(' & ');
+  src\context\DataContext.tsx:1409:        
+  src\context\DataContext.tsx:1410:        const firstPayment = payments[0];
+  src\context\DataContext.tsx:1411:        const mergedPayment = {
+  src\context\DataContext.tsx:1412:          ...firstPayment,
+  src\context\DataContext.tsx:1413:          description: `${firstPayment.description} | ${billDescriptions}`,
+  src\context\DataContext.tsx:1414:          billedAmount: totalBilled,
+  src\context\DataContext.tsx:1415:          type: 'both'
+  src\context\DataContext.tsx:1416:        };
+  src\context\DataContext.tsx:1417:
+  src\context\DataContext.tsx:1418:        mergedTransactions.push(mergedPayment);
+  src\context\DataContext.tsx:1419:        for (let i = 1; i < payments.length; i++) {
+  src\context\DataContext.tsx:1420:          mergedTransactions.push(payments[i]);
+  src\context\DataContext.tsx:1421:        }
+  src\context\DataContext.tsx:1422:      } else {
+  src\context\DataContext.tsx:1423:        mergedTransactions.push(...dailyTx);
+  src\context\DataContext.tsx:1424:      }
+  src\context\DataContext.tsx:1425:    }
+  src\context\DataContext.tsx:1426:
+  src\context\DataContext.tsx:1427:    const combinedTransactions: Transaction[] = mergedTransactions.map(t => ({
+  src\context\DataContext.tsx:1428:      date: t.date,
+  src\context\DataContext.tsx:1429:      description: t.description,
+  src\context\DataContext.tsx:1430:      billedAmount: t.billedAmount,
+  src\context\DataContext.tsx:1431:      receivedAmount: t.receivedAmount,
+  src\context\DataContext.tsx:1432:      paymentMode: t.paymentMode,
+  src\context\DataContext.tsx:1433:      paymentId: t.paymentId,
+  src\context\DataContext.tsx:1434:      balance: 0,
+  src\context\DataContext.tsx:1435:      type: t.type
+  src\context\DataContext.tsx:1436:    }));
+  src\context\DataContext.tsx:1437:
+  src\context\DataContext.tsx:1438:    let currentBalance = openingBalanceForPeriod;
+  src\context\DataContext.tsx:1439:    const finalTransactions = combinedTransactions.map(t => {
+  src\context\DataContext.tsx:1440:      currentBalance += t.billedAmount || 0;
+  src\context\DataContext.tsx:1441:      currentBalance -= t.receivedAmount || 0;
+  src\context\DataContext.tsx:1442:      return { ...t, balance: currentBalance };
+  src\context\DataContext.tsx:1443:    });
+  src\context\DataContext.tsx:1444:
+  src\context\DataContext.tsx:1445:    return { transactions: finalTransactions, openingBalance: 
+openingBalanceForPeriod };
+  src\context\DataContext.tsx:1446:  }, [liveBillSummaries, payments, openingBalances]);
+  src\context\DataContext.tsx:1447:
+  src\context\DataContext.tsx:1448:  const getSalesReport = useCallback(async (
+  src\context\DataContext.tsx:1449:    customerId: string,
+  src\context\DataContext.tsx:1450:    dateRange: { from: Date; to: Date }
+  src\context\DataContext.tsx:1451:  ): Promise<SalesReportData | null> => {
+  src\context\DataContext.tsx:1452:    if (!firestore) return null;
+  src\context\DataContext.tsx:1453:
+  src\context\DataContext.tsx:1454:    const customer = customers.find((c) => c.id === customerId);
+  src\context\DataContext.tsx:1455:    if (!customer) return null;
+  src\context\DataContext.tsx:1456:
+  src\context\DataContext.tsx:1457:    const fromDateStart = startOfDay(dateRange.from);
+  src\context\DataContext.tsx:1458:    const toDateEnd = endOfDay(dateRange.to);
+  src\context\DataContext.tsx:1459:
+  src\context\DataContext.tsx:1460:    const initialOpeningBalance = openingBalances[customerId] || 0;
+  src\context\DataContext.tsx:1461:    const allBills = (liveBillSummaries || []).filter(
+  src\context\DataContext.tsx:1462:      (b) => b.customerId === customerId && b.date && b.amount > 0
+  src\context\DataContext.tsx:1463:    );
+  src\context\DataContext.tsx:1464:    const allPayments = (payments || []).filter(
+  src\context\DataContext.tsx:1465:      (p) => p.customerId === customerId && !p.isDeleted
+  src\context\DataContext.tsx:1466:    );
+  src\context\DataContext.tsx:1467:
+  src\context\DataContext.tsx:1468:    const priorBills = allBills.filter(
+  src\context\DataContext.tsx:1469:      (b) => getSafeDate(b.date) < fromDateStart
+  src\context\DataContext.tsx:1470:    );
+  src\context\DataContext.tsx:1471:    const priorPayments = allPayments.filter(
+  src\context\DataContext.tsx:1472:      (p) => getSafeDate(p.date) < fromDateStart
+  src\context\DataContext.tsx:1473:    );
+  src\context\DataContext.tsx:1474:    const totalPriorBilled = priorBills.reduce((sum, b) => sum + b.amount, 0);
+  src\context\DataContext.tsx:1475:    const totalPriorPaid = priorPayments.reduce((sum, p) => sum + p.amount, 0);
+  src\context\DataContext.tsx:1476:    const previousBalance =
+  src\context\DataContext.tsx:1477:      initialOpeningBalance + totalPriorBilled - totalPriorPaid;
+  src\context\DataContext.tsx:1478:
+  src\context\DataContext.tsx:1479:    const billsInRange = allBills.filter((b) =>
+  src\context\DataContext.tsx:1480:      isWithinInterval(getSafeDate(b.date), {
+  src\context\DataContext.tsx:1481:        start: fromDateStart,
+  src\context\DataContext.tsx:1482:        end: toDateEnd,
+  src\context\DataContext.tsx:1483:      })
+  src\context\DataContext.tsx:1484:    );
+  src\context\DataContext.tsx:1485:
+  src\context\DataContext.tsx:1486:    if (billsInRange.length === 0) {
+  src\context\DataContext.tsx:1487:      return {
+  src\context\DataContext.tsx:1488:        customer,
+  src\context\DataContext.tsx:1489:        itemsByDate: [],
+  src\context\DataContext.tsx:1490:        totalQty: {},
+  src\context\DataContext.tsx:1491:        totalAmount: 0,
+  src\context\DataContext.tsx:1492:        previousBalance,
+  src\context\DataContext.tsx:1493:        netAmount: previousBalance,
+  src\context\DataContext.tsx:1494:        dateRange,
+  src\context\DataContext.tsx:1495:      };
+  src\context\DataContext.tsx:1496:    }
+  src\context\DataContext.tsx:1497:
+  src\context\DataContext.tsx:1498:    const billItemsPromises = billsInRange.map((bill) =>
+  src\context\DataContext.tsx:1499:      getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
+  src\context\DataContext.tsx:1500:    );
+  src\context\DataContext.tsx:1501:    const billItemsSnapshots = await Promise.all(billItemsPromises);
+  src\context\DataContext.tsx:1502:
+  src\context\DataContext.tsx:1503:    const allItemsInRange: (BillItem & { billDate: Date })[] = [];
+  src\context\DataContext.tsx:1504:    billItemsSnapshots.forEach((snapshot, index) => {
+  src\context\DataContext.tsx:1505:      const bill = billsInRange[index];
+  src\context\DataContext.tsx:1506:      const billDate = (bill.date as Timestamp).toDate();
+  src\context\DataContext.tsx:1507:      snapshot.forEach((doc) => {
+  src\context\DataContext.tsx:1508:        allItemsInRange.push({ ...(doc.data() as BillItem), billDate });
+  src\context\DataContext.tsx:1509:      });
+  src\context\DataContext.tsx:1510:      if (bill.deliveryCharge && bill.deliveryCharge > 0) {
+  src\context\DataContext.tsx:1511:        allItemsInRange.push({
+  src\context\DataContext.tsx:1512:          id: `delivery-${bill.billNo}`,
+  src\context\DataContext.tsx:1513:          product: "Delivery",
+  src\context\DataContext.tsx:1514:          productId: "delivery",
+  src\context\DataContext.tsx:1515:          uom: "-",
+  src\context\DataContext.tsx:1516:          qty: 0,
+  src\context\DataContext.tsx:1517:          rate: 0,
+  src\context\DataContext.tsx:1518:          amount: bill.deliveryCharge,
+  src\context\DataContext.tsx:1519:          addedBy: "system",
+  src\context\DataContext.tsx:1520:          stall: "1",
+  src\context\DataContext.tsx:1521:          billId: bill.billNo,
+  src\context\DataContext.tsx:1522:          billDate: billDate
+  src\context\DataContext.tsx:1523:        });
+  src\context\DataContext.tsx:1524:      }
+  src\context\DataContext.tsx:1525:    });
+  src\context\DataContext.tsx:1526:
+  src\context\DataContext.tsx:1527:    const itemsGroupedByDate = allItemsInRange.reduce((acc, item) => {
+  src\context\DataContext.tsx:1528:      const dateStr = format(item.billDate, 'dd/MM/yy');
+  src\context\DataContext.tsx:1529:      if (!acc[dateStr]) {
+  src\context\DataContext.tsx:1530:        acc[dateStr] = [];
+  src\context\DataContext.tsx:1531:      }
+  src\context\DataContext.tsx:1532:      acc[dateStr].push(item);
+  src\context\DataContext.tsx:1533:      return acc;
+  src\context\DataContext.tsx:1534:    }, {} as Record<string, BillItem[]>);
+  src\context\DataContext.tsx:1535:
+  src\context\DataContext.tsx:1536:    const itemsByDate = Object.entries(itemsGroupedByDate)
+  src\context\DataContext.tsx:1537:      .map(([date, items]) => ({ date, items }))
+  src\context\DataContext.tsx:1538:      .sort((a, b) => {
+  src\context\DataContext.tsx:1539:        const dateA = new Date(a.date.split('/').reverse().join('-'));
+  src\context\DataContext.tsx:1540:        const dateB = new Date(b.date.split('/').reverse().join('-'));
+  src\context\DataContext.tsx:1541:        return dateA.getTime() - dateB.getTime();
+  src\context\DataContext.tsx:1542:      });
+  src\context\DataContext.tsx:1543:
+  src\context\DataContext.tsx:1544:    const totalQty: Record<string, number> = {};
+  src\context\DataContext.tsx:1545:    let totalAmount = 0;
+  src\context\DataContext.tsx:1546:
+  src\context\DataContext.tsx:1547:    allItemsInRange.forEach((item) => {
+  src\context\DataContext.tsx:1548:      totalAmount += item.amount;
+  src\context\DataContext.tsx:1549:      if (item.product !== "Delivery") {
+  src\context\DataContext.tsx:1550:        if (!totalQty[item.uom]) {
+  src\context\DataContext.tsx:1551:          totalQty[item.uom] = 0;
+  src\context\DataContext.tsx:1552:        }
+  src\context\DataContext.tsx:1553:        totalQty[item.uom] += item.qty;
+  src\context\DataContext.tsx:1554:      }
+  src\context\DataContext.tsx:1555:    });
+  src\context\DataContext.tsx:1556:
+  src\context\DataContext.tsx:1557:    const netAmount = previousBalance + totalAmount;
+  src\context\DataContext.tsx:1558:
+  src\context\DataContext.tsx:1559:    return {
+  src\context\DataContext.tsx:1560:      customer,
+  src\context\DataContext.tsx:1561:      itemsByDate,
+  src\context\DataContext.tsx:1562:      totalQty,
+  src\context\DataContext.tsx:1563:      totalAmount,
+  src\context\DataContext.tsx:1564:      previousBalance,
+  src\context\DataContext.tsx:1565:      netAmount,
+  src\context\DataContext.tsx:1566:      dateRange,
+  src\context\DataContext.tsx:1567:    };
+  src\context\DataContext.tsx:1568:  }, [firestore, customers, openingBalances, liveBillSummaries, payments]);
+  src\context\DataContext.tsx:1569:
+  src\context\DataContext.tsx:1570:  // Vehicle and Driver Management
+  src\context\DataContext.tsx:1571:  const addVehicle = async (vehicle: Omit<Vehicle, 
+'active'|'createdAt'|'updatedAt'>) => {
+  src\context\DataContext.tsx:1572:    if (!firestore) return;
+  src\context\DataContext.tsx:1573:    const vehicleRef = doc(firestore, 'vehicles', vehicle.id);
+  src\context\DataContext.tsx:1574:    const vehicleData = { ...vehicle, active: true, createdAt: serverTimestamp(), 
+updatedAt: serverTimestamp() };
+  src\context\DataContext.tsx:1575:    setDoc(vehicleRef, vehicleData).then(() => {
+  src\context\DataContext.tsx:1576:      toast({ title: 'Vehicle Added' });
+  src\context\DataContext.tsx:1577:    }).catch(e => {
+  src\context\DataContext.tsx:1578:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'create', path: vehicleRef.path, requestResourceData: vehicleData }));
+  src\context\DataContext.tsx:1579:    });
+  src\context\DataContext.tsx:1580:  };
+  src\context\DataContext.tsx:1581:
+  src\context\DataContext.tsx:1582:  const editVehicle = async (vehicleId: string, data: Partial<Vehicle>) => {
+  src\context\DataContext.tsx:1583:    if (!firestore) return;
+  src\context\DataContext.tsx:1584:    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+  src\context\DataContext.tsx:1585:    const updatedData = { ...data, updatedAt: serverTimestamp() };
+  src\context\DataContext.tsx:1586:    updateDoc(vehicleRef, updatedData).then(() => {
+  src\context\DataContext.tsx:1587:      toast({ title: 'Vehicle Updated' });
+  src\context\DataContext.tsx:1588:    }).catch(e => {
+  src\context\DataContext.tsx:1589:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'update', path: vehicleRef.path, requestResourceData: updatedData }));
+  src\context\DataContext.tsx:1590:    });
+  src\context\DataContext.tsx:1591:  };
+  src\context\DataContext.tsx:1592:
+  src\context\DataContext.tsx:1593:  const deleteVehicle = async (vehicleId: string) => {
+  src\context\DataContext.tsx:1594:    if (!firestore) return;
+  src\context\DataContext.tsx:1595:    const vehicleRef = doc(firestore, 'vehicles', vehicleId);
+  src\context\DataContext.tsx:1596:    deleteDoc(vehicleRef).catch(e => {
+  src\context\DataContext.tsx:1597:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'delete', path: vehicleRef.path }));
+  src\context\DataContext.tsx:1598:    });
+  src\context\DataContext.tsx:1599:  };
+  src\context\DataContext.tsx:1600:
+  src\context\DataContext.tsx:1601:  const addDriver = async (driver: Omit<Driver, 'id' | 
+'active'|'createdAt'|'updatedAt'>) => {
+  src\context\DataContext.tsx:1602:    if (!firestore) return;
+  src\context\DataContext.tsx:1603:    const driversCol = collection(firestore, 'drivers');
+  src\context\DataContext.tsx:1604:    const driverData = { ...driver, active: true, createdAt: serverTimestamp(), 
+updatedAt: serverTimestamp() };
+  src\context\DataContext.tsx:1605:    addDoc(driversCol, driverData).then(() => {
+  src\context\DataContext.tsx:1606:      toast({ title: 'Driver Added' });
+  src\context\DataContext.tsx:1607:    }).catch(e => {
+  src\context\DataContext.tsx:1608:       errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'create', path: driversCol.path, requestResourceData: driverData }));
+  src\context\DataContext.tsx:1609:    });
+  src\context\DataContext.tsx:1610:  };
+  src\context\DataContext.tsx:1611:
+  src\context\DataContext.tsx:1612:  const editDriver = async (driverId: string, data: Partial<Driver>) => {
+  src\context\DataContext.tsx:1613:    if (!firestore) return;
+  src\context\DataContext.tsx:1614:    const driverRef = doc(firestore, 'drivers', driverId);
+  src\context\DataContext.tsx:1615:    const updatedData = { ...data, updatedAt: serverTimestamp() };
+  src\context\DataContext.tsx:1616:    updateDoc(driverRef, updatedData).then(() => {
+  src\context\DataContext.tsx:1617:      toast({ title: 'Driver Updated' });
+  src\context\DataContext.tsx:1618:    }).catch(e => {
+  src\context\DataContext.tsx:1619:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'update', path: driverRef.path, requestResourceData: updatedData }));
+  src\context\DataContext.tsx:1620:    });
+  src\context\DataContext.tsx:1621:  };
+  src\context\DataContext.tsx:1622:
+  src\context\DataContext.tsx:1623:  const deleteDriver = async (driverId: string) => {
+  src\context\DataContext.tsx:1624:    if (!firestore) return;
+  src\context\DataContext.tsx:1625:    const driverRef = doc(firestore, 'drivers', driverId);
+  src\context\DataContext.tsx:1626:    deleteDoc(driverRef).catch(e => {
+  src\context\DataContext.tsx:1627:      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+operation: 'delete', path: driverRef.path }));
+  src\context\DataContext.tsx:1628:    });
+  src\context\DataContext.tsx:1629:  };
+  src\context\DataContext.tsx:1630:
+  src\context\DataContext.tsx:1631:    const addParty = async (party: Omit<Party, 'id' | 
+'active'|'createdAt'|'updatedAt'> & { id?: string }) => {
+  src\context\DataContext.tsx:1632:        if (!firestore) return;
+  src\context\DataContext.tsx:1633:        let newId = party.id;
+  src\context\DataContext.tsx:1634:        if (!newId) {
+  src\context\DataContext.tsx:1635:            const maxId = (parties || [])
+  src\context\DataContext.tsx:1636:                .map(p => parseInt(p.id.replace('PT', ''), 10))
+  src\context\DataContext.tsx:1637:                .filter(num => !isNaN(num))
+  src\context\DataContext.tsx:1638:                .reduce((max, num) => Math.max(max, num), 0);
+  src\context\DataContext.tsx:1639:            newId = `PT${(maxId + 1).toString().padStart(2, '0')}`;
+
+

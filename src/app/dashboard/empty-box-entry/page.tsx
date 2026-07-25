@@ -104,7 +104,7 @@ export default function EmptyBoxEntryPage() {
         // Scenario A: Update existing bill
         const existingEntries = boxBillEntries.filter(e => e.boxBillId === existingBill.id);
         const trueTf = existingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
-        const currentEntryEmpty = existingEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
+        const currentEntryEmpty = existingEntries.filter(e => !e.isManualEmpty).reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
         
         const manualEmpty = existingBill.manualEmptyBox || 0;
         const updatedEntryEmptyBoxTotal = currentEntryEmpty + enteredEmptyBoxes;

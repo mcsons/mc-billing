@@ -17,11 +17,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Calendar } from '@/components/ui/calendar';
 import { Calendar as CalendarIcon } from 'lucide-react';
-import { format, isSameDay, startOfDay, endOfDay, startOfWeek, endOfWeek } from 'date-fns';
+import { format, isSameDay, startOfDay, startOfWeek, endOfWeek } from 'date-fns';
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { Transaction, Payment } from '@/lib/data';
+import { Transaction } from '@/lib/data';
 import ReactSelect from 'react-select';
 import { useLoading } from '@/context/LoadingContext';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -32,37 +32,34 @@ const formatINR = (n: number) =>
 
 export default function ReceivedPage() {
     const {
-        customers, customerBalances, payments,
-        addPayment, updatePayment, softDeletePayment,
-        getCustomerLedger, currentUser,
+        parties, partyBalances, partyPayments,
+        addPartyPayment, updatePartyPayment, softDeletePartyPayment,
+         currentUser,
     } = useData();
     const { toast } = useToast();
     const showAlertDialog = useAlertDialog();
     const { setLoading } = useLoading();
 
-    const [recordSelectedCustomerId, setRecordSelectedCustomerId] = useState('');
+    const [recordSelectedPartyId, setRecordSelectedPartyId] = useState('');
     const [amount, setAmount] = useState('');
     const [notes, setNotes] = useState('');
-    const [paymentMode, setPaymentMode] = useState<string>('Cash');
+    const [paymentMode, setPaymentMode] = useState<"Cash" | "ACC" | "UPI">('Cash');
     const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
     const [recordDateOpen, setRecordDateOpen] = useState(false);
 
     // ── Edit modal ───────────────────────────────────────────────────────────
     const [editModalOpen, setEditModalOpen] = useState(false);
-    const [editingTx, setEditingTx] = useState<Payment | null>(null);
+    const [editingTx, setEditingTx] = useState<Transaction | null>(null);
     const [editAmount, setEditAmount] = useState('');
     const [editNotes, setEditNotes] = useState('');
-    const [editPaymentMode, setEditPaymentMode] = useState<string>('Cash');
+    const [editPaymentMode, setEditPaymentMode] = useState<"Cash" | "ACC" | "UPI" | "Bill Payment">('Cash');
     const [editRecordDate, setEditRecordDate] = useState<Date | undefined>(new Date());
     const [editDateOpen, setEditDateOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
     // ── History filters ──────────────────────────────────────────────────────
-    const [historyFilterCustomerId, setHistoryFilterCustomerId] = useState('');
-    const [historyFilterFromDate, setHistoryFilterFromDate] = useState<Date | undefined>();
-    const [historyFilterToDate, setHistoryFilterToDate] = useState<Date | undefined>();
-    const [historyFromDateOpen, setHistoryFromDateOpen] = useState(false);
-    const [historyToDateOpen, setHistoryToDateOpen] = useState(false);
+    const [historyFilterPartyId, setHistoryFilterPartyId] = useState('');
+    const [historyFilterDate, setHistoryFilterDate] = useState<Date | undefined>();
 
     const isManager = currentUser?.role === 'MANAGER';
 
@@ -84,17 +81,17 @@ export default function ReceivedPage() {
         placeholder: (b: any) => ({ ...b, color: 'hsl(var(--muted-foreground))' }),
     };
 
-    const custOptions = customers.map(c => ({ value: c.id, label: `${c.name_en} (${c.name_ta})` }));
+    const custOptions = parties.map(c => ({ value: c.id, label: c.name }));
 
     // ── Handlers ─────────────────────────────────────────────────────────────
-    const recordSelectedCustomer = customers.find(c => c.id === recordSelectedCustomerId);
-    const currentBalance = recordSelectedCustomerId ? customerBalances[recordSelectedCustomerId] || 0 : 0;
+    const recordSelectedParty = parties.find(c => c.id === recordSelectedPartyId);
+    const currentBalance = recordSelectedPartyId ? partyBalances[recordSelectedPartyId] || 0 : 0;
     const newBalance = currentBalance - (parseFloat(amount) || 0);
 
     const handleSubmitPayment = async () => {
         const paymentAmount = parseFloat(amount);
-        if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
-            toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a customer and enter a valid amount.' });
+        if (!recordSelectedPartyId || !paymentAmount || isNaN(paymentAmount)) {
+            toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a party and enter a valid amount.' });
             return;
         }
 
@@ -102,9 +99,9 @@ export default function ReceivedPage() {
         setLoading(true, 'Recording Payment...');
 
         try {
-            await addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, paymentMode, date: recordDate });
-            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en}.` });
-            setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
+            await addPartyPayment({ partyId: recordSelectedPartyId, amount: paymentAmount, notes, paymentMode, date: recordDate });
+            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from .` });
+            setRecordSelectedPartyId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment.' });
         } finally {
@@ -115,8 +112,8 @@ export default function ReceivedPage() {
 
     const handleRecordAndPrint = async () => {
         const paymentAmount = parseFloat(amount);
-        if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
-            toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a customer and enter a valid amount.' });
+        if (!recordSelectedPartyId || !paymentAmount || isNaN(paymentAmount)) {
+            toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a party and enter a valid amount.' });
             return;
         }
 
@@ -124,10 +121,10 @@ export default function ReceivedPage() {
         setLoading(true, 'Recording & Preparing Print...');
 
         try {
-            await addPayment({ customerId: recordSelectedCustomerId, amount: paymentAmount, notes, paymentMode, date: recordDate });
+            await addPartyPayment({ partyId: recordSelectedPartyId, amount: paymentAmount, notes, paymentMode, date: recordDate });
 
             const printData = {
-                customer: recordSelectedCustomer,
+                party: recordSelectedParty,
                 receivedDate: recordDate ? recordDate.toISOString() : new Date().toISOString(),
                 receivedCash: paymentAmount,
                 paymentMode: paymentMode,
@@ -135,11 +132,11 @@ export default function ReceivedPage() {
                 finalBalance: newBalance
             };
 
-            sessionStorage.setItem('paymentReceiptData', JSON.stringify(printData));
-            window.open('/print/payment-receipt?paper=thermal', '_blank');
+            localStorage.setItem('partyPaymentReceiptData', JSON.stringify(printData));
+            window.open('/print/party-payment?paper=thermal', '_blank');
 
-            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en}.` });
-            setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
+            toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from .` });
+            setRecordSelectedPartyId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to record payment.' });
         } finally {
@@ -148,25 +145,22 @@ export default function ReceivedPage() {
         }
     };
 
-    const handleEditClick = (p: Payment) => {
-        setLoading(true, 'Loading Payment...');
-        setTimeout(() => {
-            setEditingTx(p);
-            setEditAmount(String(p.amount ?? ''));
-            setEditNotes(p.notes || '');
-            let modeToSet: string = p.paymentMode || 'Cash';
-            if (modeToSet === 'Bank' || modeToSet === 'ACC') modeToSet = 'Bank Transfer';
-            if (modeToSet === 'Bill Payment') modeToSet = 'Cash';
-            setEditPaymentMode(modeToSet);
-            const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-            setEditRecordDate(pDate);
-            setEditModalOpen(true);
-            setLoading(false);
-        }, 300);
+    const handleEditClick = (tx: Transaction) => {
+        setEditingTx(tx);
+        setEditAmount(String(tx.receivedAmount ?? ''));
+        const desc = tx.description || '';
+        setEditNotes(desc === 'Payment Received' || desc.endsWith('Payment') ? '' : desc);
+        let modeToSet: string = tx.paymentMode || 'Cash';
+        if (modeToSet === 'Bank') modeToSet = 'ACC';
+        // Bill Payment mode is auto-managed; default to Cash for editing
+        if (modeToSet === 'Bill Payment') modeToSet = 'Cash';
+        setEditPaymentMode(modeToSet as "Cash" | "ACC" | "UPI" | "Bill Payment");
+        setEditRecordDate(tx.date);
+        setEditModalOpen(true);
     };
 
     const handleEditSave = async () => {
-        if (!editingTx?.id) return;
+        if (!editingTx?.paymentId) return;
         const newAmt = parseFloat(editAmount);
         if (isNaN(newAmt) || newAmt <= 0) {
             toast({ variant: 'destructive', title: 'Invalid Amount', description: 'Amount must be greater than 0.' });
@@ -174,7 +168,7 @@ export default function ReceivedPage() {
         }
         setIsSaving(true);
         try {
-            await updatePayment(editingTx.id, { amount: newAmt, notes: editNotes, paymentMode: editPaymentMode, date: editRecordDate });
+            await updatePartyPayment(editingTx.paymentId, { amount: newAmt, notes: editNotes, paymentMode: editPaymentMode, date: editRecordDate });
             toast({ title: 'Payment Updated' });
             setEditModalOpen(false);
         } catch {
@@ -192,7 +186,7 @@ export default function ReceivedPage() {
             description: `Delete received entry of ₹${formatINR(tx.receivedAmount ?? 0)}? This cannot be undone.`,
             onConfirm: async () => {
                 try {
-                    await softDeletePayment(tx.paymentId!);
+                    await softDeletePartyPayment(tx.paymentId!);
                     toast({ title: 'Payment Deleted', description: 'Entry removed and balances updated.' });
                 } catch {
                     toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete payment.' });
@@ -211,40 +205,19 @@ export default function ReceivedPage() {
 
     // History section
     const historyPayments = useMemo(() => {
-        let results = (payments || []).filter(p => !p.isDeleted);
-
-        if (historyFilterCustomerId) {
-            results = results.filter(p => p.customerId === historyFilterCustomerId);
+        let results = (partyPayments || []).filter(p => !p.isDeleted);
+        
+        if (historyFilterPartyId) {
+            results = results.filter(p => p.partyId === historyFilterPartyId);
+        }
+        if (historyFilterDate) {
+            results = results.filter(p => {
+                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+                return isSameDay(pDate, historyFilterDate);
+            });
         }
 
-        const hasFrom = !!historyFilterFromDate;
-        const hasTo = !!historyFilterToDate;
-
-        if (hasFrom && hasTo) {
-            // Case 1: Both dates — inclusive range
-            const rangeStart = startOfDay(historyFilterFromDate!);
-            const rangeEnd = endOfDay(historyFilterToDate!);
-            results = results.filter(p => {
-                if (!p.date) return false;
-                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                return pDate >= rangeStart && pDate <= rangeEnd;
-            });
-        } else if (hasFrom && !hasTo) {
-            // Case 2: Only From — treat as single day
-            results = results.filter(p => {
-                if (!p.date) return false;
-                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                return isSameDay(pDate, historyFilterFromDate!);
-            });
-        } else if (!hasFrom && hasTo) {
-            // Case 3: Only To — treat as single day
-            results = results.filter(p => {
-                if (!p.date) return false;
-                const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                return isSameDay(pDate, historyFilterToDate!);
-            });
-        } else if (!historyFilterCustomerId) {
-            // Case 4: No date filter — show current week (default)
+        if (!historyFilterPartyId && !historyFilterDate) {
             const start = startOfWeek(new Date(), { weekStartsOn: 1 });
             const end = endOfWeek(new Date(), { weekStartsOn: 1 });
             results = results.filter(p => {
@@ -259,17 +232,9 @@ export default function ReceivedPage() {
             const db = b.date?.toDate ? b.date.toDate().getTime() : new Date(b.date).getTime();
             return db - da;
         });
-    }, [payments, historyFilterCustomerId, historyFilterFromDate, historyFilterToDate]);
+    }, [partyPayments, historyFilterPartyId, historyFilterDate]);
 
-    // Total for filtered results (only when a date filter is active)
-    const isDateFilterActive = !!historyFilterFromDate || !!historyFilterToDate;
-    const historyTotal = useMemo(
-        () => historyPayments.reduce((sum, p) => sum + (p.amount || 0), 0),
-        [historyPayments]
-    );
-
-    const historyFilterCustomer = customers.find(c => c.id === historyFilterCustomerId);
-    const hasNoFilter = !historyFilterCustomerId && !historyFilterFromDate && !historyFilterToDate;
+    const historyFilterParty = parties.find(c => c.id === historyFilterPartyId);
 
     // ── Render ────────────────────────────────────────────────────────────────
     return (
@@ -280,7 +245,7 @@ export default function ReceivedPage() {
                 <CardHeader className="flex flex-col sm:flex-row items-start justify-between gap-4">
                     <div className="space-y-1.5">
                         <CardTitle className="font-headline text-xl md:text-2xl">Record Payment</CardTitle>
-                        <CardDescription>Record a payment received from a customer to update their balance.</CardDescription>
+                        <CardDescription>Record a payment made to a party to update their balance.</CardDescription>
                     </div>
                     <div className="grid gap-2 w-full sm:w-[180px]">
                         <Label>Date</Label>
@@ -303,14 +268,14 @@ export default function ReceivedPage() {
                 </CardHeader>
                 <CardContent className="p-4 md:p-6 space-y-5">
                     <div className="grid gap-2">
-                        <Label>Customer</Label>
-                        <ReactSelect instanceId="record-customer-select" placeholder="Select customer..." isClearable
+                        <Label>Party</Label>
+                        <ReactSelect instanceId="record-party-select" placeholder="Select party..." isClearable
                             options={custOptions}
-                            value={recordSelectedCustomer ? { value: recordSelectedCustomer.id, label: `${recordSelectedCustomer.name_en} (${recordSelectedCustomer.name_ta})` } : null}
-                            onChange={o => setRecordSelectedCustomerId(o ? o.value : '')}
+                            value={recordSelectedParty ? { value: recordSelectedParty.id, label: recordSelectedParty.name } : null}
+                            onChange={o => setRecordSelectedPartyId(o ? o.value : '')}
                             styles={rsStyles} filterOption={filterOption} isDisabled={isManager} />
                     </div>
-                    {recordSelectedCustomerId && (
+                    {recordSelectedPartyId && (
                         <div className="grid grid-cols-2 gap-4 rounded-lg border p-4">
                             <div><Label>Current Balance</Label><p className="text-xl md:text-2xl font-bold font-mono">₹{formatINR(currentBalance)}</p></div>
                             <div className="text-right"><Label>New Balance</Label><p className="text-xl md:text-2xl font-bold font-mono">₹{formatINR(newBalance)}</p></div>
@@ -318,30 +283,30 @@ export default function ReceivedPage() {
                     )}
                     <div className="grid gap-2">
                         <Label htmlFor="amount">Payment Amount (₹)</Label>
-                        <Input id="amount" type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} disabled={!recordSelectedCustomerId || isManager} className="w-full h-11 text-base" />
+                        <Input id="amount" type="number" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} disabled={!recordSelectedPartyId || isManager} className="w-full h-11 text-base" />
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="payment-mode">Payment Mode</Label>
-                        <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} disabled={!recordSelectedCustomerId || isManager}>
+                        <Select value={paymentMode} onValueChange={(v: any) => setPaymentMode(v)} disabled={!recordSelectedPartyId || isManager}>
                             <SelectTrigger id="payment-mode" className="h-11 text-base"><SelectValue placeholder="Select Mode" /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="Cash">Cash</SelectItem>
-                                <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                <SelectItem value="ACC">ACC</SelectItem>
                                 <SelectItem value="UPI">UPI</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="notes">Notes (Optional)</Label>
-                        <Textarea id="notes" placeholder="e.g., Cash payment" value={notes} onChange={e => setNotes(e.target.value)} disabled={!recordSelectedCustomerId || isManager} className="w-full text-base" />
+                        <Textarea id="notes" placeholder="e.g., Cash payment" value={notes} onChange={e => setNotes(e.target.value)} disabled={!recordSelectedPartyId || isManager} className="w-full text-base" />
                     </div>
                 </CardContent>
                 <CardFooter className="p-4 md:p-6 pt-0">
                     <div className="flex w-full gap-3">
-                        <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
+                        <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedPartyId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
                             <Save className="mr-2 h-4 w-4" /> Record Payment
                         </Button>
-                        <Button size="lg" variant="secondary" onClick={handleRecordAndPrint} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
+                        <Button size="lg" variant="secondary" onClick={handleRecordAndPrint} disabled={!recordSelectedPartyId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
                             <Printer className="mr-2 h-4 w-4" /> Record & Print
                         </Button>
                     </div>
@@ -355,82 +320,39 @@ export default function ReceivedPage() {
                 <CardHeader>
                     <CardTitle className="font-headline text-2xl">Payment History</CardTitle>
                     <CardDescription>Browse all received entries.</CardDescription>
-                    {hasNoFilter && (
+                    {!historyFilterPartyId && !historyFilterDate && (
                         <p className="text-xs text-muted-foreground mt-1">
-                            Showing current week's payments (Mon–Sun)
+                            Showing current week's partyPayments (Mon–Sun)
                         </p>
                     )}
                 </CardHeader>
                 <CardContent>
-                    <div className="mb-6 flex flex-col gap-4">
-                        {/* Row 1: Customer filter */}
-                        <div className="grid gap-2">
-                            <Label>Customer</Label>
-                            <ReactSelect instanceId="history-filter-customer"
+                    <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
+                        <div className="grid flex-1 gap-2">
+                            <Label>Party</Label>
+                            <ReactSelect instanceId="history-filter-party"
                                 options={custOptions}
-                                value={historyFilterCustomer ? { value: historyFilterCustomer.id, label: `${historyFilterCustomer.name_en} (${historyFilterCustomer.name_ta})` } : null}
-                                onChange={o => setHistoryFilterCustomerId(o ? o.value : '')}
-                                isClearable placeholder="Filter by customer..." styles={rsStyles} filterOption={filterOption} />
+                                value={historyFilterParty ? { value: historyFilterParty.id, label: historyFilterParty.name } : null}
+                                onChange={o => setHistoryFilterPartyId(o ? o.value : '')}
+                                isClearable placeholder="Filter by party..." styles={rsStyles} filterOption={filterOption} />
                         </div>
-                        {/* Row 2: From / To date pickers + Clear */}
-                        <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-                            {/* From Date */}
-                            <div className="grid flex-1 gap-2">
-                                <Label htmlFor="hist-from-date">From Date</Label>
-                                <Popover open={historyFromDateOpen} onOpenChange={setHistoryFromDateOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            id="hist-from-date"
-                                            variant="outline"
-                                            className={cn('w-full justify-start text-left font-normal select-none h-11', !historyFilterFromDate && 'text-muted-foreground')}
-                                            onFocus={() => { if (!historyFilterFromDate) setHistoryFilterFromDate(new Date()); }}
-                                            onKeyDown={e => handleDateKeyDown(e, historyFilterFromDate, setHistoryFilterFromDate)}
-                                            onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {historyFilterFromDate ? format(historyFilterFromDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar mode="single" selected={historyFilterFromDate}
-                                            onSelect={d => { setHistoryFilterFromDate(d); setHistoryFromDateOpen(false); }}
-                                            initialFocus />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                            {/* To Date */}
-                            <div className="grid flex-1 gap-2">
-                                <Label htmlFor="hist-to-date">To Date</Label>
-                                <Popover open={historyToDateOpen} onOpenChange={setHistoryToDateOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            id="hist-to-date"
-                                            variant="outline"
-                                            className={cn('w-full justify-start text-left font-normal select-none h-11', !historyFilterToDate && 'text-muted-foreground')}
-                                            onFocus={() => { if (!historyFilterToDate) setHistoryFilterToDate(new Date()); }}
-                                            onKeyDown={e => handleDateKeyDown(e, historyFilterToDate, setHistoryFilterToDate)}
-                                            onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {historyFilterToDate ? format(historyFilterToDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar mode="single" selected={historyFilterToDate}
-                                            onSelect={d => { setHistoryFilterToDate(d); setHistoryToDateOpen(false); }}
-                                            initialFocus />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
-                            {/* Clear button */}
-                            <Button variant="ghost" className="h-11 shrink-0" onClick={() => {
-                                setHistoryFilterCustomerId('');
-                                setHistoryFilterFromDate(undefined);
-                                setHistoryFilterToDate(undefined);
-                            }}>
-                                <X className="mr-2 h-4 w-4" /> Clear
-                            </Button>
+                        <div className="grid gap-2">
+                            <Label>Date</Label>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal select-none h-11', !historyFilterDate && 'text-muted-foreground')}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {historyFilterDate ? format(historyFilterDate, 'PPP') : <span>Pick a date</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={historyFilterDate} onSelect={setHistoryFilterDate} />
+                                </PopoverContent>
+                            </Popover>
                         </div>
+                        <Button variant="ghost" onClick={() => { setHistoryFilterPartyId(''); setHistoryFilterDate(undefined); }}>
+                            <X className="mr-2 h-4 w-4" /> Clear
+                        </Button>
                     </div>
 
                     {/* Desktop Table */}
@@ -439,7 +361,7 @@ export default function ReceivedPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Date</TableHead>
-                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Party</TableHead>
                                     <TableHead>Mode</TableHead>
                                     <TableHead>Notes</TableHead>
                                     <TableHead className="text-right">Received Amt</TableHead>
@@ -449,11 +371,11 @@ export default function ReceivedPage() {
                                 {historyPayments.length > 0 ? (
                                     historyPayments.map((p, i) => {
                                         const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                        const cust = customers.find(c => c.id === p.customerId);
+                                        const cust = parties.find(c => c.id === p.partyId);
                                         return (
-                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50" onDoubleClick={() => handleEditClick(p)}>
+                                            <TableRow key={i} className="cursor-pointer hover:bg-muted/50">
                                                 <TableCell>{!isNaN(pDate.getTime()) ? format(pDate, 'dd-MM-yyyy') : '-'}</TableCell>
-                                                <TableCell>{cust?.name_en || p.customerId}</TableCell>
+                                                <TableCell>{cust?.name || p.partyId}</TableCell>
                                                 <TableCell>
                                                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
                                                         {p.paymentMode || 'Cash'}
@@ -476,18 +398,17 @@ export default function ReceivedPage() {
                         {historyPayments.length > 0 ? (
                             historyPayments.map((p, i) => {
                                 const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
-                                const cust = customers.find(c => c.id === p.customerId);
+                                const cust = parties.find(c => c.id === p.partyId);
                                 return (
                                     <div
                                         key={i}
-                                        onDoubleClick={() => handleEditClick(p)}
                                         className="rounded-lg border p-3 shadow-sm bg-card text-card-foreground cursor-pointer active:opacity-70"
                                         style={{ minHeight: '80px', padding: '12px' }}
                                     >
-                                        {/* Top Row: Customer + Date */}
+                                        {/* Top Row: Party + Date */}
                                         <div className="flex justify-between items-start">
                                             <div className="flex flex-col items-start gap-1.5">
-                                                <span className="font-semibold text-sm">{cust?.name_en || p.customerId}</span>
+                                                <span className="font-semibold text-sm">{cust?.name || p.partyId}</span>
                                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{p.paymentMode || 'Cash'}</span>
                                             </div>
                                             <span className="text-xs text-muted-foreground mt-0.5">
@@ -510,14 +431,6 @@ export default function ReceivedPage() {
                             </div>
                         )}
                     </div>
-
-                    {/* ── Total Payments Received (shown only when a date filter is active) ── */}
-                    {isDateFilterActive && historyPayments.length > 0 && (
-                        <div className="mt-4 rounded-lg border-2 border-primary/20 bg-primary/5 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                            <span className="font-bold text-sm text-muted-foreground tracking-wide uppercase">Total Payments Received</span>
-                            <span className="font-mono font-extrabold text-xl text-primary">₹{formatINR(historyTotal)}</span>
-                        </div>
-                    )}
                 </CardContent>
             </Card>
 
@@ -556,7 +469,7 @@ export default function ReceivedPage() {
                                 <SelectTrigger id="edit-payment-mode"><SelectValue placeholder="Select Mode" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Cash">Cash</SelectItem>
-                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                    <SelectItem value="ACC">ACC</SelectItem>
                                     <SelectItem value="UPI">UPI</SelectItem>
                                 </SelectContent>
                             </Select>
