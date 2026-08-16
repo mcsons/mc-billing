@@ -25,6 +25,14 @@ interface CustomerRow {
   balance: number;
 }
 
+interface CurrentBalanceRow {
+  customerId: string;
+  customerName: string;
+  openingBalance: number;
+  currentBalance: number;
+  lastBillDate: string;
+}
+
 type PrintData =
   | {
       type: 'datewise';
@@ -43,6 +51,14 @@ type PrintData =
       totalTaken: number;
       totalEmpty: number;
       finalBalance: number;
+    }
+  | {
+      type: 'currentbalance';
+      entityLabel: string; // 'Customer'
+      generatedDate: string;
+      rows: CurrentBalanceRow[];
+      sumOpening: number;
+      sumCurrent: number;
     };
 
 // ─── Main Content ─────────────────────────────────────────────────────────────
@@ -66,7 +82,7 @@ function BoxReportPrintContent() {
     router.push('/dashboard/box-reports');
   }, [router]);
 
-  // ── Share PDF (same engine as Box Bill) ───────────────────────────────────
+  // ── Share PDF ─────────────────────────────────────────────────────────────
   const handleSharePDF = useCallback(async () => {
     const captureEl = document.getElementById('pdf-area');
     if (!captureEl || !data) return;
@@ -98,15 +114,20 @@ function BoxReportPrintContent() {
 
       const pdfBlob = pdf.output('blob');
 
-      const fileName =
-        data.type === 'datewise'
-          ? `MC_BoxReport_${data.date}.pdf`
-          : `MC_BoxReport_${data.customerName.replace(/[^a-zA-Z0-9]/g, '_')}_${data.fromDate}_${data.toDate}.pdf`;
+      let fileName: string;
+      let waMessage: string;
 
-      const waMessage =
-        data.type === 'datewise'
-          ? `*M.C & SONS FISH COMPANY*\n*Box Bill Report – Date-wise*\n\nDate: ${data.date}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\n\nThank you!`
-          : `*M.C & SONS FISH COMPANY*\n*Box Bill Report – Customer*\n\nCustomer: ${data.customerName}\nPeriod: ${data.fromDate} – ${data.toDate}\nOpening Balance: ${data.openingBalance}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\nFinal Box Balance: ${data.finalBalance}\n\nThank you!`;
+      if (data.type === 'datewise') {
+        fileName = `MC_BoxReport_${data.date}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Box Bill Report – Date-wise*\n\nDate: ${data.date}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\n\nThank you!`;
+      } else if (data.type === 'customer') {
+        fileName = `MC_BoxReport_${data.customerName.replace(/[^a-zA-Z0-9]/g, '_')}_${data.fromDate}_${data.toDate}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Box Bill Report – Customer*\n\nCustomer: ${data.customerName}\nPeriod: ${data.fromDate} – ${data.toDate}\nOpening Balance: ${data.openingBalance}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\nFinal Box Balance: ${data.finalBalance}\n\nThank you!`;
+      } else {
+        // currentbalance
+        fileName = `MC_CustomerBoxBalance_${data.generatedDate}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Customer Box Balance Report*\n\nAs of: ${data.generatedDate}\nTotal Customers: ${data.rows.length}\nSum Opening Balance: ${data.sumOpening}\nSum Current Balance: ${data.sumCurrent}\n\nThank you!`;
+      }
 
       const waUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -151,7 +172,22 @@ function BoxReportPrintContent() {
     );
   }
 
-  // ── Hidden A4 PDF capture area (always white/black, inline styles) ────────
+  // ── Hidden A4 PDF capture area ────────────────────────────────────────────
+  const cellStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
+    padding: '6px 8px',
+    border: '1px solid #ddd',
+    fontFamily: 'monospace',
+    ...extra,
+  });
+  const thStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
+    padding: '6px 8px',
+    border: '1px solid #333',
+    fontSize: '11px',
+    textTransform: 'uppercase',
+    backgroundColor: '#f3f4f6',
+    ...extra,
+  });
+
   const pdfArea = (
     <div
       id="pdf-area"
@@ -184,22 +220,22 @@ function BoxReportPrintContent() {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f3f4f6' }}>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase' }}>Cust ID</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase' }}>Customer Name</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' }}>Boxes Taken</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' }}>Empty Boxes</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'right', textTransform: 'uppercase' }}>Balance</th>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Cust ID</th>
+                <th style={thStyle({ textAlign: 'left' })}>Customer Name</th>
+                <th style={thStyle({ textAlign: 'center' })}>Boxes Taken</th>
+                <th style={thStyle({ textAlign: 'center' })}>Empty Boxes</th>
+                <th style={thStyle({ textAlign: 'right' })}>Balance</th>
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', fontFamily: 'monospace' }}>{row.customerId}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', wordBreak: 'break-word' }}>{row.customerName}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>{row.boxesTaken}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>{row.emptyBoxes}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{row.balance}</td>
+                  <td style={cellStyle()}>{row.customerId}</td>
+                  <td style={cellStyle({ wordBreak: 'break-word' })}>{row.customerName}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.boxesTaken}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.emptyBoxes}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontWeight: 700 })}>{row.balance}</td>
                 </tr>
               ))}
               <tr style={{ borderTop: '2px solid #333', backgroundColor: '#f3f4f6' }}>
@@ -219,7 +255,7 @@ function BoxReportPrintContent() {
             </div>
           </div>
         </>
-      ) : (
+      ) : data.type === 'customer' ? (
         <>
           <div style={{ textAlign: 'center', marginBottom: '12px' }}>
             <div style={{ fontSize: '14px', fontWeight: 700 }}>Customer Box Report</div>
@@ -231,20 +267,20 @@ function BoxReportPrintContent() {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
             <thead>
-              <tr style={{ backgroundColor: '#f3f4f6' }}>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'left', textTransform: 'uppercase' }}>Bill Date</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' }}>Boxes Taken</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'center', textTransform: 'uppercase' }}>Empty Boxes</th>
-                <th style={{ padding: '6px 8px', border: '1px solid #333', fontSize: '11px', textAlign: 'right', textTransform: 'uppercase' }}>Balance</th>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Bill Date</th>
+                <th style={thStyle({ textAlign: 'center' })}>Boxes Taken</th>
+                <th style={thStyle({ textAlign: 'center' })}>Empty Boxes</th>
+                <th style={thStyle({ textAlign: 'right' })}>Balance</th>
               </tr>
             </thead>
             <tbody>
               {data.rows.map((row, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', fontFamily: 'monospace' }}>{row.billDate}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>{row.boxesTaken}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'center', fontFamily: 'monospace', fontWeight: 700 }}>{row.emptyBoxes}</td>
-                  <td style={{ padding: '6px 8px', border: '1px solid #ddd', textAlign: 'right', fontFamily: 'monospace', fontWeight: 700 }}>{row.balance}</td>
+                  <td style={cellStyle()}>{row.billDate}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.boxesTaken}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.emptyBoxes}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontWeight: 700 })}>{row.balance}</td>
                 </tr>
               ))}
             </tbody>
@@ -261,6 +297,53 @@ function BoxReportPrintContent() {
             </div>
           </div>
         </>
+      ) : (
+        /* currentbalance */
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>Customer Box Balance Report</div>
+            <div style={{ fontSize: '12px', color: '#444', marginTop: '2px' }}>As of: {data.generatedDate}</div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Cust ID</th>
+                <th style={thStyle({ textAlign: 'left' })}>Customer Name</th>
+                <th style={thStyle({ textAlign: 'center' })}>Opening Bal</th>
+                <th style={thStyle({ textAlign: 'center' })}>Current Bal</th>
+                <th style={thStyle({ textAlign: 'right' })}>Last Bill Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                  <td style={cellStyle()}>{row.customerId}</td>
+                  <td style={cellStyle({ wordBreak: 'break-word' })}>{row.customerName}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{row.openingBalance}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.currentBalance}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontSize: '11px' })}>{row.lastBillDate}</td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: '2px solid #333', backgroundColor: '#f3f4f6' }}>
+                <td colSpan={2} style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'right', border: '1px solid #333' }}>TOTAL</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.sumOpening}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.sumCurrent}</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #333' }}></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total Customers</span><strong>{data.rows.length}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Sum Opening Balance</span><strong>{data.sumOpening}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #333', paddingTop: '6px', marginTop: '6px' }}>
+              <strong>Sum Current Balance</strong><strong style={{ fontSize: '14px' }}>{data.sumCurrent}</strong>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Footer */}
@@ -270,8 +353,7 @@ function BoxReportPrintContent() {
     </div>
   );
 
-  // ── On-screen preview (uses Tailwind / theme) ─────────────────────────────
-  const isDatewise = data.type === 'datewise';
+  // ── On-screen preview ─────────────────────────────────────────────────────
 
   return (
     <div>
@@ -318,7 +400,7 @@ function BoxReportPrintContent() {
             <div className="text-xs font-bold mt-1 text-muted-foreground">BOX BILL REPORT</div>
           </div>
 
-          {isDatewise && data.type === 'datewise' ? (
+          {data.type === 'datewise' ? (
             <>
               <div className="text-center mb-4">
                 <div className="text-base font-bold">Date-wise Box Report</div>
@@ -421,7 +503,62 @@ function BoxReportPrintContent() {
                 </div>
               </div>
             </>
-          ) : null}
+          ) : (
+            /* currentbalance */
+            <>
+              <div className="text-center mb-4">
+                <div className="text-base font-bold">Customer Box Balance Report</div>
+                <div className="text-sm text-muted-foreground mt-1">As of: {data.generatedDate}</div>
+              </div>
+
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Cust ID</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Customer Name</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Opening Bal</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Current Bal</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase font-bold border-b">Last Bill Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, i) => (
+                      <tr key={i} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
+                        <td className="px-3 py-2 font-mono text-xs border-b">{row.customerId}</td>
+                        <td className="px-3 py-2 border-b whitespace-normal break-words">{row.customerName}</td>
+                        <td className="px-3 py-2 text-center font-mono border-b">{row.openingBalance}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold text-primary border-b">{row.currentBalance}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs border-b">{row.lastBillDate}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/50 border-t-2">
+                      <td colSpan={2} className="px-3 py-2 font-bold text-right text-sm">TOTAL</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm">{data.sumOpening}</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm text-primary">{data.sumCurrent}</td>
+                      <td className="px-3 py-2"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <Separator className="my-4" />
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Customers</span>
+                  <span className="font-mono text-lg font-bold">{data.rows.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Sum Opening Balance</span>
+                  <span className="font-mono text-lg font-bold">{data.sumOpening}</span>
+                </div>
+                <div className="flex justify-between items-center border-t pt-2 mt-1">
+                  <span className="text-base font-bold">Sum Current Balance</span>
+                  <span className="font-mono text-xl font-bold text-primary">{data.sumCurrent}</span>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="mt-8 text-xs italic text-muted-foreground print:text-black">Developed By MC &amp; SONS</div>
         </div>

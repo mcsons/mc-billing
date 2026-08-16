@@ -1,561 +1,608 @@
 'use client';
-import React, { useState, useMemo, useCallback } from 'react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, Search, Share } from 'lucide-react';
-import { format, startOfDay, endOfDay } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { useData } from '@/context/DataContext';
-import { useToast } from '@/hooks/use-toast';
-import ReactSelect from 'react-select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Separator } from '@/components/ui/separator';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { X, Printer, Share2, Loader2 } from 'lucide-react';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DateWiseRow {
-  partyId: string;
-  partyName: string;
+  id: string;       // partyId
+  name: string;     // partyName
   boxesTaken: number;
   emptyBoxes: number;
   balance: number;
 }
 
 interface PartyRow {
-  billId: string;
-  billDate: Date;
+  billId?: string;
+  billDate: string;
   boxesTaken: number;
   emptyBoxes: number;
   balance: number;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function toDate(d: any): Date {
-  if (!d) return new Date(0);
-  if (d?.toDate) return d.toDate();
-  return new Date(d);
+interface CurrentBalanceRow {
+  partyId: string;
+  partyName: string;
+  openingBalance: number;
+  currentBalance: number;
+  lastBillDate: string;
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-export default function PartyBoxReportsPage() {
-  const { parties, partyBoxBills, partyOpeningBoxBalances } = useData();
-  const { toast } = useToast();
-
-  // ── Shared ReactSelect Styles ────────────────────────────────────────────
-  const reactSelectStyles = {
-    container: (b: any) => ({ ...b, width: '100%' }),
-    control: (b: any, s: any) => ({
-      ...b,
-      backgroundColor: 'hsl(var(--background))',
-      borderColor: s.isFocused ? 'hsl(var(--ring))' : 'hsl(var(--input))',
-      boxShadow: s.isFocused ? `0 0 0 1px hsl(var(--ring))` : 'none',
-      minHeight: '44px',
-      '&:hover': { borderColor: 'hsl(var(--ring))' },
-    }),
-    menu: (b: any) => ({ ...b, backgroundColor: 'hsl(var(--card))', zIndex: 50 }),
-    option: (b: any, s: any) => ({
-      ...b,
-      backgroundColor: s.isSelected ? 'hsl(var(--accent))' : s.isFocused ? 'hsl(var(--muted))' : 'transparent',
-      color: s.isSelected ? 'hsl(var(--accent-foreground))' : 'hsl(var(--foreground))',
-      '&:active': { backgroundColor: 'hsl(var(--accent))' },
-    }),
-    singleValue: (b: any) => ({ ...b, color: 'hsl(var(--foreground))' }),
-    input: (b: any) => ({ ...b, color: 'hsl(var(--foreground))' }),
-    placeholder: (b: any) => ({ ...b, color: 'hsl(var(--muted-foreground))' }),
-  };
-
-  const partyOptions = useMemo(() =>
-    (parties || []).map((p) => ({ value: p.id, label: `${p.name} (${p.location || p.id})` })),
-  [parties]);
-
-  // ══════════════════════════════════════════════════════════════════════════
-  //  LEFT – DATE-WISE REPORT
-  // ══════════════════════════════════════════════════════════════════════════
-
-  const [dateWiseDate, setDateWiseDate] = useState<Date | undefined>(new Date());
-  const [dateWiseRows, setDateWiseRows] = useState<DateWiseRow[] | null>(null);
-  const [dateWiseSearched, setDateWiseSearched] = useState(false);
-
-  const handleDateWiseSearch = useCallback(() => {
-    if (!dateWiseDate) {
-      toast({ variant: 'destructive', title: 'Select a date first' });
-      return;
+type PrintData =
+  | {
+      type: 'datewise';
+      entityLabel: string; // 'Party'
+      date: string;
+      rows: DateWiseRow[];
+      totalTaken: number;
+      totalEmpty: number;
     }
-    const dayStart = startOfDay(dateWiseDate);
-    const dayEnd = endOfDay(dateWiseDate);
-
-    const billsOnDate = partyBoxBills.filter((b) => {
-      const bd = toDate(b.billDate);
-      return bd >= dayStart && bd <= dayEnd;
-    });
-
-    const rows: DateWiseRow[] = billsOnDate.map((b) => {
-      const party = (parties || []).find((p) => p.id === b.partyId);
-      return {
-        partyId: b.partyId,
-        partyName: party ? `${party.name} (${party.location || party.id})` : b.partyName || b.partyId,
-        boxesTaken: b.todaysFishBox || 0,
-        emptyBoxes: b.emptyBox || 0,
-        balance: b.balanceBox || 0,
-      };
-    });
-
-    rows.sort((a, b) => a.partyName.localeCompare(b.partyName));
-    setDateWiseRows(rows);
-    setDateWiseSearched(true);
-  }, [dateWiseDate, partyBoxBills, parties, toast]);
-
-  const dateWiseTotalTaken = useMemo(
-    () => (dateWiseRows || []).reduce((s, r) => s + r.boxesTaken, 0),
-    [dateWiseRows],
-  );
-  const dateWiseTotalEmpty = useMemo(
-    () => (dateWiseRows || []).reduce((s, r) => s + r.emptyBoxes, 0),
-    [dateWiseRows],
-  );
-
-  const handleDateWiseSharePDF = useCallback(() => {
-    if (!dateWiseRows || dateWiseRows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Search first to generate report.' });
-      return;
+  | {
+      type: 'party';
+      entityLabel: string; // 'Party'
+      partyName: string;
+      fromDate: string;
+      toDate: string;
+      openingBalance: number;
+      rows: PartyRow[];
+      totalTaken: number;
+      totalEmpty: number;
+      finalBalance: number;
     }
-    const printData = {
-      type: 'datewise',
-      entityLabel: 'Party',
-      date: dateWiseDate ? format(dateWiseDate, 'dd-MM-yyyy') : '',
-      rows: dateWiseRows.map((r) => ({
-        id: r.partyId,
-        name: r.partyName,
-        boxesTaken: r.boxesTaken,
-        emptyBoxes: r.emptyBoxes,
-        balance: r.balance,
-      })),
-      totalTaken: dateWiseTotalTaken,
-      totalEmpty: dateWiseTotalEmpty,
+  | {
+      type: 'currentbalance';
+      entityLabel: string; // 'Party'
+      generatedDate: string;
+      rows: CurrentBalanceRow[];
+      sumOpening: number;
+      sumCurrent: number;
     };
-    sessionStorage.setItem('partyBoxReportPrintData', JSON.stringify(printData));
-    window.open('/print/party-box-report', '_blank');
-  }, [dateWiseRows, dateWiseDate, dateWiseTotalTaken, dateWiseTotalEmpty, toast]);
 
-  // ══════════════════════════════════════════════════════════════════════════
-  //  RIGHT – PARTY REPORT
-  // ══════════════════════════════════════════════════════════════════════════
+// ─── Main Content ─────────────────────────────────────────────────────────────
 
-  const [partyId, setPartyId] = useState('');
-  const [partyFrom, setPartyFrom] = useState<Date | undefined>(undefined);
-  const [partyTo, setPartyTo] = useState<Date | undefined>(undefined);
-  const [partyRows, setPartyRows] = useState<PartyRow[] | null>(null);
-  const [partySearched, setPartySearched] = useState(false);
-  const [partyOpeningBalance, setPartyOpeningBalance] = useState(0);
+function PartyBoxReportPrintContent() {
+  const router = useRouter();
+  const [data, setData] = useState<PrintData | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
-  /** Opening balance = balance before the range starts */
-  const computeOpeningBalanceBeforeRange = useCallback(
-    (pid: string, fromDate: Date): number => {
-      const rangeStart = startOfDay(fromDate);
-      const priorBills = partyBoxBills
-        .filter((b) => {
-          if (b.partyId !== pid) return false;
-          const bd = toDate(b.billDate);
-          return bd < rangeStart;
-        })
-        .sort((a, b) => toDate(b.billDate).getTime() - toDate(a.billDate).getTime());
-
-      if (priorBills.length > 0) return priorBills[0].balanceBox;
-      return partyOpeningBoxBalances[pid] || 0;
-    },
-    [partyBoxBills, partyOpeningBoxBalances],
-  );
-
-  const handlePartySearch = useCallback(() => {
-    if (!partyId) {
-      toast({ variant: 'destructive', title: 'Select a party first' });
-      return;
+  useEffect(() => {
+    const raw = sessionStorage.getItem('partyBoxReportPrintData');
+    if (raw) {
+      try {
+        setData(JSON.parse(raw));
+        return;
+      } catch (err) {
+        console.error('Failed to parse party box report data', err);
+      }
     }
-    if (!partyFrom || !partyTo) {
-      toast({ variant: 'destructive', title: 'Select From and To dates' });
-      return;
+    router.push('/dashboard/party-box-reports');
+  }, [router]);
+
+  // ── Share PDF ─────────────────────────────────────────────────────────────
+  const handleSharePDF = useCallback(async () => {
+    const captureEl = document.getElementById('pdf-area');
+    if (!captureEl || !data) return;
+    setIsSharing(true);
+    setShareError(null);
+    try {
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
+
+      const canvas = await html2canvas(captureEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: captureEl.scrollWidth,
+        windowHeight: captureEl.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = pageWidth * (canvas.height / canvas.width);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+
+      const pdfBlob = pdf.output('blob');
+
+      let fileName: string;
+      let waMessage: string;
+
+      if (data.type === 'datewise') {
+        fileName = `MC_PartyBoxReport_${data.date}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Party Box Bill Report – Date-wise*\n\nDate: ${data.date}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\n\nThank you!`;
+      } else if (data.type === 'party') {
+        fileName = `MC_PartyBoxReport_${data.partyName.replace(/[^a-zA-Z0-9]/g, '_')}_${data.fromDate}_${data.toDate}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Party Box Bill Report*\n\nParty: ${data.partyName}\nPeriod: ${data.fromDate} – ${data.toDate}\nOpening Balance: ${data.openingBalance}\nTotal Boxes Taken: ${data.totalTaken}\nTotal Empty Boxes: ${data.totalEmpty}\nFinal Box Balance: ${data.finalBalance}\n\nThank you!`;
+      } else {
+        // currentbalance
+        fileName = `MC_PartyBoxBalance_${data.generatedDate}.pdf`;
+        waMessage = `*M.C & SONS FISH COMPANY*\n*Party Box Balance Report*\n\nAs of: ${data.generatedDate}\nTotal Parties: ${data.rows.length}\nSum Opening Balance: ${data.sumOpening}\nSum Current Balance: ${data.sumCurrent}\n\nThank you!`;
+      }
+
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      let sharedViaWebShare = false;
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          await navigator.share({ title: 'MC Party Box Report', text: waMessage, files: [file] });
+          sharedViaWebShare = true;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') return;
+          console.warn('Web Share API failed, using fallback:', shareErr);
+        }
+      }
+
+      if (!sharedViaWebShare) {
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => { URL.revokeObjectURL(url); window.open(waUrl, '_blank'); }, 400);
+        setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Share PDF failed:', err);
+        setShareError('Could not generate PDF. Please try printing instead.');
+      }
+    } finally {
+      setIsSharing(false);
     }
+  }, [data]);
 
-    const from = startOfDay(partyFrom);
-    const to = endOfDay(partyTo);
+  if (!data) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p className="text-muted-foreground">Loading report...</p>
+      </div>
+    );
+  }
 
-    const billsInRange = partyBoxBills
-      .filter((b) => {
-        if (b.partyId !== partyId) return false;
-        const bd = toDate(b.billDate);
-        return bd >= from && bd <= to;
-      })
-      .sort((a, b) => toDate(a.billDate).getTime() - toDate(b.billDate).getTime());
+  // ── Shared inline style helpers ───────────────────────────────────────────
+  const cellStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
+    padding: '6px 8px',
+    border: '1px solid #ddd',
+    fontFamily: 'monospace',
+    ...extra,
+  });
+  const thStyle = (extra?: React.CSSProperties): React.CSSProperties => ({
+    padding: '6px 8px',
+    border: '1px solid #333',
+    fontSize: '11px',
+    textTransform: 'uppercase',
+    backgroundColor: '#f3f4f6',
+    ...extra,
+  });
 
-    const rows: PartyRow[] = billsInRange.map((b) => ({
-      billId: b.id,
-      billDate: toDate(b.billDate),
-      boxesTaken: b.todaysFishBox || 0,
-      emptyBoxes: b.emptyBox || 0,
-      balance: b.balanceBox || 0,
-    }));
-
-    const openingBal = computeOpeningBalanceBeforeRange(partyId, partyFrom);
-    setPartyOpeningBalance(openingBal);
-    setPartyRows(rows);
-    setPartySearched(true);
-  }, [partyId, partyFrom, partyTo, partyBoxBills, computeOpeningBalanceBeforeRange, toast]);
-
-  const partyTotalTaken = useMemo(
-    () => (partyRows || []).reduce((s, r) => s + r.boxesTaken, 0),
-    [partyRows],
-  );
-  const partyTotalEmpty = useMemo(
-    () => (partyRows || []).reduce((s, r) => s + r.emptyBoxes, 0),
-    [partyRows],
-  );
-  const partyFinalBalance = useMemo(
-    () => (partyRows && partyRows.length > 0 ? partyRows[partyRows.length - 1].balance : partyOpeningBalance),
-    [partyRows, partyOpeningBalance],
-  );
-
-  const handlePartySharePDF = useCallback(() => {
-    if (!partyRows || partyRows.length === 0) {
-      toast({ variant: 'destructive', title: 'No data', description: 'Search first to generate report.' });
-      return;
-    }
-    const party = (parties || []).find((p) => p.id === partyId);
-    const printData = {
-      type: 'party',
-      entityLabel: 'Party',
-      partyName: party ? `${party.name} (${party.location || party.id})` : partyId,
-      fromDate: partyFrom ? format(partyFrom, 'dd-MM-yyyy') : '',
-      toDate: partyTo ? format(partyTo, 'dd-MM-yyyy') : '',
-      openingBalance: partyOpeningBalance,
-      rows: partyRows.map((r) => ({ ...r, billDate: format(r.billDate, 'dd-MM-yyyy') })),
-      totalTaken: partyTotalTaken,
-      totalEmpty: partyTotalEmpty,
-      finalBalance: partyFinalBalance,
-    };
-    sessionStorage.setItem('partyBoxReportPrintData', JSON.stringify(printData));
-    window.open('/print/party-box-report', '_blank');
-  }, [partyRows, parties, partyId, partyFrom, partyTo, partyOpeningBalance, partyTotalTaken, partyTotalEmpty, partyFinalBalance, toast]);
-
-  // ─── Calendar popup component ─────────────────────────────────────────────
-  const DatePicker = ({
-    value,
-    onChange,
-    placeholder,
-  }: {
-    value: Date | undefined;
-    onChange: (d: Date | undefined) => void;
-    placeholder?: string;
-  }) => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn('w-full justify-start text-left font-normal h-[44px]', !value && 'text-muted-foreground')}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, 'dd-MM-yyyy') : <span>{placeholder || 'Pick a date'}</span>}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
-        <Calendar mode="single" selected={value} onSelect={onChange} initialFocus />
-      </PopoverContent>
-    </Popover>
-  );
-
-  // ─── Render ───────────────────────────────────────────────────────────────
-
-  return (
-    <div className="flex flex-col gap-6 pb-8 w-full max-w-full overflow-x-hidden">
-      <div>
-        <h1 className="text-2xl font-headline font-bold text-foreground">Party Box Reports</h1>
-        <p className="text-muted-foreground text-sm mt-1">Generate date-wise and party-specific box bill reports.</p>
+  // ── Hidden A4 PDF capture area ────────────────────────────────────────────
+  const pdfArea = (
+    <div
+      id="pdf-area"
+      style={{
+        position: 'fixed',
+        left: '-9999px',
+        top: 0,
+        width: '480px',
+        background: '#fff',
+        color: '#000',
+        fontFamily: '"Calibri", "Arial", sans-serif',
+        fontSize: '12px',
+        boxSizing: 'border-box',
+        padding: '20px',
+      }}
+    >
+      {/* Company header */}
+      <div style={{ textAlign: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '2px solid #000' }}>
+        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1E40AF', marginBottom: '4px' }}>
+          M.C &amp; SONS FISH COMPANY
+        </div>
+        <div style={{ fontSize: '12px', fontWeight: 700 }}>PARTY BOX BILL REPORT</div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* ═══════════════════════════ LEFT – DATE-WISE ════════════════════════ */}
-        <Card className="section-box flex flex-col">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-headline text-lg">Date-wise Reports</CardTitle>
-            <CardDescription>View all party box bills for a selected date.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {/* Controls */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="grid gap-1.5 flex-1">
-                <Label>Date</Label>
-                <DatePicker value={dateWiseDate} onChange={setDateWiseDate} />
-              </div>
-              <Button onClick={handleDateWiseSearch} className="h-[44px] sm:w-auto w-full">
-                <Search className="mr-2 h-4 w-4" /> Search
-              </Button>
+      {data.type === 'datewise' ? (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>Date-wise Party Box Report</div>
+            <div style={{ fontSize: '12px', color: '#444', marginTop: '2px' }}>Date: {data.date}</div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Party ID</th>
+                <th style={thStyle({ textAlign: 'left' })}>Party Name</th>
+                <th style={thStyle({ textAlign: 'center' })}>Boxes Taken</th>
+                <th style={thStyle({ textAlign: 'center' })}>Empty Boxes</th>
+                <th style={thStyle({ textAlign: 'right' })}>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                  <td style={cellStyle()}>{row.id}</td>
+                  <td style={cellStyle({ wordBreak: 'break-word' })}>{row.name}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.boxesTaken}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.emptyBoxes}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontWeight: 700 })}>{row.balance}</td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: '2px solid #333', backgroundColor: '#f3f4f6' }}>
+                <td colSpan={2} style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'right', border: '1px solid #333' }}>TOTAL</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.totalTaken}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.totalEmpty}</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #333' }}>—</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total Boxes Taken</span><strong>{data.totalTaken}</strong>
             </div>
-
-            {/* Results */}
-            {dateWiseSearched && dateWiseRows !== null && (
-              <>
-                {/* Desktop Table */}
-                <div className="hidden md:block overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="font-bold text-xs uppercase">Party ID</TableHead>
-                        <TableHead className="font-bold text-xs uppercase">Party Name</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-center">Boxes Taken</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-center">Empty Boxes</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-right">Balance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dateWiseRows.length > 0 ? (
-                        dateWiseRows.map((row) => (
-                          <TableRow key={row.partyId}>
-                            <TableCell className="font-mono text-xs">{row.partyId}</TableCell>
-                            <TableCell className="whitespace-normal break-words">{row.partyName}</TableCell>
-                            <TableCell className="text-center font-mono text-base font-bold">{row.boxesTaken}</TableCell>
-                            <TableCell className="text-center font-mono text-base font-bold">{row.emptyBoxes}</TableCell>
-                            <TableCell className="text-right font-mono text-base font-bold text-primary">{row.balance}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
-                            No bills found for {dateWiseDate ? format(dateWiseDate, 'dd-MM-yyyy') : 'selected date'}.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="block md:hidden space-y-2">
-                  {dateWiseRows.length > 0 ? (
-                    dateWiseRows.map((row) => (
-                      <div key={row.partyId} className="rounded-lg border p-3 bg-card">
-                        <div className="flex justify-between items-start mb-2">
-                          <span className="font-semibold text-sm whitespace-normal break-words flex-1 pr-2">{row.partyName}</span>
-                          <span className="text-xs text-muted-foreground font-mono">{row.partyId}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 text-sm">
-                          <div className="text-center">
-                            <span className="text-xs text-muted-foreground block">Taken</span>
-                            <span className="font-mono font-semibold">{row.boxesTaken}</span>
-                          </div>
-                          <div className="text-center">
-                            <span className="text-xs text-muted-foreground block">Empty</span>
-                            <span className="font-mono">{row.emptyBoxes}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs text-muted-foreground block">Balance</span>
-                            <span className="font-mono font-bold text-primary">{row.balance}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-16 flex items-center justify-center text-sm text-muted-foreground border rounded-lg">
-                      No bills found.
-                    </div>
-                  )}
-                </div>
-
-                {/* Totals */}
-                {dateWiseRows.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-base font-semibold text-muted-foreground">Total Boxes Taken</span>
-                        <span className="font-mono text-lg font-bold">{dateWiseTotalTaken}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-base font-semibold text-muted-foreground">Total Empty Boxes</span>
-                        <span className="font-mono text-lg font-bold">{dateWiseTotalEmpty}</span>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      onClick={handleDateWiseSharePDF}
-                      className="w-full border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
-                    >
-                      <Share className="mr-2 h-4 w-4" /> Share (PDF)
-                    </Button>
-                  </>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ══════════════════════════ RIGHT – PARTY ═════════════════════════════ */}
-        <Card className="section-box flex flex-col">
-          <CardHeader className="pb-3">
-            <CardTitle className="font-headline text-lg">Party Reports</CardTitle>
-            <CardDescription>View box bills for a party within a date range.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {/* Controls */}
-            <div className="grid gap-3">
-              <div className="grid gap-1.5">
-                <Label>Party</Label>
-                <ReactSelect
-                  instanceId="party-report-select"
-                  placeholder="Select party..."
-                  isClearable
-                  options={partyOptions}
-                  value={partyOptions.find((o) => o.value === partyId) || null}
-                  onChange={(opt) => { setPartyId(opt ? opt.value : ''); setPartyRows(null); setPartySearched(false); }}
-                  styles={reactSelectStyles}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>From</Label>
-                  <DatePicker value={partyFrom} onChange={setPartyFrom} placeholder="From date" />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label>To</Label>
-                  <DatePicker value={partyTo} onChange={setPartyTo} placeholder="To date" />
-                </div>
-              </div>
-              <Button onClick={handlePartySearch} className="h-[44px] w-full">
-                <Search className="mr-2 h-4 w-4" /> Search
-              </Button>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>Total Empty Boxes</span><strong>{data.totalEmpty}</strong>
             </div>
+          </div>
+        </>
+      ) : data.type === 'party' ? (
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>Party Box Report</div>
+            <div style={{ fontSize: '12px', color: '#444', marginTop: '2px' }}>{data.partyName}</div>
+            <div style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>{data.fromDate} — {data.toDate}</div>
+          </div>
+          <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#f3f4f6', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', fontSize: '12px', border: '1px solid #e5e7eb' }}>
+            <span>Opening Balance</span><strong>{data.openingBalance}</strong>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Bill Date</th>
+                <th style={thStyle({ textAlign: 'center' })}>Boxes Taken</th>
+                <th style={thStyle({ textAlign: 'center' })}>Empty Boxes</th>
+                <th style={thStyle({ textAlign: 'right' })}>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                  <td style={cellStyle()}>{row.billDate}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.boxesTaken}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.emptyBoxes}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontWeight: 700 })}>{row.balance}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total Boxes Taken</span><strong>{data.totalTaken}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total Empty Boxes</span><strong>{data.totalEmpty}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #333', paddingTop: '6px', marginTop: '6px' }}>
+              <strong>Final Box Balance</strong><strong style={{ fontSize: '14px' }}>{data.finalBalance}</strong>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* currentbalance */
+        <>
+          <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>Party Box Balance Report</div>
+            <div style={{ fontSize: '12px', color: '#444', marginTop: '2px' }}>As of: {data.generatedDate}</div>
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #333' }}>
+            <thead>
+              <tr>
+                <th style={thStyle({ textAlign: 'left' })}>Party ID</th>
+                <th style={thStyle({ textAlign: 'left' })}>Party Name</th>
+                <th style={thStyle({ textAlign: 'center' })}>Opening Bal</th>
+                <th style={thStyle({ textAlign: 'center' })}>Current Bal</th>
+                <th style={thStyle({ textAlign: 'right' })}>Last Bill Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rows.map((row, i) => (
+                <tr key={i} style={{ backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                  <td style={cellStyle()}>{row.partyId}</td>
+                  <td style={cellStyle({ wordBreak: 'break-word' })}>{row.partyName}</td>
+                  <td style={cellStyle({ textAlign: 'center' })}>{row.openingBalance}</td>
+                  <td style={cellStyle({ textAlign: 'center', fontWeight: 700 })}>{row.currentBalance}</td>
+                  <td style={cellStyle({ textAlign: 'right', fontSize: '11px' })}>{row.lastBillDate}</td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: '2px solid #333', backgroundColor: '#f3f4f6' }}>
+                <td colSpan={2} style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'right', border: '1px solid #333' }}>TOTAL</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.sumOpening}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, textAlign: 'center', fontFamily: 'monospace', border: '1px solid #333' }}>{data.sumCurrent}</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #333' }}></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style={{ marginTop: '12px', fontSize: '12px', borderTop: '1px solid #e5e7eb', paddingTop: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Total Parties</span><strong>{data.rows.length}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+              <span>Sum Opening Balance</span><strong>{data.sumOpening}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #333', paddingTop: '6px', marginTop: '6px' }}>
+              <strong>Sum Current Balance</strong><strong style={{ fontSize: '14px' }}>{data.sumCurrent}</strong>
+            </div>
+          </div>
+        </>
+      )}
 
-            {/* Results */}
-            {partySearched && partyRows !== null && (
-              <>
-                {/* Opening Balance */}
-                <div className="rounded-md bg-muted/50 border px-3 py-2 text-sm flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Opening Balance</span>
-                  <span className="font-mono font-bold text-base">{partyOpeningBalance}</span>
-                </div>
-
-                {/* Desktop Table */}
-                <div className="hidden md:block overflow-x-auto rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="font-bold text-xs uppercase">Bill Date</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-center">Boxes Taken</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-center">Empty Boxes</TableHead>
-                        <TableHead className="font-bold text-xs uppercase text-right">Balance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {partyRows.length > 0 ? (
-                        partyRows.map((row) => (
-                          <TableRow key={row.billId}>
-                            <TableCell className="font-mono text-base font-bold">{format(row.billDate, 'dd-MM-yyyy')}</TableCell>
-                            <TableCell className="text-center font-mono text-base font-bold">{row.boxesTaken}</TableCell>
-                            <TableCell className="text-center font-mono text-base font-bold">{row.emptyBoxes}</TableCell>
-                            <TableCell className="text-right font-mono text-base font-bold text-primary">{row.balance}</TableCell>
-                          </TableRow>
-                        ))
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={4} className="h-20 text-center text-muted-foreground">
-                            No bills found in the selected range.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Mobile Cards */}
-                <div className="block md:hidden space-y-2">
-                  {partyRows.length > 0 ? (
-                    partyRows.map((row) => (
-                      <div key={row.billId} className="rounded-lg border p-3 bg-card">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-semibold font-mono">{format(row.billDate, 'dd-MM-yyyy')}</span>
-                          <span className="font-mono font-bold text-primary">{row.balance}</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-xs text-muted-foreground block">Boxes Taken</span>
-                            <span className="font-mono">{row.boxesTaken}</span>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-xs text-muted-foreground block">Empty Boxes</span>
-                            <span className="font-mono">{row.emptyBoxes}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="h-16 flex items-center justify-center text-sm text-muted-foreground border rounded-lg">
-                      No bills found.
-                    </div>
-                  )}
-                </div>
-
-                {/* Totals */}
-                {partyRows.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-base font-semibold text-muted-foreground">Total Boxes Taken</span>
-                        <span className="font-mono text-lg font-bold">{partyTotalTaken}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-base font-semibold text-muted-foreground">Total Empty Boxes</span>
-                        <span className="font-mono text-lg font-bold">{partyTotalEmpty}</span>
-                      </div>
-                      <div className="flex justify-between items-center border-t pt-2 mt-1">
-                        <span className="text-base font-bold">Final Box Balance</span>
-                        <span className="font-mono text-xl font-bold text-primary">{partyFinalBalance}</span>
-                      </div>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      onClick={handlePartySharePDF}
-                      className="w-full border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
-                    >
-                      <Share className="mr-2 h-4 w-4" /> Share (PDF)
-                    </Button>
-                  </>
-                )}
-
-                {partySearched && partyRows.length === 0 && (
-                  <div className="h-16 flex items-center justify-center text-sm text-muted-foreground border rounded-lg">
-                    No bills found in the selected range.
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
+      {/* Footer */}
+      <div style={{ marginTop: '24px', fontSize: '10px', fontStyle: 'italic', fontWeight: 700 }}>
+        Developed By MC &amp; SONS
       </div>
     </div>
+  );
+
+  // ── On-screen preview ─────────────────────────────────────────────────────
+
+  return (
+    <div>
+      {/* Share error banner */}
+      {shareError && (
+        <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
+          {shareError}
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="p-4 print:hidden flex justify-between items-center gap-2 border-b"
+        style={{ backgroundColor: 'hsl(215 28% 17%)', borderColor: 'hsl(215 28% 22%)' }}>
+        <Button variant="outline" onClick={() => window.close()}
+          style={{ borderColor: 'hsl(215 20% 45%)', color: '#e2e8f0', backgroundColor: 'transparent' }}
+          className="hover:bg-slate-700">
+          <X className="mr-2 h-4 w-4" /> Close
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            style={{ borderColor: '#16a34a', color: '#4ade80', backgroundColor: 'transparent' }}
+            className="hover:bg-green-950"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
+          </Button>
+          <Button onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" /> Print
+          </Button>
+        </div>
+      </div>
+
+      {/* On-screen preview card */}
+      <div className="max-w-2xl mx-auto px-4 py-6 print:px-0 print:py-0">
+        <div id="print-area" className="bg-background text-foreground rounded-lg border p-6 print:border-none print:p-0">
+
+          {/* Company header */}
+          <div className="text-center mb-5 pb-4 border-b">
+            <div className="text-xl font-extrabold text-blue-700 dark:text-blue-400">M.C &amp; SONS FISH COMPANY</div>
+            <div className="text-xs font-bold mt-1 text-muted-foreground">PARTY BOX BILL REPORT</div>
+          </div>
+
+          {data.type === 'datewise' ? (
+            <>
+              <div className="text-center mb-4">
+                <div className="text-base font-bold">Date-wise Party Box Report</div>
+                <div className="text-sm text-muted-foreground mt-1">Date: {data.date}</div>
+              </div>
+
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Party ID</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Party Name</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Boxes Taken</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Empty Boxes</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase font-bold border-b">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, i) => (
+                      <tr key={i} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
+                        <td className="px-3 py-2 font-mono text-xs border-b">{row.id}</td>
+                        <td className="px-3 py-2 border-b whitespace-normal break-words">{row.name}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold border-b">{row.boxesTaken}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold border-b">{row.emptyBoxes}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-primary border-b">{row.balance}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/50 border-t-2">
+                      <td colSpan={2} className="px-3 py-2 font-bold text-right text-sm">TOTAL</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm">{data.totalTaken}</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm">{data.totalEmpty}</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <Separator className="my-4" />
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Boxes Taken</span>
+                  <span className="font-mono text-lg font-bold">{data.totalTaken}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Empty Boxes</span>
+                  <span className="font-mono text-lg font-bold">{data.totalEmpty}</span>
+                </div>
+              </div>
+            </>
+          ) : data.type === 'party' ? (
+            <>
+              <div className="text-center mb-4">
+                <div className="text-base font-bold">Party Box Report</div>
+                <div className="text-sm text-muted-foreground mt-1">{data.partyName}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{data.fromDate} — {data.toDate}</div>
+              </div>
+
+              {/* Opening balance */}
+              <div className="rounded-md bg-muted/50 border px-3 py-2 text-sm flex justify-between items-center mb-3">
+                <span className="text-muted-foreground font-medium">Opening Balance</span>
+                <span className="font-mono font-bold text-base">{data.openingBalance}</span>
+              </div>
+
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Bill Date</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Boxes Taken</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Empty Boxes</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase font-bold border-b">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, i) => (
+                      <tr key={i} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
+                        <td className="px-3 py-2 font-mono font-bold border-b">{row.billDate}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold border-b">{row.boxesTaken}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold border-b">{row.emptyBoxes}</td>
+                        <td className="px-3 py-2 text-right font-mono font-bold text-primary border-b">{row.balance}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <Separator className="my-4" />
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Boxes Taken</span>
+                  <span className="font-mono text-lg font-bold">{data.totalTaken}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Empty Boxes</span>
+                  <span className="font-mono text-lg font-bold">{data.totalEmpty}</span>
+                </div>
+                <div className="flex justify-between items-center border-t pt-2 mt-1">
+                  <span className="text-base font-bold">Final Box Balance</span>
+                  <span className="font-mono text-xl font-bold text-primary">{data.finalBalance}</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            /* currentbalance */
+            <>
+              <div className="text-center mb-4">
+                <div className="text-base font-bold">Party Box Balance Report</div>
+                <div className="text-sm text-muted-foreground mt-1">As of: {data.generatedDate}</div>
+              </div>
+
+              <div className="overflow-x-auto rounded border">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Party ID</th>
+                      <th className="px-3 py-2 text-left text-xs uppercase font-bold border-b">Party Name</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Opening Bal</th>
+                      <th className="px-3 py-2 text-center text-xs uppercase font-bold border-b">Current Bal</th>
+                      <th className="px-3 py-2 text-right text-xs uppercase font-bold border-b">Last Bill Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.rows.map((row, i) => (
+                      <tr key={i} className={i % 2 === 0 ? '' : 'bg-muted/20'}>
+                        <td className="px-3 py-2 font-mono text-xs border-b">{row.partyId}</td>
+                        <td className="px-3 py-2 border-b whitespace-normal break-words">{row.partyName}</td>
+                        <td className="px-3 py-2 text-center font-mono border-b">{row.openingBalance}</td>
+                        <td className="px-3 py-2 text-center font-mono font-bold text-primary border-b">{row.currentBalance}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs border-b">{row.lastBillDate}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/50 border-t-2">
+                      <td colSpan={2} className="px-3 py-2 font-bold text-right text-sm">TOTAL</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm">{data.sumOpening}</td>
+                      <td className="px-3 py-2 text-center font-mono font-bold text-sm text-primary">{data.sumCurrent}</td>
+                      <td className="px-3 py-2"></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <Separator className="my-4" />
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Total Parties</span>
+                  <span className="font-mono text-lg font-bold">{data.rows.length}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-base font-semibold text-muted-foreground">Sum Opening Balance</span>
+                  <span className="font-mono text-lg font-bold">{data.sumOpening}</span>
+                </div>
+                <div className="flex justify-between items-center border-t pt-2 mt-1">
+                  <span className="text-base font-bold">Sum Current Balance</span>
+                  <span className="font-mono text-xl font-bold text-primary">{data.sumCurrent}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="mt-8 text-xs italic text-muted-foreground print:text-black">Developed By MC &amp; SONS</div>
+        </div>
+
+        {/* Bottom Share + Print */}
+        <div className="print:hidden flex justify-end gap-3 mt-4">
+          <Button
+            variant="outline"
+            onClick={handleSharePDF}
+            disabled={isSharing}
+            className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+          >
+            {isSharing
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
+          </Button>
+          <Button size="lg" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" /> Print
+          </Button>
+        </div>
+      </div>
+
+      {/* Hidden pdf-area for html2canvas capture */}
+      {pdfArea}
+
+      <style>{`
+        @media print {
+          * { color: #000 !important; -webkit-print-color-adjust: exact; }
+          html, body { margin: 0 !important; padding: 0 !important; background: white !important; }
+          #print-area { margin: 0 !important; border: none !important; border-radius: 0 !important; }
+          .print\\:hidden { display: none !important; }
+          @page { size: A4; margin: 12mm; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default function PartyBoxReportPrintPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading Preview...</div>}>
+      <PartyBoxReportPrintContent />
+    </Suspense>
   );
 }

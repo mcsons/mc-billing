@@ -25,12 +25,14 @@ import { Customer } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
 export default function CustomersPage() {
-  const { customers, deleteCustomer } = useData();
+  const { customers, deleteCustomer, currentUser } = useData();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const showAlertDialog = useAlertDialog();
+
+  const canDelete = currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
 
   const handleEdit = (customer: Customer) => {
     setCustomerToEdit(customer);
@@ -118,16 +120,18 @@ export default function CustomersPage() {
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit customer</span>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() =>
-                          handleDelete(customer.id, customer.name_en)
-                        }
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                        <span className="sr-only">Delete customer</span>
-                      </Button>
+                      {canDelete && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() =>
+                            handleDelete(customer.id, customer.name_en)
+                          }
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <span className="sr-only">Delete customer</span>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

@@ -498,7 +498,11 @@ export default function BillingPage() {
     };
 
     initializeSession();
-  }, [selectedCustomerId, date, searchParams, customerBalances, getBill, findBillForCustomerOnDate, firestore]);
+  // customerBalances intentionally omitted: the lastSessionKeyRef guard already
+  // prevents re-initialization when only balances change, and the async closure
+  // captures the current value at the time initializeSession() is called.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomerId, date, searchParams, getBill, findBillForCustomerOnDate, firestore]);
 
   // ── Realtime concurrent-user listener ──────────────────────────────────
   // Subscribes to billItems of the active bill and merges any external
@@ -1007,9 +1011,10 @@ export default function BillingPage() {
     setLoading(false);
     if (!savedData) return;
     // Open the A4 print page with share=pdf flag — it auto-triggers the Web Share API
+    // NOTE: intentionally NOT calling performReset() — sharing is read-only,
+    // the user should be able to continue editing the same bill after sharing.
     sessionStorage.setItem('billPrintData', JSON.stringify(savedData));
     window.open(`/print/bill?paper=a4&share=pdf`, '_blank');
-    performReset();
   };
 
   const handlePrintModalAction = async (action: string) => {

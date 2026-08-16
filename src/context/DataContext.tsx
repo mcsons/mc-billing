@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import {
   Customer,
@@ -527,6 +527,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, {} as Record<string, number>);
   }, [partyBalancesData]);
   
+  // ── Dashboard stats optimisation ─────────────────────────────────────────
+  // billItemsCacheRef: avoids re-fetching Firestore subcollections for bills
+  // whose amount hasn't changed since the last fetch.
+  // Key = billNo, value = { fetchedAmount, items }.
+  // When a bill's amount changes (new item added/removed), its cache entry is
+  // invalidated and refetched on the next stats recalculation.
+  const billItemsCacheRef = useRef<Record<string, { fetchedAmount: number; items: BillItem[] }>>({});
+
+  // Stable refs keep customerBalances and payments current without making them
+  // reactive deps of the expensive stats effect (which would trigger item re-fetches
+  // on every payment or balance change, even when no bill item data changed).
+  const customerBalancesRef = useRef<CustomerBalances>({});
+  const paymentsRef = useRef<Payment[]>([]);
+  useEffect(() => { customerBalancesRef.current = customerBalances; }, [customerBalances]);
+  useEffect(() => { paymentsRef.current = payments; }, [payments]);
+
   useEffect(() => {
     if (isUserLoading || !firestore || !products.length) return;
 
@@ -555,35 +571,54 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
       const yesterdayBillsCount = yesterdayBillsList.length;
       const billsChange = yesterdayBillsCount > 0 ? todayBillsCount - yesterdayBillsCount : todayBillsCount;
       
-      // Balance stats
-      const totalPendingBalance = Object.values(customerBalances).reduce((sum, bal) => sum + bal, 0);
+      // Balance stats — read from ref so balance-only changes don't re-trigger item fetching
+      const totalPendingBalance = (Object.values(customerBalancesRef.current) as number[]).reduce((sum: number, bal: number) => sum + bal, 0);
 
-      // Today's Payments total from payments collection
-      const todayPaymentsList = (payments || []).filter(payment => {
+      // Today's Payments total — read from ref so payment-only changes don't re-trigger item fetching
+      const todayPaymentsList = (paymentsRef.current as Payment[] || []).filter((payment: Payment) => {
         if (payment.isDeleted) return false;
-        const paymentDate = payment.date instanceof Timestamp ? payment.date.toDate() : new Date(payment.date);
+        const paymentDate = payment.date instanceof Timestamp ? payment.date.toDate() : new Date(payment.date as any);
         return paymentDate >= todayStart && paymentDate <= todayEnd;
       });
-      const todayPaymentsTotal = todayPaymentsList.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const todayPaymentsTotal = todayPaymentsList.reduce((sum: number, p: Payment) => sum + Number(p.amount || 0), 0);
 
       // Recent Bills
       const recentBills = todayBillsList.sort((a,b) => (b.date as Timestamp).toMillis() - (a.date as Timestamp).toMillis()).slice(0, 5);
 
-      // Top Products
+      // Top Products — use cache to avoid re-fetching unchanged bill item subcollections.
+      // Only bills that are new or whose total amount changed since last fetch are queried.
       let topProducts: DashboardStats['topProducts'] = [];
       let allProductsToday: DashboardStats['allProductsToday'] = [];
       if (todayBillsList.length > 0) {
-          const billItemsPromises = todayBillsList.map(bill => 
-              getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
-          );
-          const billItemsSnapshots = await Promise.all(billItemsPromises);
-          
-          const todaysItems: BillItem[] = [];
-          billItemsSnapshots.forEach(snapshot => {
-              snapshot.forEach(doc => {
-                  todaysItems.push(doc.data() as BillItem);
-              });
+          // Determine which bills need a fresh Firestore read
+          const billsToFetch = todayBillsList.filter(bill => {
+            const cached = billItemsCacheRef.current[bill.billNo];
+            return !cached || cached.fetchedAmount !== bill.amount;
           });
+
+          // Fetch only the uncached / changed bills
+          if (billsToFetch.length > 0) {
+            const newSnapshots = await Promise.all(
+              billsToFetch.map(bill =>
+                getDocs(collection(firestore, 'bills', bill.billNo, 'billItems'))
+              )
+            );
+            newSnapshots.forEach((snapshot, i) => {
+              const items: BillItem[] = [];
+              snapshot.forEach(doc => items.push(doc.data() as BillItem));
+              billItemsCacheRef.current[billsToFetch[i].billNo] = {
+                fetchedAmount: billsToFetch[i].amount,
+                items,
+              };
+            });
+          }
+
+          // Assemble today's items from the (now-updated) cache
+          const todaysItems: BillItem[] = [];
+          for (const bill of todayBillsList) {
+            const cached = billItemsCacheRef.current[bill.billNo];
+            if (cached) todaysItems.push(...cached.items);
+          }
 
           const productSales = new Map<string, { totalQty: number, uom: string, name: string }>();
           todaysItems.forEach(item => {
@@ -635,7 +670,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     calculateStats();
 
-  }, [liveBillSummaries, customerBalances, payments, firestore, products, isUserLoading]);
+  // Intentionally excludes customerBalances and payments — those values are read
+  // via customerBalancesRef / paymentsRef (kept current by the two sync effects above)
+  // so that routine payment/balance updates do not trigger a full bill-items re-fetch.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveBillSummaries, firestore, products, isUserLoading]);
   
   
   const logout = () => {

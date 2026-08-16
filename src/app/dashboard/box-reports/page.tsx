@@ -18,8 +18,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, Search, Share } from 'lucide-react';
-import { format, isSameDay, startOfDay, endOfDay } from 'date-fns';
+import { Calendar as CalendarIcon, Search, Share, X } from 'lucide-react';
+import { format, startOfDay, endOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -30,7 +30,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
-import { Timestamp } from 'firebase/firestore';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +39,14 @@ interface DateWiseRow {
   boxesTaken: number;   // todaysFishBox
   emptyBoxes: number;   // emptyBox
   balance: number;      // balanceBox
+}
+
+interface CurrentBalanceRow {
+  customerId: string;
+  customerName: string;
+  openingBalance: number;
+  currentBalance: number;
+  lastBillDate: string; // formatted dd-MM-yyyy or '-'
 }
 
 interface CustomerRow {
@@ -95,15 +102,50 @@ export default function BoxReportsPage() {
   //  LEFT – DATE-WISE REPORT
   // ══════════════════════════════════════════════════════════════════════════
 
-  const [dateWiseDate, setDateWiseDate] = useState<Date | undefined>(new Date());
+  const [dateWiseDate, setDateWiseDate] = useState<Date | undefined>(undefined);
   const [dateWiseRows, setDateWiseRows] = useState<DateWiseRow[] | null>(null);
   const [dateWiseSearched, setDateWiseSearched] = useState(false);
 
+  // ── Current Balance Report (no date selected) ──────────────────────────
+  const [balanceRows, setBalanceRows] = useState<CurrentBalanceRow[] | null>(null);
+  const [balanceSearched, setBalanceSearched] = useState(false);
+
   const handleDateWiseSearch = useCallback(() => {
     if (!dateWiseDate) {
-      toast({ variant: 'destructive', title: 'Select a date first' });
+      // ── Mode: All customers current balance ──
+      const rows: CurrentBalanceRow[] = customers
+        .map((c) => {
+          const custBills = boxBills
+            .filter((b) => b.customerId === c.id)
+            .sort((a, b) => toDate(b.billDate).getTime() - toDate(a.billDate).getTime());
+
+          const latestBill = custBills[0] ?? null;
+          const currentBalance = latestBill?.balanceBox ?? (openingBoxBalances[c.id] ?? 0);
+          const lastBillDate = latestBill
+            ? format(toDate(latestBill.billDate), 'dd-MM-yyyy')
+            : '-';
+
+          return {
+            customerId: c.id,
+            customerName: `${c.name_en} (${c.name_ta})`,
+            openingBalance: openingBoxBalances[c.id] ?? 0,
+            currentBalance,
+            lastBillDate,
+          };
+        })
+        .sort((a, b) => parseInt(a.customerId, 10) - parseInt(b.customerId, 10));
+
+      setBalanceRows(rows);
+      setBalanceSearched(true);
+      setDateWiseRows(null);
+      setDateWiseSearched(false);
       return;
     }
+
+    // ── Mode: Date-wise ──
+    setBalanceRows(null);
+    setBalanceSearched(false);
+
     const dayStart = startOfDay(dateWiseDate);
     const dayEnd = endOfDay(dateWiseDate);
 
@@ -123,11 +165,19 @@ export default function BoxReportsPage() {
       };
     });
 
-    // Sort by customer name
     rows.sort((a, b) => a.customerName.localeCompare(b.customerName));
     setDateWiseRows(rows);
     setDateWiseSearched(true);
-  }, [dateWiseDate, boxBills, customers, toast]);
+  }, [dateWiseDate, boxBills, customers, openingBoxBalances]);
+
+  // Clear the other result when date changes
+  const handleDateChange = (d: Date | undefined) => {
+    setDateWiseDate(d);
+    setDateWiseRows(null);
+    setDateWiseSearched(false);
+    setBalanceRows(null);
+    setBalanceSearched(false);
+  };
 
   const dateWiseTotalTaken = useMemo(
     () => (dateWiseRows || []).reduce((s, r) => s + r.boxesTaken, 0),
@@ -136,6 +186,15 @@ export default function BoxReportsPage() {
   const dateWiseTotalEmpty = useMemo(
     () => (dateWiseRows || []).reduce((s, r) => s + r.emptyBoxes, 0),
     [dateWiseRows],
+  );
+
+  const balanceSumOpening = useMemo(
+    () => (balanceRows || []).reduce((s, r) => s + r.openingBalance, 0),
+    [balanceRows],
+  );
+  const balanceSumCurrent = useMemo(
+    () => (balanceRows || []).reduce((s, r) => s + r.currentBalance, 0),
+    [balanceRows],
   );
 
   const handleDateWiseSharePDF = useCallback(() => {
@@ -153,6 +212,23 @@ export default function BoxReportsPage() {
     sessionStorage.setItem('boxReportPrintData', JSON.stringify(printData));
     window.open('/print/box-report', '_blank');
   }, [dateWiseRows, dateWiseDate, dateWiseTotalTaken, dateWiseTotalEmpty, toast]);
+
+  const handleBalanceSharePDF = useCallback(() => {
+    if (!balanceRows || balanceRows.length === 0) {
+      toast({ variant: 'destructive', title: 'No data', description: 'Search first to generate report.' });
+      return;
+    }
+    const printData = {
+      type: 'currentbalance',
+      entityLabel: 'Customer',
+      generatedDate: format(new Date(), 'dd-MM-yyyy'),
+      rows: balanceRows,
+      sumOpening: balanceSumOpening,
+      sumCurrent: balanceSumCurrent,
+    };
+    sessionStorage.setItem('boxReportPrintData', JSON.stringify(printData));
+    window.open('/print/box-report', '_blank');
+  }, [balanceRows, balanceSumOpening, balanceSumCurrent, toast]);
 
   // ══════════════════════════════════════════════════════════════════════════
   //  RIGHT – CUSTOMER REPORT
@@ -293,21 +369,142 @@ export default function BoxReportsPage() {
         <Card className="section-box flex flex-col">
           <CardHeader className="pb-3">
             <CardTitle className="font-headline text-lg">Date-wise Reports</CardTitle>
-            <CardDescription>View all box bills for a selected date.</CardDescription>
+            <CardDescription>
+              Select a date to view bills on that day, or leave date empty to see current balances of all customers.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {/* Controls */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="grid gap-1.5 flex-1">
-                <Label>Date</Label>
-                <DatePicker value={dateWiseDate} onChange={setDateWiseDate} />
+                <Label>Date <span className="text-muted-foreground font-normal text-xs">(optional – leave empty for balance report)</span></Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <DatePicker value={dateWiseDate} onChange={handleDateChange} placeholder="All customers (no date)" />
+                  </div>
+                  {dateWiseDate && (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-[44px] w-[44px] shrink-0"
+                      onClick={() => handleDateChange(undefined)}
+                      title="Clear date"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
               <Button onClick={handleDateWiseSearch} className="h-[44px] sm:w-auto w-full">
                 <Search className="mr-2 h-4 w-4" /> Search
               </Button>
             </div>
 
-            {/* Results */}
+            {/* ── Current Balance Report Results (no date) ── */}
+            {balanceSearched && balanceRows !== null && (
+              <>
+                <div className="rounded-md bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
+                  Showing current balance for all customers as of {format(new Date(), 'dd-MM-yyyy')}
+                </div>
+
+                {/* Desktop Table */}
+                <div className="hidden md:block overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="font-bold text-xs uppercase">Cust ID</TableHead>
+                        <TableHead className="font-bold text-xs uppercase">Customer Name</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-center">Opening Bal</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-center">Current Bal</TableHead>
+                        <TableHead className="font-bold text-xs uppercase whitespace-nowrap">Last Bill Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {balanceRows.length > 0 ? (
+                        balanceRows.map((row) => (
+                          <TableRow key={row.customerId}>
+                            <TableCell className="font-mono text-xs">{row.customerId}</TableCell>
+                            <TableCell className="whitespace-normal break-words">{row.customerName}</TableCell>
+                            <TableCell className="text-center font-mono text-base">{row.openingBalance}</TableCell>
+                            <TableCell className="text-center font-mono text-base font-bold text-primary">{row.currentBalance}</TableCell>
+                            <TableCell className="text-right font-mono font-bold text-sm whitespace-nowrap">{row.lastBillDate}</TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
+                            No customers found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="block md:hidden space-y-2">
+                  {balanceRows.length > 0 ? (
+                    balanceRows.map((row) => (
+                      <div key={row.customerId} className="rounded-lg border p-3 bg-card">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="font-semibold text-sm whitespace-normal break-words flex-1 pr-2">{row.customerName}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{row.customerId}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-sm">
+                          <div className="text-center">
+                            <span className="text-xs text-muted-foreground block">Opening</span>
+                            <span className="font-mono">{row.openingBalance}</span>
+                          </div>
+                          <div className="text-center">
+                            <span className="text-xs text-muted-foreground block">Current</span>
+                            <span className="font-mono font-bold text-primary">{row.currentBalance}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-xs text-muted-foreground block">Last Bill</span>
+                            <span className="font-mono text-xs">{row.lastBillDate}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="h-16 flex items-center justify-center text-sm text-muted-foreground border rounded-lg">
+                      No customers found.
+                    </div>
+                  )}
+                </div>
+
+                {/* Totals */}
+                {balanceRows.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-base font-semibold text-muted-foreground">Total Customers</span>
+                        <span className="font-mono text-lg font-bold">{balanceRows.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-base font-semibold text-muted-foreground">Sum Opening Balance</span>
+                        <span className="font-mono text-lg font-bold">{balanceSumOpening}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-base font-semibold text-muted-foreground">Sum Current Balance</span>
+                        <span className="font-mono text-xl font-bold text-primary">{balanceSumCurrent}</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      onClick={handleBalanceSharePDF}
+                      className="w-full border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                    >
+                      <Share className="mr-2 h-4 w-4" /> Share (PDF)
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+
+            {/* ── Date-wise Results ── */}
             {dateWiseSearched && dateWiseRows !== null && (
               <>
                 {/* Desktop Table */}

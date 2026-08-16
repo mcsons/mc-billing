@@ -86,8 +86,8 @@ const boxBillSubItems: NavItem[] = [
   { href: '/dashboard/box-billing', label: 'Box Billing', icon: Package },
   { href: '/dashboard/party-box-billing', label: 'Party Box Billing', icon: Package },
   { href: '/dashboard/empty-box-entry', label: 'Empty Box Entry', icon: Package },
-  { href: '/dashboard/box-reports', label: 'Reports', icon: FileBarChart2 },
-  { href: '/dashboard/party-box-reports', label: 'Party Reports', icon: FileBarChart2 },
+  { href: '/dashboard/box-reports', label: 'Box Reports', icon: FileBarChart2 },
+  { href: '/dashboard/party-box-reports', label: 'Party Box Reports', icon: FileBarChart2 },
   { href: '/dashboard/box-balance', label: 'Box Balance', icon: Wallet },
   { href: '/dashboard/party-box-balance', label: 'Party Box Balance', icon: Wallet },
 ];
@@ -149,11 +149,9 @@ const MenuItemGroup = ({ items }: { items: NavItem[] }) => {
       if (itemLabel === 'Printer') permLabel = 'Printer Settings';
       if (itemLabel === 'UOM') permLabel = 'UOM Settings';
       if (itemLabel === 'Reports') permLabel = 'Sales Report';
-      if (itemLabel === 'Party Reports') permLabel = 'Party Bill';
       if (itemLabel === 'Party Billing') permLabel = 'Party Bill';
-      if (itemLabel === 'Party Box Reports') permLabel = 'Party Bill';
-      if (itemLabel === 'Cust Balance') permLabel = 'Customer Balance';
       if (itemLabel === 'Party Payments') permLabel = 'Party Bill';
+      if (itemLabel === 'Cust Balance') permLabel = 'Customer Balance';
 
       return rolePermissions[currentUserRole].includes(permLabel as any);
   };
@@ -315,8 +313,6 @@ export function DashboardSidebar() {
     if (itemLabel === 'Printer') permLabel = 'Printer Settings';
     if (itemLabel === 'UOM') permLabel = 'UOM Settings';
     if (itemLabel === 'Reports') permLabel = 'Sales Report';
-    if (itemLabel === 'Party Reports') permLabel = 'Party Bill';
-    if (itemLabel === 'Party Box Reports') permLabel = 'Party Bill';
     if (itemLabel === 'Party Billing') permLabel = 'Party Bill';
     if (itemLabel === 'Party Payments') permLabel = 'Party Bill';
     if (itemLabel === 'Cust Balance') permLabel = 'Customer Balance';

@@ -55,11 +55,19 @@ function PartyBillPrintContent() {
     }
   }, [searchParams, router]);
 
+  // ─────────────────────────────────────────────────────────────
+  //  Share PDF handler
+  //  Captures the hidden #pdf-area div (inline-styled layout)
+  //  which is always rendered with the correct look on screen.
+  //  navigator.share() on mobile, wa.me download fallback on desktop.
+  // ─────────────────────────────────────────────────────────────
   const handleSharePDF = useCallback(async () => {
-    const captureEl = document.getElementById('print-area');
+    const captureEl = document.getElementById('pdf-area');
     if (!captureEl || !billData) return;
+
     setIsSharing(true);
     setShareError(null);
+
     try {
       const [html2canvasModule, jsPDFModule] = await Promise.all([
         import('html2canvas'),
@@ -67,6 +75,7 @@ function PartyBillPrintContent() {
       ]);
       const html2canvas = html2canvasModule.default;
       const { jsPDF } = jsPDFModule;
+
       const canvas = await html2canvas(captureEl, {
         scale: 2,
         useCORS: true,
@@ -75,37 +84,66 @@ function PartyBillPrintContent() {
         windowWidth: captureEl.scrollWidth,
         windowHeight: captureEl.scrollHeight,
       });
+
       const imgData = canvas.toDataURL('image/jpeg', 0.95);
-      const pdfWidth = 147;
-      const pdfHeight = (canvas.height / canvas.width) * pdfWidth;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidth, pdfHeight] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = pageWidth * (canvas.height / canvas.width);
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+
       const pdfBlob = pdf.output('blob');
       const storedName = localStorage.getItem('partyBillFileName');
       const billDateFormatted = billData.date ? format(new Date(billData.date), 'dd-MM-yyyy') : 'bill';
       const partyName = (billData.partyName || 'Party').replace(/\s+/g, '_');
       const fileName = storedName || `MC_PartyBill_${partyName}_${billDateFormatted}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      const waMessage =
+        `*M.C & SONS FISH COMPANY*\n*Party Bill PDF*\n\nParty Bill Date: ${billDateFormatted}\nParty: ${billData.partyName || ''}\n\nPlease find the attached PDF party bill.\n\nThank you!`;
+      const waUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+
+      // ── Mobile: try Web Share API (opens native share sheet → WhatsApp) ──
+      // We attempt this first; if it fails for any non-user-cancel reason,
+      // we fall through to the download + wa.me fallback.
       let sharedViaWebShare = false;
       if (typeof navigator !== 'undefined' && navigator.share) {
         try {
-          await navigator.share({ title: fileName, text: `Party Bill - ${partyName} - ${billDateFormatted}`, files: [file] });
+          // Skip canShare() gate — it returns false on many Android browsers
+          // even when sharing IS supported. Try directly and catch failures.
+          await navigator.share({
+            title: `Party Bill Date: ${billDateFormatted} - M.C & SONS`,
+            text: `Party Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
+            files: [file],
+          });
           sharedViaWebShare = true;
         } catch (shareErr: any) {
-          if (shareErr?.name === 'AbortError') return;
+          if (shareErr?.name === 'AbortError') {
+            // User dismissed the share sheet — do nothing
+            return;
+          }
+          // Any other error (e.g. file type not supported, permission denied):
+          // fall through to the download + wa.me fallback below
           console.warn('Web Share API failed, using fallback:', shareErr);
         }
       }
+
+      // ── Desktop / Web Share fallback: download PDF + open WhatsApp ──
       if (!sharedViaWebShare) {
         const url = URL.createObjectURL(pdfBlob);
         const a = document.createElement('a');
         a.href = url;
         a.download = fileName;
+        // Must be in the DOM for reliable download on mobile browsers
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 400);
-        setShareError('PDF downloaded! You can now share it via WhatsApp or any app.');
+        // Small delay so the download initiates before WhatsApp opens
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          window.open(waUrl, '_blank');
+        }, 400);
+        setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
       }
     } catch (err: any) {
       if (err?.name !== 'AbortError') {
@@ -138,6 +176,202 @@ function PartyBillPrintContent() {
   
   const totalBoxes = billData.totalBox;
 
+  // ─────────────────────────────────────────────────────────────
+  //  Hidden party bill rendered with INLINE STYLES so html2canvas
+  //  can capture it correctly (media-query print styles are
+  //  invisible to html2canvas).
+  //  This div is off-screen (left: -9999px) and never printed.
+  //  Mirrors the exact same layout as #print-area.
+  // ─────────────────────────────────────────────────────────────
+  const cellBorder = '1.5px solid black';
+
+  const hiddenPdfArea = (
+    <div
+      id="pdf-area"
+      style={{
+        position: 'fixed',
+        left: '-9999px',
+        top: 0,
+        width: '480px', // ~127mm at 96dpi — matches the main billing reference
+        background: '#fff',
+        color: '#000',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '10pt',
+        boxSizing: 'border-box',
+        padding: '16px',
+      }}
+    >
+      {/* Header */}
+      <div style={{ textAlign: 'center', paddingBottom: '6px', marginBottom: '6px', width: '100%' }}>
+        <div style={{ fontWeight: 'bold', fontSize: '16pt', margin: 0 }}>M.C &amp; SONS FISH COMPANY</div>
+        <div style={{ fontSize: '10pt', margin: '1px 0', fontWeight: 500 }}>Dealer : SEA &amp; TANK FOODS</div>
+        <div style={{ fontSize: '9pt', margin: '1px 0' }}>Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+        <div style={{ fontSize: '9pt', margin: '1px 0' }}>📞 9843223078, 9944444497</div>
+      </div>
+
+      {/* Party Details Grid */}
+      <div style={{
+        border: cellBorder,
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}>
+        {/* Row 1 */}
+        <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'row', alignItems: 'baseline', borderBottom: cellBorder, borderRight: cellBorder }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap', width: '28mm', display: 'inline-block', flexShrink: 0 }}>Party Name :</span>
+          <span style={{ fontSize: '10pt', overflowWrap: 'anywhere', fontWeight: 'bold' }}>{partyName}</span>
+        </div>
+        <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'row', alignItems: 'baseline', borderBottom: cellBorder }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap', width: '28mm', display: 'inline-block', flexShrink: 0 }}>Date :</span>
+          <span style={{ fontSize: '10pt', fontWeight: 'bold' }}>{format(new Date(date), 'dd/MM/yyyy')}</span>
+        </div>
+        {/* Row 2 */}
+        <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'row', alignItems: 'baseline', borderRight: cellBorder }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap', width: '28mm', display: 'inline-block', flexShrink: 0 }}>Address :</span>
+          <span style={{ fontSize: '10pt', overflowWrap: 'anywhere', fontWeight: 'bold' }}>{partyLocation}</span>
+        </div>
+        <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'row', alignItems: 'baseline' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap', width: '28mm', display: 'inline-block', flexShrink: 0 }}>Total Boxes :</span>
+          <span style={{ fontSize: '10pt', fontWeight: 'bold' }}>{totalBoxes}</span>
+        </div>
+      </div>
+
+      {/* Items Table */}
+      <table style={{ width: '100%', marginTop: '8px', borderCollapse: 'collapse', tableLayout: 'fixed', boxSizing: 'border-box' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f2f2f2' }}>
+            <th style={{ width: '6%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>S/N</th>
+            <th style={{ width: '30%', border: cellBorder, padding: '5px 4px', textAlign: 'left', fontWeight: 'bold', fontSize: '9pt' }}>Item Name</th>
+            <th style={{ width: '10%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Box</th>
+            <th style={{ width: '14%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Kgs</th>
+            <th style={{ width: '14%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Rate</th>
+            <th style={{ width: '26%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item: PartyBillItem, index: number) => (
+            <tr key={item.id}>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{index + 1}</td>
+              <td style={{ border: cellBorder, padding: '5px 4px', wordBreak: 'break-word', textAlign: 'left', fontSize: '10pt', verticalAlign: 'top' }}><strong>{item.productName}</strong></td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>{item.box}</td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', color: '#444', verticalAlign: 'top' }}>{(item.kgs ?? 0).toFixed(2)}</td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontFamily: '"Courier New", monospace', verticalAlign: 'top' }}><strong>{(item.rate ?? 0).toFixed(2)}</strong></td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontWeight: 'bold', verticalAlign: 'top' }}>{(item.amount ?? 0).toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Table Summary Row */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '10mm',
+        padding: '5px 6px',
+        border: cellBorder,
+        borderTop: 'none',
+        backgroundColor: '#f9f9f9',
+        width: '100%',
+        boxSizing: 'border-box',
+      }}>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>Total Weight:</span>
+          <span style={{ fontWeight: 600, fontSize: '10pt' }}>{sumWeight.toFixed(2)} KGS</span>
+        </div>
+      </div>
+
+      {/* Totals Section */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', width: '100%', boxSizing: 'border-box' }}>
+        {/* Left: Deductions & Payments */}
+        <div style={{ width: '50%' }}>
+          {/* Deductions group */}
+          <div style={{ marginBottom: 0 }}>
+            {(commissionPercent > 0) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>Commission ({commissionPercent.toFixed(1)}%):</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{commissionAmount.toFixed(2)}</strong></span>
+              </div>
+            )}
+            {(expenses > 0) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>Expenses:</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{expenses.toFixed(2)}</strong></span>
+              </div>
+            )}
+            {(rent > 0) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>Rent:</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{rent.toFixed(2)}</strong></span>
+              </div>
+            )}
+          </div>
+          {/* Separator */}
+          <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
+          {/* Payments group */}
+          <div style={{ marginTop: '4px' }}>
+            {(cashReceived > 0) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>By Cash:</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{cashReceived.toFixed(2)}</strong></span>
+              </div>
+            )}
+            {(bankReceived > 0) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>By Bank:</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{bankReceived.toFixed(2)}</strong></span>
+              </div>
+            )}
+          </div>
+          <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
+        </div>
+
+        {/* Right: Boxed Summary Table */}
+        <table style={{ border: cellBorder, borderCollapse: 'collapse', width: '48%' }}>
+          <tbody>
+            <tr>
+              <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Bill Amount:</td>
+              <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontSize: '12pt', fontWeight: 'bold' }}>₹{totalAmount.toFixed(2)}</td>
+            </tr>
+            {billData.totalDeductions > 0 && (
+              <tr>
+                <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Total Deductions:</td>
+                <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontWeight: 'bold' }}>₹{billData.totalDeductions.toFixed(2)}</td>
+              </tr>
+            )}
+            <tr>
+              <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Net Amount:</td>
+              <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontSize: '12pt', fontWeight: 'bold' }}>₹{billData.netAmount.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Previous Balance:</td>
+              <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontWeight: 'bold' }}>₹{previousBalance.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Total Amount:</td>
+              <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontSize: '12pt', fontWeight: 'bold' }}>₹{totalAfterPrevious.toFixed(2)}</td>
+            </tr>
+            {totalReceived > 0 && (
+              <tr>
+                <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Total Paid:</td>
+                <td style={{ border: 'none', borderBottom: cellBorder, padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontWeight: 'bold' }}>₹{totalReceived.toFixed(2)}</td>
+              </tr>
+            )}
+            <tr>
+              <td style={{ border: 'none', borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Net Balance:</td>
+              <td style={{ border: 'none', padding: '4px 6px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontSize: '12pt', fontWeight: 'bold' }}>₹{finalBalance.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {/* Footer */}
+      <div style={{ marginTop: '6px', textAlign: 'left', fontSize: '9pt', fontWeight: 800, fontStyle: 'italic' }}>
+        Developed by MC &amp; SONS
+      </div>
+    </div>
+  );
+
   return (
     <div className="preview-wrapper">
       {/* Green share banner (shown when opened via Share PDF button) */}
@@ -146,8 +380,10 @@ function PartyBillPrintContent() {
           <div className="flex items-center gap-3">
             <Share2 className="h-6 w-6 shrink-0" />
             <div>
-              <p className="font-semibold text-sm leading-tight">Party bill ready to share!</p>
-              <p className="text-xs text-green-100 leading-tight mt-0.5">Tap the button to send this bill as a PDF.</p>
+              <p className="font-semibold text-sm leading-tight">Your party bill is ready to share!</p>
+              <p className="text-xs text-green-100 leading-tight mt-0.5">
+                Tap the button to send this party bill as a PDF via WhatsApp.
+              </p>
             </div>
           </div>
           <Button
@@ -156,8 +392,8 @@ function PartyBillPrintContent() {
             className="w-full sm:w-auto bg-white text-green-700 hover:bg-green-50 font-bold text-sm px-6 shrink-0"
           >
             {isSharing
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating PDF...</>
-              : <><Share2 className="mr-2 h-4 w-4" />Share via WhatsApp</>}
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating PDF...</>
+              : <><Share2 className="mr-2 h-4 w-4" /> Share via WhatsApp</>}
           </Button>
         </div>
       )}
@@ -189,8 +425,8 @@ function PartyBillPrintContent() {
       <div className="party-bill-invoice">
         <div id="print-area">
           <header className="invoice-header">
-            <h1 className="company-name">M.C & SONS FISH COMPANY</h1>
-            <p className="sub-header">Dealer : SEA & TANK FOODS</p>
+            <h1 className="company-name">M.C &amp; SONS FISH COMPANY</h1>
+            <p className="sub-header">Dealer : SEA &amp; TANK FOODS</p>
             <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
             <p className="sub-header-address">📞 9843223078, 9944444497</p>
           </header>
@@ -273,9 +509,19 @@ function PartyBillPrintContent() {
                 </tbody>
             </table>
           </section>
-          <footer className="print-footer">Developed by MC & SONS</footer>
+          <footer className="print-footer">Developed by MC &amp; SONS</footer>
         </div>
       </div>
+
+      <div className="p-4 print:hidden flex justify-end">
+        <Button size="lg" onClick={() => window.print()}>
+          <Printer className="mr-2 h-4 w-4" />
+          Print
+        </Button>
+      </div>
+
+      {/* ── Hidden inline-styled div for PDF capture (html2canvas compatible) ── */}
+      {hiddenPdfArea}
 
       <style jsx global>{`
         /* ===============================

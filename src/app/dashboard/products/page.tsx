@@ -25,12 +25,14 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 
 export default function ProductsPage() {
-  const { products, deleteProduct } = useData();
+  const { products, deleteProduct, currentUser } = useData();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const showAlertDialog = useAlertDialog();
+
+  const canDelete = currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN';
 
   const handleEdit = (product: Product) => {
     setProductToEdit(product);
@@ -119,10 +121,12 @@ export default function ProductsPage() {
                         <Edit className="h-4 w-4" />
                         <span className="sr-only">Edit product</span>
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id, product.name_en)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                        <span className="sr-only">Delete product</span>
-                      </Button>
+                      {canDelete && (
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(product.id, product.name_en)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                          <span className="sr-only">Delete product</span>
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

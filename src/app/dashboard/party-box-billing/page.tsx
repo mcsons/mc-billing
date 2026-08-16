@@ -93,6 +93,10 @@ export default function PartyBoxBillingPage() {
   const [vehicleNo, setVehicleNo] = useState('');
 
   const [isSaving, setIsSaving] = useState(false);
+  // UI only: used to portal dropdown menus to <body> so they are never clipped
+  // by the scrollable panels. Avoids an SSR/hydration mismatch.
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
   const [localEntries, setLocalEntries] = useState<any[]>([]);
   const lastInitializedBillId = useRef<string | null>(null);
 
@@ -183,6 +187,8 @@ export default function PartyBoxBillingPage() {
       '&:hover': { borderColor: 'hsl(var(--ring))' },
     }),
     menu: (baseStyles: any) => ({ ...baseStyles, backgroundColor: 'hsl(var(--card))', zIndex: 50 }),
+    menuList: (baseStyles: any) => ({ ...baseStyles, maxHeight: '40vh', WebkitOverflowScrolling: 'touch' }),
+    menuPortal: (base: any) => ({ ...base, zIndex: 9999 }),
     option: (baseStyles: any, state: any) => ({
       ...baseStyles,
       backgroundColor: state.isSelected ? 'hsl(var(--accent))' : state.isFocused ? 'hsl(var(--muted))' : 'transparent',
@@ -820,7 +826,6 @@ export default function PartyBoxBillingPage() {
         if (savedBill) {
           sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(savedBill));
           window.open('/print/party-box-bill?paper=a4&share=pdf', '_blank');
-          handleNewBillConfirmed();
         }
       } finally {
         setLoading(false);
@@ -848,7 +853,6 @@ export default function PartyBoxBillingPage() {
         if (savedBill) {
           sessionStorage.setItem('PartyBoxBillPrintData', JSON.stringify(savedBill));
           window.open(`/print/party-box-bill?paper=${printPaperType}`, '_blank');
-          handleNewBillConfirmed();
           setShowPrintConfirm(false);
         }
       } finally {
@@ -919,7 +923,6 @@ export default function PartyBoxBillingPage() {
         if (savedBill.description) message += `\nNote: ${savedBill.description}\n`;
         message += `\nThank you!`;
         window.open(phone ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
-        handleNewBillConfirmed();
       }
     } finally {
       setIsSaving(false);
@@ -953,17 +956,17 @@ export default function PartyBoxBillingPage() {
 
 
   return (
-    <div className="flex flex-col gap-4 pb-2 w-full max-w-full h-[calc(100vh-80px)] overflow-hidden">
-      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-8 h-full overflow-hidden">
+    <div className="flex flex-col gap-4 pb-2 w-full max-w-full overflow-x-hidden lg:h-[calc(100vh-80px)] lg:overflow-hidden">
+      <div className="grid items-start gap-4 lg:grid-cols-2 lg:gap-8 lg:h-full lg:overflow-hidden">
         {/* Left Side: Operations */}
-        <div className="flex flex-col section-box h-full overflow-y-auto custom-scrollbar">
-          <Card className="flex flex-col h-full border-none shadow-none bg-transparent">
+        <div className="flex flex-col section-box w-full min-w-0 lg:h-full lg:overflow-y-auto custom-scrollbar">
+          <Card className="flex flex-col border-none shadow-none bg-transparent lg:h-full">
             <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-start sm:justify-between pb-2">
-              <div>
-                <CardTitle className="font-headline">{activeBillId ? `Editing Box Bill ${activeBillId}` : 'Box Billing'}</CardTitle>
+              <div className="min-w-0">
+                <CardTitle className="font-headline break-words text-lg sm:text-xl">{activeBillId ? `Editing Box Bill ${activeBillId}` : 'Box Billing'}</CardTitle>
                 <CardDescription>Manage Party box transactions.</CardDescription>
               </div>
-              <div className="flex flex-col items-end gap-3 w-full sm:w-auto">
+              <div className="flex flex-col items-stretch gap-3 w-full sm:w-auto sm:items-end">
                 <div className="grid gap-2 w-full sm:w-[200px]">
                   <Label>Date</Label>
                   <Popover>
@@ -981,7 +984,7 @@ export default function PartyBoxBillingPage() {
                     </PopoverContent>
                   </Popover>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleNewBill} className="w-full sm:w-[200px]">
+                <Button variant="outline" size="sm" onClick={handleNewBill} className="w-full h-[44px] sm:w-[200px]">
                   <FilePlus className="mr-2 h-4 w-4" /> New Bill
                 </Button>
               </div>
@@ -1003,6 +1006,8 @@ export default function PartyBoxBillingPage() {
                     if (option) setTimeout(() => document.getElementById('todays-fish-box-input')?.focus(), 100);
                   }}
                   styles={reactSelectStyles}
+                  menuPortalTarget={isMounted ? document.body : null}
+                  menuPosition="fixed"
                 />
               </div>
 
@@ -1013,12 +1018,12 @@ export default function PartyBoxBillingPage() {
               <Separator className="my-2" />
 
               <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2 sm:gap-3">
-                  <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:flex lg:flex-wrap lg:gap-3">
+                  <div className="grid gap-1.5 min-w-0 lg:flex-1 lg:min-w-[110px] lg:max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Prev Balance Box">Prev Balance</Label>
-                    <Input type="number" value={prevBalanceBox} onChange={e => setPrevBalanceBox(e.target.value)} tabIndex={-1} className="h-10 font-medium" />
+                    <Input type="number" value={prevBalanceBox} onChange={e => setPrevBalanceBox(e.target.value)} tabIndex={-1} className="h-11 font-medium lg:h-10" />
                   </div>
-                  <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
+                  <div className="grid gap-1.5 min-w-0 lg:flex-1 lg:min-w-[110px] lg:max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Today's Box">Today's Box</Label>
                     <Input
                       id="todays-fish-box-input"
@@ -1041,18 +1046,18 @@ export default function PartyBoxBillingPage() {
                           emptyBoxRef.current?.focus();
                         }
                       }}
-                      className="font-bold h-10 px-3"
+                      className="font-bold h-11 px-3 lg:h-10"
                       disabled={!selectedPartyId || !date}
                     />
                     {selectedPartyId && localTfText !== '' && (
                       <span className="text-[10px] text-muted-foreground italic pl-1 leading-none mt-1">Press Enter to Add an Entry</span>
                     )}
                   </div>
-                  <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
+                  <div className="grid gap-1.5 min-w-0 lg:flex-1 lg:min-w-[110px] lg:max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Total Box">Total Box</Label>
-                    <Input readOnly value={tb} className="bg-muted font-bold h-10" tabIndex={-1} />
+                    <Input readOnly value={tb} className="bg-muted font-bold h-11 lg:h-10" tabIndex={-1} />
                   </div>
-                  <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
+                  <div className="grid gap-1.5 min-w-0 lg:flex-1 lg:min-w-[110px] lg:max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Empty Box">Empty Box</Label>
                     <Input 
                       type="number" 
@@ -1060,7 +1065,7 @@ export default function PartyBoxBillingPage() {
                       value={manualEmptyBox} 
                       onChange={e => setManualEmptyBox(e.target.value)}
                       onKeyDown={e => handleKeyDown(e, descriptionRef)}
-                      className="h-10"
+                      className="h-11 lg:h-10"
                     />
                     {entryEmptyBoxTotal > 0 && (
                       <span className="text-[13px] font-bold italic text-muted-foreground pl-1 leading-none mt-1">
@@ -1068,13 +1073,13 @@ export default function PartyBoxBillingPage() {
                       </span>
                     )}
                   </div>
-                  <div className="grid gap-1.5 flex-1 min-w-[110px] max-w-[160px]">
+                  <div className="col-span-2 grid gap-1.5 min-w-0 sm:col-span-1 lg:flex-1 lg:min-w-[110px] lg:max-w-[160px]">
                     <Label className="text-xs sm:text-sm truncate" title="Balance Box">Balance Box</Label>
-                    <Input readOnly value={bb} className="bg-muted font-bold text-primary h-10" tabIndex={-1} />
+                    <Input readOnly value={bb} className="bg-muted font-bold text-primary h-11 text-base lg:h-10 lg:text-sm" tabIndex={-1} />
                   </div>
                 </div>
                 <div className="flex justify-center sm:justify-start w-full mt-1">
-                  <Button variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="border-green-500 text-green-700 hover:bg-green-50 px-6">
+                  <Button variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="w-full min-h-[44px] border-green-500 text-green-700 hover:bg-green-50 px-6 sm:w-auto">
                     <Share className="mr-2 h-4 w-4" /> {isSavingAndPrinting ? 'Preparing PDF...' : 'Share (PDF)'}
                   </Button>
                 </div>
@@ -1101,15 +1106,15 @@ export default function PartyBoxBillingPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="grid gap-2">
                     <Label>Driver Mobile No</Label>
-                    <Input ref={driverMobileRef} value={driverMobile} onChange={e => setDriverMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, driverNameRef)} />
+                    <Input ref={driverMobileRef} value={driverMobile} onChange={e => setDriverMobile(e.target.value)} onKeyDown={e => handleKeyDown(e, driverNameRef)} className="h-11 sm:h-10" />
                   </div>
                   <div className="grid gap-2">
                     <Label>Driver Name</Label>
-                    <Input ref={driverNameRef} value={driverName} onChange={e => setDriverName(e.target.value)} onKeyDown={e => handleKeyDown(e, vehicleNoRef)} />
+                    <Input ref={driverNameRef} value={driverName} onChange={e => setDriverName(e.target.value)} onKeyDown={e => handleKeyDown(e, vehicleNoRef)} className="h-11 sm:h-10" />
                   </div>
                   <div className="grid gap-2">
                     <Label>Vehicle No</Label>
-                    <Input ref={vehicleNoRef} value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} onKeyDown={e => handleKeyDown(e, saveBtnRef)} />
+                    <Input ref={vehicleNoRef} value={vehicleNo} onChange={e => setVehicleNo(e.target.value)} onKeyDown={e => handleKeyDown(e, saveBtnRef)} className="h-11 sm:h-10" />
                   </div>
                 </div>
               </div>
@@ -1126,7 +1131,74 @@ export default function PartyBoxBillingPage() {
                     {isEntriesPanelOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </div>
                   {isEntriesPanelOpen && (
-                    <div className="p-0 border-t overflow-x-auto">
+                    <>
+                    {/* Mobile: entries as cards (no horizontal scrolling) */}
+                    <div className="border-t p-3 space-y-2 md:hidden">
+                      {activeBillEntries.length > 0 ? activeBillEntries.map((entry) => {
+                        const eDate = entry.entryDate?.toDate ? entry.entryDate.toDate() : new Date(entry.entryDate);
+                        const creator = users.find(u => u.id === entry.createdBy);
+                        return (
+                          <div key={entry.id} className="rounded-lg border bg-card p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-sm">{format(eDate, 'hh:mm a')}</p>
+                                <p className="truncate text-xs text-muted-foreground">{creator?.username || entry.createdBy}</p>
+                              </div>
+                              <div className="flex shrink-0 gap-1">
+                                <Button tabIndex={-1} variant="ghost" size="icon" className="h-11 w-11" onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingEntryId(entry.id);
+                                  setEntryBoxes((entry.boxesAdded || 0).toString());
+                                  setEntryEmptyBoxes(entry.emptyBoxesAdded ? entry.emptyBoxesAdded.toString() : '');
+                                  setIsEntryDialogOpen(true);
+                                }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button tabIndex={-1} variant="ghost" size="icon" className="h-11 w-11 text-red-500" onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteEntry(entry.id, entry.boxesAdded || 0, entry.emptyBoxesAdded || 0);
+                                }}>
+                                  <Trash className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-2 gap-2 border-t pt-2 text-sm">
+                              <div className="flex flex-col">
+                                <span className="text-xs text-muted-foreground">Box Added</span>
+                                <span className="font-bold text-green-600">{(entry.boxesAdded && entry.boxesAdded !== 0) ? entry.boxesAdded : '-'}</span>
+                              </div>
+                              <div className="flex flex-col">
+                                <span className="text-xs text-muted-foreground">Empty Boxes</span>
+                                <span className="font-bold text-orange-500">{entry.emptyBoxesAdded ? entry.emptyBoxesAdded : '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }) : (
+                        <p className="py-4 text-center text-sm text-muted-foreground">No entries yet.</p>
+                      )}
+                      {manualEmpty > 0 && !localEntries.some(e => e.isManualEmpty) && (
+                        <div className="rounded-lg border border-amber-400 bg-amber-50 p-3 dark:bg-amber-950/20">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs italic text-amber-600">Pending — Not saved</span>
+                            <span className="font-bold text-orange-500">{manualEmpty}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="rounded-lg border bg-muted/50 p-3">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="font-bold">Total Added</span>
+                          <span className="text-base font-bold text-green-600">{activeTotalAdded}</span>
+                        </div>
+                        <div className="mt-1 flex items-center justify-between gap-2 text-sm">
+                          <span className="font-bold">Total Empty</span>
+                          <span className="text-base font-bold text-orange-500">
+                            {activeTotalEmptyAdded + ((!localEntries.some(e => e.isManualEmpty) && manualEmpty > 0) ? manualEmpty : 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="hidden p-0 border-t overflow-x-auto md:block">
                       <Table className="text-sm w-full">
                         <TableHeader>
                           <TableRow>
@@ -1199,50 +1271,54 @@ export default function PartyBoxBillingPage() {
                         </TableBody>
                       </Table>
                     </div>
+                    </>
                   )}
                 </div>
               )}
             </CardContent>
             
             <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
-              <div className="flex flex-wrap justify-end gap-2 w-full">
-                <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{"<<"}</Button>
-                
-                <Button variant="outline" className="nav-btn" onClick={handlePrevBill} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1} tabIndex={-1}>{"<"}</Button>
+              <div className="flex flex-col gap-2 w-full sm:flex-row sm:flex-wrap sm:justify-end">
+                {/* Navigation arrows: own row on mobile, inline from sm up */}
+                <div className="flex items-center justify-between gap-2 sm:contents">
+                  <Button variant="outline" className="nav-btn nav-btn-mobile" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{"<<"}</Button>
 
-                <Button ref={saveBtnRef} size="lg" className="btn-save flex-1 sm:flex-none" onClick={handleSaveBill} disabled={!selectedPartyId || isSaving}>
+                  <Button variant="outline" className="nav-btn nav-btn-mobile" onClick={handlePrevBill} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1} tabIndex={-1}>{"<"}</Button>
+
+                  <Button variant="outline" className="nav-btn nav-btn-mobile order-last" onClick={handleNextBill} disabled={currentBillIndex === -1} tabIndex={-1}>{">"}</Button>
+
+                  <Button variant="outline" className="nav-btn nav-btn-mobile order-last" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{">>"}</Button>
+                </div>
+
+                <Button ref={saveBtnRef} size="lg" className="btn-save w-full min-h-[44px] sm:w-auto sm:flex-none" onClick={handleSaveBill} disabled={!selectedPartyId || isSaving}>
                   <Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}
                 </Button>
 
-                <Button ref={printBtnRef} onClick={() => handlePrintAction('thermal')} disabled={!selectedPartyId || isSaving}>Print Receipt</Button>
-
-                <Button ref={shareBtnRef} variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="border-green-500 text-green-700 hover:bg-green-50">
+                <Button ref={shareBtnRef} variant="outline" onClick={handleSharePDF} disabled={!selectedPartyId || isSavingAndPrinting} className="w-full min-h-[44px] border-green-500 text-green-700 hover:bg-green-50 sm:w-auto sm:order-3">
                   <Share className="mr-2 h-4 w-4" /> {isSavingAndPrinting ? 'Preparing PDF...' : 'Share (PDF)'}
                 </Button>
 
-                <Button variant="outline" className="nav-btn" onClick={handleNextBill} disabled={currentBillIndex === -1} tabIndex={-1}>{">"}</Button>
-                
-                <Button variant="outline" className="nav-btn" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0} tabIndex={-1}>{">>"}</Button>
+                <Button ref={printBtnRef} onClick={() => handlePrintAction('thermal')} disabled={!selectedPartyId || isSaving} className="w-full min-h-[44px] sm:w-auto sm:order-2">Print Receipt</Button>
               </div>
             </CardFooter>
           </Card>
         </div>
 
         {/* Right Side: History Section */}
-        <div className="h-full overflow-hidden flex flex-col">
-          <Card className="section-box h-full flex flex-col overflow-hidden">
-            <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between pb-2">
+        <div className="flex flex-col w-full min-w-0 lg:h-full lg:overflow-hidden">
+          <Card className="section-box flex flex-col lg:h-full lg:overflow-hidden">
+            <CardHeader className="flex flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between pb-2">
               <div>
-                <CardTitle className="font-headline text-xl">Box Bill History</CardTitle>
+                <CardTitle className="font-headline text-lg sm:text-xl">Box Bill History</CardTitle>
                 <CardDescription>View past bills. Double-click to load.</CardDescription>
               </div>
               {selectedBills.size > 0 && (currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
-                <Button variant="destructive" onClick={handleDeleteSelected}>
+                <Button variant="destructive" onClick={handleDeleteSelected} className="w-full min-h-[44px] sm:w-auto">
                   <Trash2 className="mr-2 h-4 w-4" /> Delete ({selectedBills.size})
                 </Button>
               )}
             </CardHeader>
-            <CardContent className="p-4 md:p-6 flex-1 overflow-y-auto custom-scrollbar">
+            <CardContent className="p-4 md:p-6 flex-1 lg:overflow-y-auto custom-scrollbar">
               <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end">
                 <div className="grid flex-1 gap-1.5 w-full">
                   <Label>Party</Label>
@@ -1254,6 +1330,8 @@ export default function PartyBoxBillingPage() {
                     isClearable
                     placeholder="Filter by Party..."
                     styles={reactSelectStyles}
+                    menuPortalTarget={isMounted ? document.body : null}
+                    menuPosition="fixed"
                   />
                 </div>
                 <div className="grid gap-1.5 w-full md:w-auto">
@@ -1308,7 +1386,7 @@ export default function PartyBoxBillingPage() {
                           </div>
                         </div>
                         <div className="flex justify-end mt-3 border-t pt-3">
-                          <Button tabIndex={-1} variant="outline" size="sm" className="hover:bg-primary/10 text-primary" onClick={(e) => {
+                          <Button tabIndex={-1} variant="outline" size="sm" className="min-h-[44px] px-6 hover:bg-primary/10 text-primary" onClick={(e) => {
                             e.stopPropagation();
                             setManageEntriesBillId(bill.id);
                           }}>Manage</Button>
@@ -1379,51 +1457,51 @@ export default function PartyBoxBillingPage() {
         if (!open) { setEntryBoxes(''); setEntryEmptyBoxes(''); setEditingEntryId(null); }
         setIsEntryDialogOpen(open);
       }}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-[95vw] max-w-[425px] sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{editingEntryId ? 'Edit Box Entry' : 'Add Box Entry'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="entry-boxes" className="text-right">Box Added</Label>
+            <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-4 sm:gap-4">
+              <Label htmlFor="entry-boxes" className="sm:text-right">Box Added</Label>
               <Input
                 id="entry-boxes"
                 type="number"
                 value={entryBoxes}
                 onChange={(e) => setEntryBoxes(e.target.value)}
-                className="col-span-3 font-bold"
+                className="h-11 font-bold sm:col-span-3 sm:h-10"
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveEntry(); } }}
                 autoFocus
               />
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="entry-empty" className="text-right">Empty Boxes</Label>
+            <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-4 sm:gap-4">
+              <Label htmlFor="entry-empty" className="sm:text-right">Empty Boxes</Label>
               <Input
                 id="entry-empty"
                 type="number"
                 placeholder="0"
                 value={entryEmptyBoxes}
                 onChange={(e) => setEntryEmptyBoxes(e.target.value)}
-                className="col-span-3"
+                className="h-11 sm:col-span-3 sm:h-10"
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveEntry(); } }}
               />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEntryDialogOpen(false)}>Cancel</Button>
-            <Button ref={saveBtnInPopupRef} onClick={handleSaveEntry}>Save</Button>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setIsEntryDialogOpen(false)} className="w-full min-h-[44px] sm:w-auto">Cancel</Button>
+            <Button ref={saveBtnInPopupRef} onClick={handleSaveEntry} className="w-full min-h-[44px] sm:w-auto">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <Dialog open={!!manageEntriesBillId} onOpenChange={(open) => !open && setManageEntriesBillId(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-[95vw] max-w-2xl">
           <DialogHeader>
             <DialogTitle>Manage Box Entries</DialogTitle>
             <DialogDescription>Review and delete individual entries.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <div className="overflow-hidden border rounded-md max-h-[400px] overflow-y-auto">
-              <Table className="text-sm w-full relative">
+            <div className="border rounded-md max-h-[60vh] overflow-y-auto overflow-x-auto sm:max-h-[400px]">
+              <Table className="text-sm w-full relative min-w-[480px]">
                 <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                   <TableRow>
                     <TableHead className="py-2 px-3">Time</TableHead>
@@ -1468,9 +1546,9 @@ export default function PartyBoxBillingPage() {
               </Table>
             </div>
           </div>
-          <DialogFooter className="flex justify-between items-center w-full sm:justify-between">
-            <Button variant="destructive" onClick={handleDeleteAllEntries}>Delete All Entries</Button>
-            <Button variant="outline" onClick={() => setManageEntriesBillId(null)}>Close</Button>
+          <DialogFooter className="flex flex-col-reverse gap-2 w-full sm:flex-row sm:justify-between sm:items-center">
+            <Button variant="destructive" onClick={handleDeleteAllEntries} className="w-full min-h-[44px] sm:w-auto">Delete All Entries</Button>
+            <Button variant="outline" onClick={() => setManageEntriesBillId(null)} className="w-full min-h-[44px] sm:w-auto">Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1558,6 +1636,17 @@ export default function PartyBoxBillingPage() {
         .nav-btn:disabled {
           opacity: 0.5;
           cursor: not-allowed;
+        }
+        /* Mobile: navigation arrows share one full-width row with 44px targets */
+        .nav-btn-mobile {
+          flex: 1 1 0%;
+          height: 44px;
+        }
+        @media (min-width: 640px) {
+          .nav-btn-mobile {
+            flex: 0 0 auto;
+            height: 2.5rem;
+          }
         }
         .section-box {
           border: 2px solid hsl(var(--border));
