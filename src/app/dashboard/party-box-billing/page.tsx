@@ -43,7 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import {
   AlertDialog,
@@ -73,12 +74,12 @@ export default function PartyBoxBillingPage() {
     getPartyBoxBill,
     users,
     currentUser,
-    partyBoxBillEntries,
     addPartyBoxBillEntry,
     updatePartyBoxBillEntry,
     deletePartyBoxBillEntry,
     recalculateFuturePartyBoxBalances,
   } = useData();
+  const firestore = useFirestore();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedPartyId, setselectedPartyId] = useState<string>('');
@@ -125,18 +126,37 @@ export default function PartyBoxBillingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedChanges]);
 
+  const [scopedActiveEntries, setScopedActiveEntries] = useState<any[]>([]);
+  const scopedActiveBillIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeBillId || !firestore) {
+      setScopedActiveEntries([]);
+      scopedActiveBillIdRef.current = null;
+      return;
+    }
+    scopedActiveBillIdRef.current = null;
+    const q = query(collection(firestore, 'party_box_bill_entries'), where('partyBoxBillId', '==', activeBillId));
+    const unsubscribe = onSnapshot(q, snap => {
+      const entries = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      setScopedActiveEntries(entries);
+      scopedActiveBillIdRef.current = activeBillId;
+    });
+    return () => { unsubscribe(); scopedActiveBillIdRef.current = null; };
+  }, [activeBillId, firestore]);
+
   useEffect(() => {
     if (activeBillId && activeBillId !== lastInitializedBillId.current) {
-      const currentEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === activeBillId);
+      if (scopedActiveBillIdRef.current !== activeBillId) return;
       if (partyBoxBills.length > 0) {
-        setLocalEntries(currentEntries);
+        setLocalEntries(scopedActiveEntries);
         lastInitializedBillId.current = activeBillId;
       }
     } else if (!activeBillId && lastInitializedBillId.current !== null) {
       setLocalEntries([]);
       lastInitializedBillId.current = null;
     }
-  }, [activeBillId, partyBoxBillEntries, partyBoxBills]);
+  }, [activeBillId, scopedActiveEntries, partyBoxBills]);
 
   // History State
   const [historyDate, setHistoryDate] = useState<Date | undefined>();
@@ -153,6 +173,19 @@ export default function PartyBoxBillingPage() {
   const [localTfText, setLocalTfText] = useState('');
   const [isEntriesPanelOpen, setIsEntriesPanelOpen] = useState(false);
   const [manageEntriesBillId, setManageEntriesBillId] = useState<string | null>(null);
+
+  const [scopedManageEntries, setScopedManageEntries] = useState<any[]>([]);
+  useEffect(() => {
+    if (!manageEntriesBillId || !firestore) {
+      setScopedManageEntries([]);
+      return;
+    }
+    const q = query(collection(firestore, 'party_box_bill_entries'), where('partyBoxBillId', '==', manageEntriesBillId));
+    const unsubscribe = onSnapshot(q, snap => {
+      setScopedManageEntries(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    });
+    return () => unsubscribe();
+  }, [manageEntriesBillId, firestore]);
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const shareBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -394,29 +427,8 @@ export default function PartyBoxBillingPage() {
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, [handlePrevBill, handleNextBill, goToFirstBillOfDay, goToLastBillOfDay]);
 
-  // Auto-heal all drifted bills (runs once on mount when data is ready)
-  const hasAutoHealed = useRef(false);
-  useEffect(() => {
-    if (hasAutoHealed.current || !partyBoxBills.length || !partyBoxBillEntries.length) return;
-    hasAutoHealed.current = true;
-
-    partyBoxBills.forEach(bill => {
-      const existingEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === bill.id);
-      const trueTf = existingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
-      const trueEb = existingEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
-      
-      if (bill.todaysFishBox !== trueTf || bill.emptyBox !== trueEb) {
-        const trueTb = bill.prevBalanceBox + trueTf;
-        const trueBb = trueTb - trueEb;
-        // Silent background fix
-        addOrUpdatePartyBoxBill({
-           ...bill, todaysFishBox: trueTf, emptyBox: trueEb, totalBox: trueTb, balanceBox: trueBb
-        }, bill.id).then(() => {
-           recalculateFuturePartyBoxBalances(bill.partyId);
-        }).catch(console.error);
-      }
-    });
-  }, [partyBoxBills, partyBoxBillEntries, addOrUpdatePartyBoxBill, recalculateFuturePartyBoxBalances]);
+  // Note: hasAutoHealed block removed — it required global partyBoxBillEntries which
+  // is no longer loaded globally (to prevent 50k+ reads/minute at login).
 
   // History filtering
   useEffect(() => {
@@ -493,14 +505,12 @@ export default function PartyBoxBillingPage() {
 
   const manageEntries = useMemo(() => {
     if (!manageEntriesBillId) return [];
-    return partyBoxBillEntries
-      .filter(e => e.partyBoxBillId === manageEntriesBillId)
-      .sort((a, b) => {
-        const dateA = a.entryDate?.toDate ? a.entryDate.toDate() : new Date(a.entryDate);
-        const dateB = b.entryDate?.toDate ? b.entryDate.toDate() : new Date(b.entryDate);
-        return dateA.getTime() - dateB.getTime();
-      });
-  }, [partyBoxBillEntries, manageEntriesBillId]);
+    return [...scopedManageEntries].sort((a, b) => {
+      const dateA = a.entryDate?.toDate ? a.entryDate.toDate() : new Date(a.entryDate);
+      const dateB = b.entryDate?.toDate ? b.entryDate.toDate() : new Date(b.entryDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [scopedManageEntries, manageEntriesBillId]);
 
   const activeTotalAdded = activeBillEntries.reduce((sum, e) => e.boxesAdded > 0 ? sum + e.boxesAdded : sum, 0);
   const activeTotalEmptyAdded = activeBillEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
@@ -567,7 +577,7 @@ export default function PartyBoxBillingPage() {
     if (savedBill) {
       setActiveBillId(savedBill.id);
       
-      const firestoreEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === savedBill.id);
+      const firestoreEntries = scopedActiveEntries.filter(e => e.partyBoxBillId === savedBill.id);
       
       for (const fe of firestoreEntries) {
          if (fe.isManualEmpty) continue;
@@ -736,7 +746,7 @@ export default function PartyBoxBillingPage() {
           await deletePartyBoxBillEntry(entryId);
           const bill = partyBoxBills.find(b => b.id === manageEntriesBillId);
           if (bill) {
-             const remainingEntries = partyBoxBillEntries.filter(e => e.partyBoxBillId === manageEntriesBillId && e.id !== entryId);
+             const remainingEntries = scopedManageEntries.filter(e => e.partyBoxBillId === manageEntriesBillId && e.id !== entryId);
              const newTf = remainingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
              const newEmpty = remainingEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
              const newTb = bill.prevBalanceBox + newTf;
@@ -1382,7 +1392,7 @@ export default function PartyBoxBillingPage() {
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Empty Box</span><span className="font-mono">{bill.emptyBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs font-semibold">Balance Box</span><span className="font-mono font-bold text-primary text-base">{bill.balanceBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Entries</span>
-                            <span className="font-mono">{partyBoxBillEntries.filter(e => e.partyBoxBillId === bill.id).length}</span>
+                            <span className="font-mono">{bill.todaysFishBox}</span>
                           </div>
                         </div>
                         <div className="flex justify-end mt-3 border-t pt-3">

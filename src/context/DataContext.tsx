@@ -159,7 +159,7 @@ interface DataContextType {
   findBoxBillForCustomerOnDate: (customerId: string, date: Date) => BoxBill | undefined;
   getBoxBill: (billId: string) => BoxBill | undefined;
 
-  boxBillEntries: BoxBillEntry[];
+  // boxBillEntries removed from context — loaded per-bill in page components
   partyBoxBills: PartyBoxBill[];
   partyOpeningBoxBalances: Record<string, number>; 
   partyBoxBalances: Record<string, number>; 
@@ -171,7 +171,7 @@ interface DataContextType {
   findPartyBoxBillForPartyOnDate: (partyId: string, date: Date) => PartyBoxBill | undefined;
   getPartyBoxBill: (billId: string) => PartyBoxBill | undefined;
 
-  partyBoxBillEntries: PartyBoxBillEntry[];
+  // partyBoxBillEntries removed from context — loaded per-bill in page components
   addPartyBoxBillEntry: (entry: Omit<PartyBoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>) => Promise<PartyBoxBillEntry | null>;
   updatePartyBoxBillEntry: (entryId: string, boxesAdded: number, emptyBoxesAdded?: number) => Promise<void>;
   deletePartyBoxBillEntry: (entryId: string) => Promise<void>;
@@ -252,18 +252,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const { data: boxBillsData } = useCollection<BoxBill>(boxBillsCollection);
   const boxBills = useMemo(() => boxBillsData || [], [boxBillsData]);
 
-  const boxBillEntriesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'box_bill_entries') : null, [firestore, firebaseUser]);
-  const { data: boxBillEntriesData } = useCollection<BoxBillEntry>(boxBillEntriesCollection);
-  const boxBillEntries = useMemo(() => boxBillEntriesData || [], [boxBillEntriesData]);
+  // box_bill_entries and party_box_bill_entries are intentionally NOT loaded globally.
+  // These collections grow by ~100-150 docs/day and caused 50,000+ reads/minute at login.
+  // They are loaded per-bill in the page components using scoped onSnapshot queries.
 
    // ── Party Box Bills ──────────────────────────────────────────────────────
    const partyBoxBillsCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'party_box_bills') : null, [firestore, firebaseUser]);
    const { data: partyBoxBillsData } = useCollection<PartyBoxBill>(partyBoxBillsCollection);
    const partyBoxBills = useMemo(() => partyBoxBillsData || [], [partyBoxBillsData]);
  
-   const partyBoxBillEntriesCollection = useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'party_box_bill_entries') : null, [firestore, firebaseUser]);
-   const { data: partyBoxBillEntriesData } = useCollection<PartyBoxBillEntry>(partyBoxBillEntriesCollection);
-   const partyBoxBillEntries = useMemo(() => partyBoxBillEntriesData || [], [partyBoxBillEntriesData]);
+   // party_box_bill_entries also intentionally excluded from global state — see comment above.
  
    const { data: partyBoxBalancesData } = useCollection<{ partyId: string; balanceAmount: number }>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBoxBalances') : null, [firestore, firebaseUser]));
    const partyOpeningBoxBalances = useMemo(() => {
@@ -2107,26 +2105,26 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
     const batch = writeBatch(firestore);
     const customersToRecalculate = new Set<string>();
 
-    billIds.forEach(id => {
+    // Fetch entries per bill via one-time getDocs — entries no longer in global state
+    for (const id of billIds) {
       const bill = boxBills.find(b => b.id === id);
       if (bill) customersToRecalculate.add(bill.customerId);
       batch.delete(doc(firestore, 'box_bills', id));
-      // Also delete all entries belonging to this bill so they don't linger as orphans
-      boxBillEntries
-        .filter(e => e.boxBillId === id)
-        .forEach(e => batch.delete(doc(firestore, 'box_bill_entries', e.id)));
-    });
+      try {
+        const snap = await getDocs(query(collection(firestore, 'box_bill_entries'), where('boxBillId', '==', id)));
+        snap.forEach(e => batch.delete(doc(firestore, 'box_bill_entries', e.id)));
+      } catch (_) { /* non-fatal */ }
+    }
 
     try {
       await batch.commit();
-      // Re-use the shared function which fetches fresh data from Firestore
       for (const customerId of customersToRecalculate) {
         await recalculateFutureBoxBalances(customerId, [...billIds]);
       }
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: 'box_bills' }));
     }
-  }, [firestore, isCurrentUserAdmin, toast, boxBills, boxBillEntries, recalculateFutureBoxBalances]);
+  }, [firestore, isCurrentUserAdmin, toast, boxBills, recalculateFutureBoxBalances]);
 
   const addBoxBillEntry = useCallback(async (entryData: Omit<BoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>): Promise<BoxBillEntry | null> => {
     if (!firestore || !currentUser) return null;
@@ -2236,15 +2234,16 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
     const batch = writeBatch(firestore);
     const partiesToRecalculate = new Set<string>();
 
-    billIds.forEach(id => {
+    // Fetch entries per bill via one-time getDocs — entries no longer in global state
+    for (const id of billIds) {
       const bill = partyBoxBills.find(b => b.id === id);
       if (bill) partiesToRecalculate.add(bill.partyId);
       batch.delete(doc(firestore, 'party_box_bills', id));
-      // Delete associated entries
-      partyBoxBillEntries
-        .filter(e => e.partyBoxBillId === id)
-        .forEach(e => batch.delete(doc(firestore, 'party_box_bill_entries', e.id)));
-    });
+      try {
+        const snap = await getDocs(query(collection(firestore, 'party_box_bill_entries'), where('partyBoxBillId', '==', id)));
+        snap.forEach(e => batch.delete(doc(firestore, 'party_box_bill_entries', e.id)));
+      } catch (_) { /* non-fatal */ }
+    }
 
     try {
       await batch.commit();
@@ -2254,7 +2253,7 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
     } catch (e) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: 'party_box_bills' }));
     }
-  }, [firestore, isCurrentUserAdmin, toast, partyBoxBills, partyBoxBillEntries, recalculateFuturePartyBoxBalances]);
+  }, [firestore, isCurrentUserAdmin, toast, partyBoxBills, recalculateFuturePartyBoxBalances]);
 
   const addPartyBoxBillEntry = useCallback(async (entryData: Omit<PartyBoxBillEntry, 'id' | 'createdBy' | 'createdAt' | 'updatedAt'>): Promise<PartyBoxBillEntry | null> => {
     if (!firestore || !currentUser) return null;
@@ -2377,7 +2376,6 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         recalculateFuturePartyBoxBalances,
         findPartyBoxBillForPartyOnDate,
         getPartyBoxBill,
-        partyBoxBillEntries,
         addPartyBoxBillEntry,
         updatePartyBoxBillEntry,
         deletePartyBoxBillEntry,
@@ -2387,7 +2385,6 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         recalculateFutureBoxBalances,
         findBoxBillForCustomerOnDate,
         getBoxBill,
-        boxBillEntries,
         addBoxBillEntry,
         updateBoxBillEntry,
         deleteBoxBillEntry,

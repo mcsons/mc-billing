@@ -13,10 +13,12 @@ import { useLoading } from '@/context/LoadingContext';
 import { useToast } from '@/hooks/use-toast';
 import ReactSelect from 'react-select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, getDocs, collection, query, where } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 export default function EmptyBoxEntryPage() {
-  const { customers, boxBills, boxBillEntries, openingBoxBalances, addOrUpdateBoxBill, recalculateFutureBoxBalances, addBoxBillEntry } = useData();
+  const { customers, boxBills, openingBoxBalances, addOrUpdateBoxBill, recalculateFutureBoxBalances, addBoxBillEntry } = useData();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const { setLoading } = useLoading();
 
@@ -102,9 +104,11 @@ export default function EmptyBoxEntryPage() {
 
       if (existingBill) {
         // Scenario A: Update existing bill
-        const existingEntries = boxBillEntries.filter(e => e.boxBillId === existingBill.id);
-        const trueTf = existingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
-        const currentEntryEmpty = existingEntries.filter(e => !e.isManualEmpty).reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
+        // Scoped one-time read — box_bill_entries is no longer in global state
+        const entriesSnap = await getDocs(query(collection(firestore, 'box_bill_entries'), where('boxBillId', '==', existingBill.id)));
+        const existingEntries = entriesSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+        const trueTf = existingEntries.reduce((sum: number, e: any) => sum + (e.boxesAdded || 0), 0);
+        const currentEntryEmpty = existingEntries.filter((e: any) => !e.isManualEmpty).reduce((sum: number, e: any) => sum + (e.emptyBoxesAdded || 0), 0);
         
         const manualEmpty = existingBill.manualEmptyBox || 0;
         const updatedEntryEmptyBoxTotal = currentEntryEmpty + enteredEmptyBoxes;

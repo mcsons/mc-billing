@@ -43,7 +43,8 @@ import {
 } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot, collection, query, where } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import {
   AlertDialog,
@@ -73,12 +74,12 @@ export default function BoxBillingPage() {
     getBoxBill,
     users,
     currentUser,
-    boxBillEntries,
     addBoxBillEntry,
     updateBoxBillEntry,
     deleteBoxBillEntry,
     recalculateFutureBoxBalances,
   } = useData();
+  const firestore = useFirestore();
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -125,18 +126,46 @@ export default function BoxBillingPage() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedChanges]);
 
+  // ── Scoped entry listeners ────────────────────────────────────────────────
+  // Entries for the ACTIVE bill (current billing session).
+  // This replaces the old global boxBillEntries to eliminate 50k+ reads/login.
+  const [scopedActiveEntries, setScopedActiveEntries] = useState<any[]>([]);
+  // Track which bill ID the scoped snapshot is currently subscribed to,
+  // so we never seed localEntries with stale data from the previous bill.
+  const scopedActiveBillIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeBillId || !firestore) {
+      setScopedActiveEntries([]);
+      scopedActiveBillIdRef.current = null;
+      return;
+    }
+    scopedActiveBillIdRef.current = null; // mark as loading until snapshot arrives
+    const q = query(collection(firestore, 'box_bill_entries'), where('boxBillId', '==', activeBillId));
+    const unsubscribe = onSnapshot(q, snap => {
+      const entries = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      setScopedActiveEntries(entries);
+      scopedActiveBillIdRef.current = activeBillId;
+    });
+    return () => { unsubscribe(); scopedActiveBillIdRef.current = null; };
+  }, [activeBillId, firestore]);
+
+  // Seed localEntries ONLY when the scoped snapshot has delivered data
+  // for the CURRENT activeBillId. This prevents loading entries from the
+  // previous bill (the V3 race condition bug).
   useEffect(() => {
     if (activeBillId && activeBillId !== lastInitializedBillId.current) {
-      const currentEntries = boxBillEntries.filter(e => e.boxBillId === activeBillId);
+      // Guard: only seed if the snapshot is confirmed for this exact bill
+      if (scopedActiveBillIdRef.current !== activeBillId) return;
       if (boxBills.length > 0) {
-        setLocalEntries(currentEntries);
+        setLocalEntries(scopedActiveEntries);
         lastInitializedBillId.current = activeBillId;
       }
     } else if (!activeBillId && lastInitializedBillId.current !== null) {
       setLocalEntries([]);
       lastInitializedBillId.current = null;
     }
-  }, [activeBillId, boxBillEntries, boxBills]);
+  }, [activeBillId, scopedActiveEntries, boxBills]);
 
   // History State
   const [historyDate, setHistoryDate] = useState<Date | undefined>();
@@ -153,6 +182,20 @@ export default function BoxBillingPage() {
   const [localTfText, setLocalTfText] = useState('');
   const [isEntriesPanelOpen, setIsEntriesPanelOpen] = useState(false);
   const [manageEntriesBillId, setManageEntriesBillId] = useState<string | null>(null);
+
+  // Scoped listener for the historical entries panel (manage entries dialog).
+  const [scopedManageEntries, setScopedManageEntries] = useState<any[]>([]);
+  useEffect(() => {
+    if (!manageEntriesBillId || !firestore) {
+      setScopedManageEntries([]);
+      return;
+    }
+    const q = query(collection(firestore, 'box_bill_entries'), where('boxBillId', '==', manageEntriesBillId));
+    const unsubscribe = onSnapshot(q, snap => {
+      setScopedManageEntries(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    });
+    return () => unsubscribe();
+  }, [manageEntriesBillId, firestore]);
   const printBtnRef = useRef<HTMLButtonElement>(null);
   const shareBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -476,18 +519,14 @@ export default function BoxBillingPage() {
 
   const manageEntries = useMemo(() => {
     if (!manageEntriesBillId) return [];
-    // Guard: if the bill itself no longer exists (e.g. was deleted), return nothing
-    // to prevent orphaned entries from a deleted bill appearing in the dialog.
     const billExists = boxBills.some(b => b.id === manageEntriesBillId);
     if (!billExists) return [];
-    return boxBillEntries
-      .filter(e => e.boxBillId === manageEntriesBillId)
-      .sort((a, b) => {
-        const dateA = a.entryDate?.toDate ? a.entryDate.toDate() : new Date(a.entryDate);
-        const dateB = b.entryDate?.toDate ? b.entryDate.toDate() : new Date(b.entryDate);
-        return dateA.getTime() - dateB.getTime();
-      });
-  }, [boxBillEntries, manageEntriesBillId, boxBills]);
+    return [...scopedManageEntries].sort((a, b) => {
+      const dateA = a.entryDate?.toDate ? a.entryDate.toDate() : new Date(a.entryDate);
+      const dateB = b.entryDate?.toDate ? b.entryDate.toDate() : new Date(b.entryDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+  }, [scopedManageEntries, manageEntriesBillId, boxBills]);
 
   const activeTotalAdded = activeBillEntries.reduce((sum, e) => e.boxesAdded > 0 ? sum + e.boxesAdded : sum, 0);
   const activeTotalEmptyAdded = activeBillEntries.reduce((sum, e) => sum + (e.emptyBoxesAdded || 0), 0);
@@ -556,7 +595,7 @@ export default function BoxBillingPage() {
     if (savedBill) {
       setActiveBillId(savedBill.id);
       
-      const firestoreEntries = boxBillEntries.filter(e => e.boxBillId === savedBill.id);
+      const firestoreEntries = scopedActiveEntries.filter(e => e.boxBillId === savedBill.id);
       
       for (const fe of firestoreEntries) {
         if (fe.isManualEmpty) continue;
@@ -738,7 +777,7 @@ export default function BoxBillingPage() {
           await deleteBoxBillEntry(entryId);
           const bill = boxBills.find(b => b.id === manageEntriesBillId);
           if (bill) {
-             const remainingEntries = boxBillEntries.filter(e => e.boxBillId === manageEntriesBillId && e.id !== entryId);
+             const remainingEntries = scopedManageEntries.filter(e => e.boxBillId === manageEntriesBillId && e.id !== entryId);
              const newTf = remainingEntries.reduce((sum, e) => sum + (e.boxesAdded || 0), 0);
             // Preserve manualEmptyBox — only recalculate todaysFishBox from entries.
              // Exclude isManualEmpty entries: their value is already in bill.manualEmptyBox.
@@ -1389,7 +1428,7 @@ export default function BoxBillingPage() {
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Empty Box</span><span className="font-mono">{bill.emptyBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs font-semibold">Balance Box</span><span className="font-mono font-bold text-primary text-base">{bill.balanceBox}</span></div>
                           <div className="flex justify-between items-center"><span className="text-muted-foreground text-xs">Entries</span>
-                            <span className="font-mono">{boxBillEntries.filter(e => e.boxBillId === bill.id).length}</span>
+                            <span className="font-mono">{bill.todaysFishBox}</span>
                           </div>
                         </div>
                         <div className="flex justify-end mt-3 border-t pt-3">
