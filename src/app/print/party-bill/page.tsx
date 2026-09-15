@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { PartyBillItem } from '@/lib/data';
+import { PartyBillItem, getPartyItemQty, getPartyItemUom, isLegacyPartyItem } from '@/lib/data';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
@@ -171,10 +171,41 @@ function PartyBillPrintContent() {
   const commissionPercent = commission;
   const commissionAmount = (totalAmount * commissionPercent) / 100;
   
-  // Calculate sums for the new summary row
-  const sumWeight = items.reduce((sum: number, item: PartyBillItem) => sum + ((item.box || 0) * (item.kgs || 0)), 0);
+  // True only when EVERY item is in the pre-qty/UOM shape. Such bills keep the
+  // original Box / Kgs columns so historical prints stay exactly as they were.
+  const isLegacyItemsBill = items.length > 0 && items.every((item: PartyBillItem) => isLegacyPartyItem(item));
+
+  // Calculate sums for the new summary row.
+  // Legacy rows: box x kgs-per-box. New rows: the qty already expressed in KGS.
+  const sumWeight = items.reduce((sum: number, item: PartyBillItem) => {
+    if (isLegacyPartyItem(item)) return sum + ((item.box || 0) * (item.kgs || 0));
+    return getPartyItemUom(item).toUpperCase() === 'KGS' ? sum + getPartyItemQty(item) : sum;
+  }, 0);
   
   const totalBoxes = billData.totalBox;
+
+  /**
+   * Received dates. Handles Firestore Timestamp, serialized {seconds}, ISO
+   * strings and Date. Legacy bills have no received-date field, so they fall
+   * back to the bill's own date — no date is invented, and nothing is written.
+   */
+  const toReceivedDate = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === 'function') {
+      const d = value.toDate();
+      return isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const billDateForFallback = date ? new Date(date) : null;
+  const cashDate = toReceivedDate(billData.cashReceivedDate) || billDateForFallback;
+  const bankDate = toReceivedDate(billData.bankReceivedDate) || billDateForFallback;
+  /** "By Cash (08/09/2026):" — falls back to the plain label if no date exists. */
+  const cashLabel = cashDate ? `By Cash (${format(cashDate, 'dd/MM/yyyy')}):` : 'By Cash:';
+  const bankLabel = bankDate ? `By Bank (${format(bankDate, 'dd/MM/yyyy')}):` : 'By Bank:';
 
   // ─────────────────────────────────────────────────────────────
   //  Hidden party bill rendered with INLINE STYLES so html2canvas
@@ -243,8 +274,8 @@ function PartyBillPrintContent() {
           <tr style={{ backgroundColor: '#f2f2f2' }}>
             <th style={{ width: '6%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>S/N</th>
             <th style={{ width: '30%', border: cellBorder, padding: '5px 4px', textAlign: 'left', fontWeight: 'bold', fontSize: '9pt' }}>Item Name</th>
-            <th style={{ width: '10%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Box</th>
-            <th style={{ width: '14%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Kgs</th>
+            <th style={{ width: '10%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>{isLegacyItemsBill ? 'Box' : 'Qty'}</th>
+            <th style={{ width: '14%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>{isLegacyItemsBill ? 'Kgs' : 'UOM'}</th>
             <th style={{ width: '14%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Rate</th>
             <th style={{ width: '26%', border: cellBorder, padding: '5px 4px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', whiteSpace: 'nowrap' }}>Amount</th>
           </tr>
@@ -254,8 +285,8 @@ function PartyBillPrintContent() {
             <tr key={item.id}>
               <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'center', whiteSpace: 'nowrap', verticalAlign: 'top' }}>{index + 1}</td>
               <td style={{ border: cellBorder, padding: '5px 4px', wordBreak: 'break-word', textAlign: 'left', fontSize: '10pt', verticalAlign: 'top' }}><strong>{item.productName}</strong></td>
-              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>{item.box}</td>
-              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', color: '#444', verticalAlign: 'top' }}>{(item.kgs ?? 0).toFixed(2)}</td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', verticalAlign: 'top' }}>{getPartyItemQty(item)}</td>
+              <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontWeight: 'bold', color: '#444', verticalAlign: 'top' }}>{isLegacyPartyItem(item) ? (item.kgs ?? 0).toFixed(2) : getPartyItemUom(item)}</td>
               <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontFamily: '"Courier New", monospace', verticalAlign: 'top' }}><strong>{(item.rate ?? 0).toFixed(2)}</strong></td>
               <td style={{ border: cellBorder, padding: '5px 4px', textAlign: 'right', fontFamily: '"Courier New", monospace', fontWeight: 'bold', verticalAlign: 'top' }}>{(item.amount ?? 0).toFixed(2)}</td>
             </tr>
@@ -276,6 +307,10 @@ function PartyBillPrintContent() {
         boxSizing: 'border-box',
       }}>
         <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline' }}>
+          <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>Total Box:</span>
+          <span style={{ fontWeight: 600, fontSize: '10pt' }}>{totalBoxes}</span>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline' }}>
           <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>Total Weight:</span>
           <span style={{ fontWeight: 600, fontSize: '10pt' }}>{sumWeight.toFixed(2)} KGS</span>
         </div>
@@ -283,24 +318,28 @@ function PartyBillPrintContent() {
 
       {/* Totals Section */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', width: '100%', boxSizing: 'border-box' }}>
-        {/* Left: Deductions & Payments */}
-        <div style={{ width: '50%' }}>
+        {/* Left: Deductions & Payments.
+            Flex column: the deductions sit at the top, a flexible spacer pushes
+            the payments group down, and a fixed bottom offset equal to one
+            summary row lifts it so it ends level with the "Total Paid" row of
+            the table on the right. Offset measured against the rendered table. */}
+        <div style={{ width: '50%', display: 'flex', flexDirection: 'column' }}>
           {/* Deductions group */}
           <div style={{ marginBottom: 0 }}>
             {(commissionPercent > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
-                <span style={{ fontWeight: 'bold' }}>Commission ({commissionPercent.toFixed(1)}%):</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold' }}>Commission:</span>
                 <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{commissionAmount.toFixed(2)}</strong></span>
               </div>
             )}
             {(expenses > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
                 <span style={{ fontWeight: 'bold' }}>Expenses:</span>
                 <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{expenses.toFixed(2)}</strong></span>
               </div>
             )}
             {(rent > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
                 <span style={{ fontWeight: 'bold' }}>Rent:</span>
                 <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{rent.toFixed(2)}</strong></span>
               </div>
@@ -308,22 +347,27 @@ function PartyBillPrintContent() {
           </div>
           {/* Separator */}
           <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
+          {/* Spacer: pushes the payments group down to the Total Paid row */}
+          <div style={{ flex: '1 1 auto' }} />
           {/* Payments group */}
           <div style={{ marginTop: '4px' }}>
             {(cashReceived > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
-                <span style={{ fontWeight: 'bold' }}>By Cash:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{cashLabel}</span>
                 <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{cashReceived.toFixed(2)}</strong></span>
               </div>
             )}
             {(bankReceived > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 4px', fontSize: '10pt' }}>
-                <span style={{ fontWeight: 'bold' }}>By Bank:</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bankLabel}</span>
                 <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{bankReceived.toFixed(2)}</strong></span>
               </div>
             )}
           </div>
           <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
+          {/* Height of one summary row ("Net Balance"), so the payments block
+              lines up with "Total Paid" rather than the bottom of the table. */}
+          <div style={{ flex: '0 0 auto', height: '20px' }} />
         </div>
 
         {/* Right: Boxed Summary Table */}
@@ -455,8 +499,8 @@ function PartyBillPrintContent() {
               <tr>
                 <th className="col-sn">S/N</th>
                 <th className="col-item">Item Name</th>
-                <th className="col-box">Box</th>
-                <th className="col-kgs">Kgs</th>
+                <th className="col-box">{isLegacyItemsBill ? 'Box' : 'Qty'}</th>
+                <th className="col-kgs">{isLegacyItemsBill ? 'Kgs' : 'UOM'}</th>
                 <th className="col-rate">Rate</th>
                 <th className="col-total">Amount</th>
               </tr>
@@ -466,8 +510,8 @@ function PartyBillPrintContent() {
                 <tr key={item.id}>
                   <td className="col-sn">{index + 1}</td>
                   <td className="col-item"><strong>{item.productName}</strong></td>
-                  <td className="col-box">{item.box}</td>
-                  <td className="col-kgs">{item.kgs.toFixed(2)}</td>
+                  <td className="col-box">{getPartyItemQty(item)}</td>
+                  <td className="col-kgs">{isLegacyPartyItem(item) ? (item.kgs ?? 0).toFixed(2) : getPartyItemUom(item)}</td>
                   <td className="col-rate"><strong>{item.rate.toFixed(2)}</strong></td>
                   <td className="col-total">{item.amount.toFixed(2)}</td>
                 </tr>
@@ -478,6 +522,10 @@ function PartyBillPrintContent() {
           {/* New Totals Summary Row */}
           <div className="table-summary-row">
             <div className="summary-item">
+              <span className="label">Total Box:</span>
+              <span className="value">{totalBoxes}</span>
+            </div>
+            <div className="summary-item">
               <span className="label">Total Weight:</span>
               <span className="value">{sumWeight.toFixed(2)} KGS</span>
             </div>
@@ -486,16 +534,18 @@ function PartyBillPrintContent() {
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
             <div className="left-totals">
                 <div className="deductions-group">
-                    {commission > 0 && <div className="detail-row"><span>Commission ({commissionPercent.toFixed(1)}%):</span><span><strong>₹{commissionAmount.toFixed(2)}</strong></span></div>}
+                    {commission > 0 && <div className="detail-row"><span>Commission:</span><span><strong>₹{commissionAmount.toFixed(2)}</strong></span></div>}
                     {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span><strong>₹{expenses.toFixed(2)}</strong></span></div>}
                     {rent > 0 && <div className="detail-row"><span>Rent:</span><span><strong>₹{rent.toFixed(2)}</strong></span></div>}
                 </div>
                 <Separator className="my-1 border-black" />
+                <div className="pay-spacer" />
                 <div className="payments-group">
-                    {cashReceived > 0 && <div className="detail-row"><span>By Cash:</span><span><strong>₹{cashReceived.toFixed(2)}</strong></span></div>}
-                    {bankReceived > 0 && <div className="detail-row"><span>By Bank:</span><span><strong>₹{bankReceived.toFixed(2)}</strong></span></div>}
+                    {cashReceived > 0 && <div className="detail-row"><span className="pay-label">{cashLabel}</span><span><strong>₹{cashReceived.toFixed(2)}</strong></span></div>}
+                    {bankReceived > 0 && <div className="detail-row"><span className="pay-label">{bankLabel}</span><span><strong>₹{bankReceived.toFixed(2)}</strong></span></div>}
                 </div>
                 <Separator className="my-1 border-black" />
+                <div className="totals-bottom-offset" />
             </div>
              <table className="right-totals boxed-summary-table">
                 <tbody>
@@ -696,9 +746,16 @@ function PartyBillPrintContent() {
           TOTALS SECTION
         ================================ */
         .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; box-sizing: border-box; }
-        .left-totals { width: 50%; }
+        /* Flex column so the payments group can be pushed down to align with
+           the "Total Paid" row of the summary table on the right. */
+        .left-totals { width: 50%; display: flex; flex-direction: column; }
+        .left-totals .pay-label { white-space: nowrap; }
+        .pay-spacer { flex: 1 1 auto; }
+        /* One summary row tall ("Net Balance"), measured against the rendered
+           table, so the received block ends level with "Total Paid". */
+        .totals-bottom-offset { flex: 0 0 auto; height: 20px; }
         .right-totals { width: 48%; }
-        .left-totals .detail-row { display: flex; justify-content: space-between; padding: 1px 4px; font-size: 10pt; }
+        .left-totals .detail-row { display: flex; justify-content: space-between; gap: 6px; padding: 1px 4px; font-size: 10pt; }
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         

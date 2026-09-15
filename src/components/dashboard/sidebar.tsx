@@ -95,6 +95,7 @@ const boxBillSubItems: NavItem[] = [
 const partyBillSubItems: NavItem[] = [
   { href: '/dashboard/party-bill', label: 'Party Billing', icon: BookUser },
   { href: '/dashboard/party-reports', label: 'Party Reports', icon: FileBarChart2 },
+  { href: '/dashboard/party-statement', label: 'Party Statements', icon: History },
   { href: '/dashboard/balances/party', label: 'Party Balance', icon: Briefcase },
   { href: '/dashboard/party-payments', label: 'Party Payments', icon: IndianRupee },
 ];

@@ -39,6 +39,11 @@ type ProductPrices = Record<string, Record<string, number>>;
 type CustomerBalances = Record<string, number>;
 type LiveBillItems = Record<string, BillItem[]>; // Keyed by billNo
 
+/** First party bill number issued is PARTY_BILL_NO_SEED + 1 (=> PB1001), so new
+ *  numbers are 4 digits like Main Billing's B2078. Raise this if you ever need
+ *  to jump the sequence forward; never lower it below the highest issued PB id. */
+const PARTY_BILL_NO_SEED = 1000;
+
 export interface DashboardStats {
   todaySales: number;
   salesChange: number;
@@ -123,6 +128,9 @@ interface DataContextType {
   customerProductPrices: Record<string, Record<string, Record<string, number>>>;
   setCustomerProductPrice: (customerId: string, productId: string, uom: string, price: number) => Promise<void>;
   getCustomerProductPrice: (customerId: string, productId: string, uom: string) => number | undefined;
+  /** Removes the customer-specific price override(s) for a product so the customer
+   *  falls back to the default product price. Historical bills are never touched. */
+  clearCustomerProductPrice: (customerId: string, productId: string, uoms?: string[]) => Promise<number>;
   addPayment: (payment: Omit<Payment, 'id' | 'date'> & { date?: Date }) => void;
   updatePayment: (paymentId: string, data: { amount: number; notes?: string; paymentMode?: string; date?: Date }) => Promise<void>;
   softDeletePayment: (paymentId: string) => Promise<void>;
@@ -135,6 +143,13 @@ interface DataContextType {
   getBill: (billNo: string) => LiveBillSummary | undefined;
   getCustomerLedger: (
     customerId: string, 
+    dateRange: { from: Date, to: Date }
+  ) => { transactions: Transaction[], openingBalance: number };
+  /** Party equivalent of getCustomerLedger. Same transaction shape, same
+   *  same-day merge rules and same running-balance maths, but sourced from
+   *  partyBills + partyPayments. Reads only already-loaded collections. */
+  getPartyLedger: (
+    partyId: string,
     dateRange: { from: Date, to: Date }
   ) => { transactions: Transaction[], openingBalance: number };
   getSalesReport: (
@@ -410,6 +425,46 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   ): number | undefined => {
     return customerProductPrices[customerId]?.[productId]?.[uom];
   }, [customerProductPrices]);
+
+  /**
+   * Clears the customer-specific price override for a customer + product.
+   *
+   * Deletes only the deterministic `customer_product_prices` documents
+   * (`${customerId}_${productId}_${uom}`) that actually exist, so no write is
+   * issued when there is nothing to clear. The default price in `productPrices`
+   * and every historical bill/billItem are left completely untouched — this
+   * affects FUTURE price resolution only.
+   *
+   * @returns the number of overrides removed (0 means nothing was set).
+   */
+  const clearCustomerProductPrice = useCallback(async (
+    customerId: string,
+    productId: string,
+    uoms?: string[]
+  ): Promise<number> => {
+    if (!firestore || !customerId || !productId) return 0;
+    const existing = customerProductPrices[customerId]?.[productId] || {};
+    // Only touch UOMs that genuinely have an override stored.
+    const targetUoms = (uoms && uoms.length ? uoms : Object.keys(existing))
+      .filter((uom) => existing[uom] !== undefined);
+    if (targetUoms.length === 0) return 0;
+
+    const batch = writeBatch(firestore);
+    targetUoms.forEach((uom) => {
+      batch.delete(doc(firestore, 'customer_product_prices', `${customerId}_${productId}_${uom}`));
+    });
+    await batch.commit().catch((e) => {
+      errorEmitter.emit(
+        'permission-error',
+        new FirestorePermissionError({
+          operation: 'delete',
+          path: `customer_product_prices/${customerId}_${productId}_*`,
+        })
+      );
+      throw e;
+    });
+    return targetUoms.length;
+  }, [firestore, customerProductPrices]);
 
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
     todaySales: 0,
@@ -1553,6 +1608,162 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
     return { transactions: finalTransactions, openingBalance: openingBalanceForPeriod };
   }, [liveBillSummaries, payments, openingBalances]);
 
+  /**
+   * Party ledger — the Party counterpart of getCustomerLedger above.
+   *
+   * Party money model (mirrors how partyBalances is maintained):
+   *   balance = SUM(bill.netAmount - bill.totalReceived) - SUM(partyPayments)
+   * A party bill carries its own received amount instead of generating a
+   * separate payment document, so that amount is emitted here as its own
+   * "Bill Payment" received row. That gives exactly the same transaction shape
+   * Customer Statements works with, so the same-day merge below is unchanged.
+   *
+   * Parties have no stored opening-balance seed (customers have
+   * `openingBalances`), so the period opening is derived purely from prior
+   * activity, starting from zero.
+   */
+  const getPartyLedger = useCallback((
+    partyId: string,
+    dateRange: { from: Date, to: Date }
+  ): { transactions: Transaction[], openingBalance: number } => {
+
+    const fromDateStart = startOfDay(dateRange.from);
+    const toDateEnd = endOfDay(dateRange.to);
+
+    const allBills = (partyBills || []).filter(b => b.partyId === partyId && b.date);
+    const allPayments = (partyPayments || []).filter(p => p.partyId === partyId && !p.isDeleted);
+
+    const priorBills = allBills.filter(b => getSafeDate(b.date) < fromDateStart);
+    const priorPayments = allPayments.filter(p => getSafeDate(p.date) < fromDateStart);
+
+    const totalPriorBilled = priorBills.reduce((sum, b) => sum + (b.netAmount || 0), 0);
+    const totalPriorPaid =
+      priorBills.reduce((sum, b) => sum + (b.totalReceived || 0), 0) +
+      priorPayments.reduce((sum, p) => sum + p.amount, 0);
+    const openingBalanceForPeriod = Number((totalPriorBilled - totalPriorPaid).toFixed(2));
+
+    const interval = { start: fromDateStart, end: toDateEnd };
+
+    const billsInRange = allBills.filter(b => isWithinInterval(getSafeDate(b.date), interval));
+    const paymentsInRange = allPayments.filter(p => isWithinInterval(getSafeDate(p.date), interval));
+
+    const rawTransactions: any[] = [];
+
+    billsInRange.forEach(b => {
+      const txDate = getSafeDate(b.date);
+      const createdAtDate = b.createdAt ? getSafeDate(b.createdAt) : txDate;
+      if ((b.netAmount || 0) !== 0) {
+        rawTransactions.push({
+          date: txDate,
+          createdAt: createdAtDate,
+          description: `Bill No: ${b.id}`,
+          billedAmount: b.netAmount,
+          balance: 0,
+          type: 'bill',
+          sortKey: 1,
+        });
+      }
+      // Cash + bank collected on the bill itself.
+      if ((b.totalReceived || 0) > 0) {
+        rawTransactions.push({
+          date: txDate,
+          createdAt: createdAtDate,
+          description: 'Bill Payment',
+          receivedAmount: b.totalReceived,
+          paymentMode: 'Bill Payment',
+          balance: 0,
+          type: 'payment',
+          sortKey: 2,
+        });
+      }
+    });
+
+    paymentsInRange.forEach(p => {
+      const txDate = getSafeDate(p.date);
+      const createdAtDate = (p as any).createdAt ? getSafeDate((p as any).createdAt) : txDate;
+      rawTransactions.push({
+        date: txDate,
+        createdAt: createdAtDate,
+        description: p.notes || `${p.paymentMode || 'Cash'} Payment`,
+        receivedAmount: p.amount,
+        paymentMode: p.paymentMode || 'Cash',
+        paymentId: p.id,
+        balance: 0,
+        type: 'payment',
+        sortKey: 2,
+      });
+    });
+
+    rawTransactions.sort((a, b) => {
+      const dayA = startOfDay(a.date).getTime();
+      const dayB = startOfDay(b.date).getTime();
+      if (dayA !== dayB) return dayA - dayB;
+
+      const timeA = a.createdAt.getTime();
+      const timeB = b.createdAt.getTime();
+      if (timeA !== timeB) return timeA - timeB;
+
+      return a.sortKey - b.sortKey;
+    });
+
+    const groupedByDay = new Map<number, any[]>();
+    for (const t of rawTransactions) {
+      const dayTime = startOfDay(t.date).getTime();
+      if (!groupedByDay.has(dayTime)) groupedByDay.set(dayTime, []);
+      groupedByDay.get(dayTime)!.push(t);
+    }
+
+    const mergedTransactions: any[] = [];
+    const sortedDays = Array.from(groupedByDay.keys()).sort((a, b) => a - b);
+
+    for (const day of sortedDays) {
+      const dailyTx = groupedByDay.get(day)!;
+      const bills = dailyTx.filter(t => t.type === 'bill');
+      const dayPayments = dailyTx.filter(t => t.type === 'payment');
+
+      if (bills.length > 0 && dayPayments.length > 0) {
+        const totalBilled = bills.reduce((sum, b) => sum + b.billedAmount, 0);
+        const billDescriptions = bills.map(b => b.description).join(' & ');
+
+        const firstPayment = dayPayments[0];
+        const mergedPayment = {
+          ...firstPayment,
+          description: `${firstPayment.description} | ${billDescriptions}`,
+          billedAmount: totalBilled,
+          type: 'both'
+        };
+
+        mergedTransactions.push(mergedPayment);
+        for (let i = 1; i < dayPayments.length; i++) {
+          mergedTransactions.push(dayPayments[i]);
+        }
+      } else {
+        mergedTransactions.push(...dailyTx);
+      }
+    }
+
+    const combinedTransactions: Transaction[] = mergedTransactions.map(t => ({
+      date: t.date,
+      description: t.description,
+      billedAmount: t.billedAmount,
+      receivedAmount: t.receivedAmount,
+      paymentMode: t.paymentMode,
+      paymentId: t.paymentId,
+      balance: 0,
+      type: t.type
+    }));
+
+    let currentBalance = openingBalanceForPeriod;
+    const finalTransactions = combinedTransactions.map(t => {
+      currentBalance += t.billedAmount || 0;
+      currentBalance -= t.receivedAmount || 0;
+      currentBalance = Number(currentBalance.toFixed(2));
+      return { ...t, balance: currentBalance };
+    });
+
+    return { transactions: finalTransactions, openingBalance: openingBalanceForPeriod };
+  }, [partyBills, partyPayments]);
+
   const getSalesReport = useCallback(async (
     customerId: string,
     dateRange: { from: Date; to: Date }
@@ -1868,8 +2079,20 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
-      billRef = doc(collection(firestore, 'partyBills'));
-      billId = billRef.id;
+      // Readable sequential bill number, mirroring Main Billing's `B####`
+      // scheme (see createOrUpdateLiveBill) but prefixed PB for party bills.
+      // Only IDs already in PB<number> form are considered, so party bills
+      // saved earlier with random Firestore auto-IDs are ignored and left
+      // exactly as they are.
+      const maxPartyBillNo = (partyBills || [])
+        .map(b => {
+          const match = /^PB(\d+)$/.exec(String(b.id || ''));
+          return match ? parseInt(match[1], 10) : NaN;
+        })
+        .filter(num => !isNaN(num))
+        .reduce((max, num) => Math.max(max, num), PARTY_BILL_NO_SEED);
+      billId = `PB${maxPartyBillNo + 1}`;
+      billRef = doc(firestore, 'partyBills', billId);
     }
     
     batch.set(billRef, billPayload, { merge: true });
@@ -2307,6 +2530,7 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         customerProductPrices,
         setCustomerProductPrice,
         getCustomerProductPrice,
+        clearCustomerProductPrice,
         openingBalances,
         customerBalances,
         payments,
@@ -2356,6 +2580,7 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         findBillForCustomerOnDate,
         getBill,
         getCustomerLedger,
+        getPartyLedger,
         getSalesReport,
         statementPrintHistory,
         addStatementPrintHistory,

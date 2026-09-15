@@ -12,10 +12,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Save } from 'lucide-react';
+import { Save, Eraser } from 'lucide-react';
 import { Product } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import ReactSelect from 'react-select';
+import { useAlertDialog } from '@/context/AlertDialogProvider';
 
 type LocalPrices = Record<string, string>;
 
@@ -28,12 +29,15 @@ export default function PricesPage() {
     customerProductPrices,
     setCustomerProductPrice,
     getCustomerProductPrice,
+    clearCustomerProductPrice,
   } = useData();
   const { toast } = useToast();
+  const showAlertDialog = useAlertDialog();
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [localPrices, setLocalPrices] = useState<LocalPrices>({});
+  const [isClearing, setIsClearing] = useState(false);
 
   const productSearchRef = useRef<any>(null);
   const customerSearchRef = useRef<any>(null);
@@ -158,6 +162,60 @@ export default function PricesPage() {
     productSearchRef.current?.clearValue();
     customerSearchRef.current?.clearValue();
     setTimeout(() => productSearchRef.current?.focus(), 0);
+  };
+
+  // ── Customer-specific price clearing ────────────────────────────────────
+  // UOMs of the selected product that currently carry a customer-specific
+  // override. Empty means there is nothing to clear (so no Firestore write).
+  const overriddenUoms = useMemo(() => {
+    if (!selectedProduct || !selectedCustomerId) return [];
+    return selectedProduct.uom_allowed.filter(
+      (uom) => getCustomerProductPrice(selectedCustomerId, selectedProduct.id, uom) !== undefined
+    );
+  }, [selectedProduct, selectedCustomerId, getCustomerProductPrice]);
+
+  const hasCustomerSpecificPrice = overriddenUoms.length > 0;
+
+  const handleClearCustomerPrice = () => {
+    if (!selectedProduct || !selectedCustomer || !hasCustomerSpecificPrice) return;
+
+    showAlertDialog({
+      title: 'Clear Customer Specific Price?',
+      description: `Clear the customer-specific price for ${selectedCustomer.name_en} and ${selectedProduct.name_en}? They will go back to the default product price. Existing bills are not changed.`,
+      confirmText: 'Clear Price',
+      cancelText: 'Cancel',
+      onConfirm: async () => {
+        setIsClearing(true);
+        try {
+          const removed = await clearCustomerProductPrice(
+            selectedCustomer.id,
+            selectedProduct.id,
+            overriddenUoms
+          );
+          if (removed === 0) {
+            toast({
+              title: 'No customer-specific price is set.',
+              description: `${selectedCustomer.name_en} already uses the default price for ${selectedProduct.name_en}.`,
+            });
+            return;
+          }
+          toast({
+            title: 'Customer Price Cleared',
+            description: `${selectedProduct.name_en} now uses the default price for ${selectedCustomer.name_en}.`,
+          });
+          // Selections are intentionally kept: the live customerProductPrices
+          // listener refreshes the displayed price to the default on its own.
+        } catch {
+          toast({
+            variant: 'destructive',
+            title: 'Could Not Clear Price',
+            description: 'The customer-specific price was not changed. Please try again.',
+          });
+        } finally {
+          setIsClearing(false);
+        }
+      },
+    });
   };
 
   // ── Current-price label per UOM ─────────────────────────────────────────
@@ -295,12 +353,39 @@ export default function PricesPage() {
           </div>
         )}
 
-        <div className="flex justify-end">
-          <Button size="lg" disabled={!selectedProduct} onClick={handleUpdatePrices}>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          {selectedProduct && selectedCustomer && (
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full min-h-[44px] border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive sm:w-auto"
+              disabled={!hasCustomerSpecificPrice || isClearing}
+              onClick={handleClearCustomerPrice}
+              title={
+                hasCustomerSpecificPrice
+                  ? 'Remove this customer-specific price'
+                  : 'No customer-specific price is set.'
+              }
+            >
+              <Eraser className="mr-2 h-4 w-4" />
+              {isClearing ? 'Clearing...' : 'Clear Customer Specific Price'}
+            </Button>
+          )}
+          <Button
+            size="lg"
+            className="w-full min-h-[44px] sm:w-auto"
+            disabled={!selectedProduct}
+            onClick={handleUpdatePrices}
+          >
             <Save className="mr-2 h-4 w-4" />
             {selectedCustomer ? 'Update Customer Price' : 'Update Default Price'}
           </Button>
         </div>
+        {selectedProduct && selectedCustomer && !hasCustomerSpecificPrice && (
+          <p className="text-xs text-muted-foreground text-right">
+            No customer-specific price is set — {selectedCustomer.name_en} uses the default price.
+          </p>
+        )}
       </CardContent>
     </Card>
   );

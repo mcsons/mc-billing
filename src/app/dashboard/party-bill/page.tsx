@@ -54,9 +54,27 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
-import { PartyBill, PartyBillItem } from '@/lib/data';
+import { PartyBill, PartyBillItem, getPartyItemQty, getPartyItemUom } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
+
+/**
+ * Coerces a stored date value into a Date. Handles Firestore Timestamp,
+ * serialized {seconds} objects, ISO strings and Date. Returns `fallback` when
+ * the value is missing or unparseable, so legacy Party Bills saved before the
+ * received-date fields existed never crash and are never back-filled on disk.
+ */
+const toSafeDate = (value: any, fallback: Date): Date => {
+    if (!value) return fallback;
+    if (value instanceof Date) return isNaN(value.getTime()) ? fallback : value;
+    if (typeof value?.toDate === 'function') {
+        const d = value.toDate();
+        return isNaN(d.getTime()) ? fallback : d;
+    }
+    if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000);
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? fallback : d;
+};
 
 const formatINR = (val: number | string) => {
     const num = typeof val === 'string' ? parseFloat(val.toString().replace(/,/g, '')) : val;
@@ -148,11 +166,11 @@ export default function PartyBillPage() {
     const [totalKgs, setTotalKgs] = useState('');
     const [items, setItems] = useState<PartyBillItem[]>([]);
     
-    // Item entry state
+    // Item entry state — quantity + UOM, matching Main Billing's Add Item flow.
     const [rate, setRate] = useState('');
     const [selectedProductId, setSelectedProductId] = useState('');
-    const [box, setBox] = useState('');
-    const [kgs, setKgs] = useState('');
+    const [qty, setQty] = useState('');
+    const [uom, setUom] = useState('KGS');
     // Inline row edit state (double-click to edit an existing line item)
     const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
@@ -162,6 +180,10 @@ export default function PartyBillPage() {
     const [rent, setRent] = useState('');
     const [cashReceived, setCashReceived] = useState('');
     const [bankReceived, setBankReceived] = useState('');
+    // Transaction dates for the received amounts. Independent of each other and
+    // of the bill date; informational only (no effect on any calculation).
+    const [cashReceivedDate, setCashReceivedDate] = useState<Date>(new Date());
+    const [bankReceivedDate, setBankReceivedDate] = useState<Date>(new Date());
     
     // Editing state
     const [editingBillId, setEditingBillId] = useState<string | null>(null);
@@ -189,10 +211,10 @@ export default function PartyBillPage() {
     const mobileProductSelectRef = useRef<any>(null);
     // Entry-row refs used to walk focus Product → Box → Kgs → Rate → Add
     const productSelectRef = useRef<any>(null);
-    const boxInputRef = useRef<HTMLInputElement>(null);
-    const kgsInputRef = useRef<HTMLInputElement>(null);
-    const mobileBoxRef = useRef<HTMLInputElement>(null);
-    const mobileKgsRef = useRef<HTMLInputElement>(null);
+    const qtyInputRef = useRef<HTMLInputElement>(null);
+    const uomSelectRef = useRef<any>(null);
+    const mobileQtyRef = useRef<HTMLInputElement>(null);
+    const mobileUomSelectRef = useRef<any>(null);
     const mobileRateRef = useRef<HTMLInputElement>(null);
 
     // Focus the Product dropdown for whichever entry form is visible.
@@ -202,17 +224,6 @@ export default function PartyBillPage() {
         mobileProductSelectRef.current?.focus();
     }, []);
 
-    // Enter behaves like Tab: move to the next control in the entry form.
-    const handleEntryKeyDown = (
-        e: React.KeyboardEvent<HTMLInputElement>,
-        nextRef: React.RefObject<HTMLInputElement | null>
-    ) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            nextRef.current?.focus();
-            nextRef.current?.select?.();
-        }
-    };
     const [showPrintConfirm, setShowPrintConfirm] = useState(false);
     const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
 
@@ -264,13 +275,16 @@ export default function PartyBillPage() {
         setEditingItemId(null);
         setSelectedProductId('');
         setRate('');
-        setBox('');
-        setKgs('');
+        setQty('');
+        setUom('KGS');
         setCommission('10');
         setExpenses('');
         setRent('');
         setCashReceived('');
         setBankReceived('');
+        // New bill: both received dates default to the current date.
+        setCashReceivedDate(new Date());
+        setBankReceivedDate(new Date());
         setEditingBillId(null);
         setBillOriginalState(null);
         setPrevBalInput('0');
@@ -336,6 +350,14 @@ export default function PartyBillPage() {
                 setRent((billToEdit.rent ?? 0).toString());
                 setCashReceived((billToEdit.cashReceived ?? 0).toString());
                 setBankReceived((billToEdit.bankReceived ?? 0).toString());
+                // Restore the saved received dates. Legacy bills predate these
+                // fields, so they fall back to the bill's own date rather than
+                // today's — the bill is never silently re-dated.
+                const billDateValue = billToEdit.date instanceof Timestamp
+                    ? billToEdit.date.toDate()
+                    : new Date(billToEdit.date);
+                setCashReceivedDate(toSafeDate(billToEdit.cashReceivedDate, billDateValue));
+                setBankReceivedDate(toSafeDate(billToEdit.bankReceivedDate, billDateValue));
 
                 const currentBalance = partyBalances[billToEdit.partyId] || 0;
                 const originalNetAmount = billToEdit.netAmount;
@@ -382,25 +404,47 @@ export default function PartyBillPage() {
     }, [partyId, partyBalances, editingBillId, billOriginalState]);
     const finalBalance = useMemo(() => staticPrevBalance + netAmount - totalReceived, [staticPrevBalance, netAmount, totalReceived]);
     
-    // Auto-calculated totals from items
-    const calculatedTotalBox = useMemo(() => items.reduce((sum, item) => sum + (item.box || 0), 0), [items]);
-    const calculatedTotalKgs = useMemo(() => items.reduce((sum, item) => sum + ((item.box || 0) * (item.kgs || 0)), 0), [items]);
+    // Selected product drives the UOM options, exactly as in Main Billing.
+    const selectedProduct = useMemo(
+        () => products.find(p => p.id === selectedProductId),
+        [products, selectedProductId]
+    );
+
+    // Auto-calculated totals from items.
+    // New items are aggregated by UOM using the same rule as Main Billing
+    // (KGS -> weight, BOX -> box count). Legacy items keep their old meaning:
+    // box = box count, box * kgs = weight.
+    const calculatedTotalBox = useMemo(() => items.reduce((sum, item) => {
+        if (item.qty !== undefined || item.uom !== undefined) {
+            return getPartyItemUom(item).toUpperCase() === 'BOX' ? sum + getPartyItemQty(item) : sum;
+        }
+        return sum + (item.box || 0);
+    }, 0), [items]);
+
+    const calculatedTotalKgs = useMemo(() => items.reduce((sum, item) => {
+        if (item.qty !== undefined || item.uom !== undefined) {
+            return getPartyItemUom(item).toUpperCase() === 'KGS' ? sum + getPartyItemQty(item) : sum;
+        }
+        return sum + ((item.box || 0) * (item.kgs || 0));
+    }, 0), [items]);
 
     // Clear only the item-entry controls and leave edit mode.
     const clearItemEntry = useCallback(() => {
         setEditingItemId(null);
         setSelectedProductId('');
         setRate('');
-        setBox('');
-        setKgs('');
+        setQty('');
+        setUom('KGS');
     }, []);
 
     // Double-click a line item to load it into the entry controls for editing.
     const handleStartEditItem = useCallback((item: PartyBillItem) => {
         setEditingItemId(item.id);
         setSelectedProductId(item.productId);
-        setBox((item.box ?? 0).toString());
-        setKgs((item.kgs ?? 0).toString());
+        // Legacy items resolve to their box count in BOX, so editing an old
+        // row pre-fills correctly without inventing data.
+        setQty(getPartyItemQty(item).toString());
+        setUom(getPartyItemUom(item));
         setRate((item.rate ?? 0).toString());
     }, []);
 
@@ -416,30 +460,38 @@ export default function PartyBillPage() {
 
     const handleAddItem = () => {
         const product = products.find(p => p.id === selectedProductId);
-        if (!product || !rate || !box || !kgs) {
-            toast({ variant: 'destructive', title: 'Missing Item Info', description: 'Please enter Rate, Product, Box count and Kgs per box.' });
+        // Same validation shape as Main Billing: product + qty + rate.
+        if (!product || !qty || !rate || !uom) {
+            toast({ variant: 'destructive', title: 'Missing Item Info', description: 'Please select a product and enter quantity and rate.' });
             return;
         }
         const rateNum = parseFloat(rate);
-        const boxNum = parseFloat(box) || 0;
-        const kgsNum = parseFloat(kgs) || 0;
-        const amount = boxNum * rateNum; // Corrected: Amount is Box x Rate
+        const qtyNum = parseFloat(qty);
+        if (!Number.isFinite(qtyNum) || !Number.isFinite(rateNum)) {
+            toast({ variant: 'destructive', title: 'Invalid Item Info', description: 'Quantity and rate must be numbers.' });
+            return;
+        }
+        // Amount is strictly Qty x Rate. The UOM only labels the quantity —
+        // it never multiplies it.
+        const amount = Number((qtyNum * rateNum).toFixed(2));
 
         // Edit mode: update the selected row in place instead of appending.
         if (editingItemId) {
-            setItems(prev => prev.map(item =>
-                item.id === editingItemId
-                    ? {
-                        ...item,
-                        productId: product.id,
-                        productName: product.name_en,
-                        rate: rateNum,
-                        box: boxNum,
-                        kgs: kgsNum,
-                        amount: amount,
-                    }
-                    : item
-            ));
+            setItems(prev => prev.map(item => {
+                if (item.id !== editingItemId) return item;
+                // Drop the legacy box/kgs fields on edit so the row is stored
+                // purely in the new shape.
+                const { box: _legacyBox, kgs: _legacyKgs, ...rest } = item;
+                return {
+                    ...rest,
+                    productId: product.id,
+                    productName: product.name_en,
+                    rate: rateNum,
+                    qty: qtyNum,
+                    uom: uom,
+                    amount: amount,
+                };
+            }));
             clearItemEntry();
             focusProductEntry();
             return;
@@ -450,42 +502,42 @@ export default function PartyBillPage() {
             productId: product.id,
             productName: product.name_en,
             rate: rateNum,
-            box: boxNum,
-            kgs: kgsNum,
+            qty: qtyNum,
+            uom: uom,
             amount: amount,
         };
         setItems(prev => [...prev, newItem]);
-        // Reset item form
+        // Reset item form (Main Billing resets qty/rate and defaults UOM back).
         setSelectedProductId('');
         setRate('');
-        setBox('');
-        setKgs('');
+        setQty('');
+        setUom('KGS');
         // Return focus to the Product dropdown so the next item can be typed
         // straight away, on both desktop and mobile.
         focusProductEntry();
     };
 
-    const handleItemUpdate = useCallback((itemId: string, field: 'rate' | 'box' | 'kgs', value: string) => {
+    const handleItemUpdate = useCallback((itemId: string, field: 'rate' | 'qty', value: string) => {
       setItems(prevItems =>
           prevItems.map(item => {
-              if (item.id === itemId) {
-                  const newValue = parseFloat(value) || 0;
-                  const updatedItem = { ...item };
-  
-                  if (field === 'rate') {
-                      updatedItem.rate = newValue;
-                  } else if (field === 'box') {
-                      updatedItem.box = newValue;
-                  } else if (field === 'kgs') {
-                      updatedItem.kgs = newValue;
-                  }
-                  
-                  // Financial amount is strictly Box x Rate
-                  updatedItem.amount = updatedItem.box * updatedItem.rate;
-  
-                  return updatedItem;
-              }
-              return item;
+              if (item.id !== itemId) return item;
+              const newValue = parseFloat(value) || 0;
+              // Editing a legacy row inline converts it to the new shape,
+              // carrying its box count over as the quantity in BOX.
+              const currentQty = getPartyItemQty(item);
+              const currentUom = getPartyItemUom(item);
+              const { box: _legacyBox, kgs: _legacyKgs, ...rest } = item;
+
+              const updatedItem: PartyBillItem = {
+                  ...rest,
+                  qty: field === 'qty' ? newValue : currentQty,
+                  uom: currentUom,
+                  rate: field === 'rate' ? newValue : item.rate,
+                  amount: 0,
+              };
+              // Financial amount is strictly Qty x Rate
+              updatedItem.amount = Number(((updatedItem.qty ?? 0) * updatedItem.rate).toFixed(2));
+              return updatedItem;
           })
       );
   }, []);
@@ -534,6 +586,8 @@ export default function PartyBillPage() {
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
             totalReceived,
+            cashReceivedDate: Timestamp.fromDate(cashReceivedDate),
+            bankReceivedDate: Timestamp.fromDate(bankReceivedDate),
             previousBalance: staticPrevBalance,
             finalBalance,
         };
@@ -632,6 +686,8 @@ export default function PartyBillPage() {
             cashReceived: parseFloat(cashReceived) || 0,
             bankReceived: parseFloat(bankReceived) || 0,
             totalReceived,
+            cashReceivedDate: Timestamp.fromDate(cashReceivedDate),
+            bankReceivedDate: Timestamp.fromDate(bankReceivedDate),
             previousBalance: staticPrevBalance,
             totalAfterPrevious,
             finalBalance,
@@ -639,7 +695,7 @@ export default function PartyBillPage() {
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
+        expenses, rent, cashReceived, bankReceived, cashReceivedDate, bankReceivedDate, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -879,24 +935,20 @@ export default function PartyBillPage() {
                             </div>
                             <div className="mt-2 grid grid-cols-3 gap-2">
                                 <div className="grid gap-1">
-                                    <Label className="text-xs text-muted-foreground">Box</Label>
+                                    <Label className="text-xs text-muted-foreground">Qty</Label>
                                     <Input
                                         type="number"
-                                        value={item.box || ''}
-                                        onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
+                                        value={getPartyItemQty(item) || ''}
+                                        onChange={(e) => handleItemUpdate(item.id, 'qty', e.target.value)}
                                         className="h-11 w-full text-center font-mono text-base"
-                                        placeholder="Box"
+                                        placeholder="Qty"
                                     />
                                 </div>
                                 <div className="grid gap-1">
-                                    <Label className="text-xs text-muted-foreground">Kgs / box</Label>
-                                    <Input
-                                        type="number"
-                                        value={item.kgs || ''}
-                                        onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
-                                        className="h-11 w-full text-center font-mono text-base"
-                                        placeholder="Kgs"
-                                    />
+                                    <Label className="text-xs text-muted-foreground">UOM</Label>
+                                    <div className="flex h-11 w-full items-center justify-center rounded-md border bg-muted/50 px-2 font-mono text-base">
+                                        {getPartyItemUom(item)}
+                                    </div>
                                 </div>
                                 <div className="grid gap-1">
                                     <Label className="text-xs text-muted-foreground">Rate</Label>
@@ -922,8 +974,8 @@ export default function PartyBillPage() {
                     <TableHeader className="sticky top-0 bg-card z-10">
                         <TableRow>
                             <TableHead className="font-bold text-base">Particulars</TableHead>
-                            <TableHead className="w-[100px] font-bold text-base text-center">Box</TableHead>
-                            <TableHead className="w-[100px] font-bold text-base text-center">Kgs (per box)</TableHead>
+                            <TableHead className="w-[100px] font-bold text-base text-center">Qty</TableHead>
+                            <TableHead className="w-[100px] font-bold text-base text-center">UOM</TableHead>
                             <TableHead className="w-[120px] font-bold text-base text-center">Rate</TableHead>
                             <TableHead className="text-right w-[150px] font-bold text-base">Amount</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
@@ -943,21 +995,13 @@ export default function PartyBillPage() {
                                 <TableCell>
                                   <Input
                                       type="number"
-                                      value={item.box || ''}
-                                      onChange={(e) => handleItemUpdate(item.id, 'box', e.target.value)}
+                                      value={getPartyItemQty(item) || ''}
+                                      onChange={(e) => handleItemUpdate(item.id, 'qty', e.target.value)}
                                       className="h-8 w-full text-center font-mono text-base"
-                                      placeholder="Box"
+                                      placeholder="Qty"
                                   />
                                 </TableCell>
-                                <TableCell>
-                                  <Input
-                                      type="number"
-                                      value={item.kgs || ''}
-                                      onChange={(e) => handleItemUpdate(item.id, 'kgs', e.target.value)}
-                                      className="h-8 w-full text-center font-mono text-base"
-                                      placeholder="Kgs"
-                                  />
-                                </TableCell>
+                                <TableCell className="text-center font-mono text-base">{getPartyItemUom(item)}</TableCell>
                                 <TableCell>
                                   <Input
                                       type="number"
@@ -980,7 +1024,14 @@ export default function PartyBillPage() {
                                     value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
                                     onChange={(option) => {
                                         setSelectedProductId(option ? option.value : '');
-                                        if (option) setTimeout(() => boxInputRef.current?.focus(), 0);
+                                        // Default UOM exactly as Main Billing does it.
+                                        if (option) {
+                                            const prod = products.find(p => p.id === option.value);
+                                            if (prod && prod.uom_allowed.length > 0) {
+                                                setUom(prod.uom_allowed.includes('KGS') ? 'KGS' : prod.uom_allowed[0]);
+                                            }
+                                            setTimeout(() => qtyInputRef.current?.focus(), 0);
+                                        }
                                     }}
                                     placeholder="Select Product..."
                                     styles={reactSelectStyles}
@@ -990,24 +1041,39 @@ export default function PartyBillPage() {
                             </TableCell>
                             <TableCell>
                                 <Input
-                                    ref={boxInputRef}
-                                    placeholder="Box"
+                                    ref={qtyInputRef}
+                                    placeholder="0.00"
                                     type="number"
-                                    value={box}
-                                    onChange={e => setBox(e.target.value)}
-                                    onKeyDown={e => handleEntryKeyDown(e, kgsInputRef)}
+                                    value={qty}
+                                    onChange={e => setQty(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); uomSelectRef.current?.focus(); } }}
                                     className="w-full text-center text-base font-mono"
                                 />
                             </TableCell>
                             <TableCell>
-                                <Input
-                                    ref={kgsInputRef}
-                                    placeholder="Kgs"
-                                    type="number"
-                                    value={kgs}
-                                    onChange={e => setKgs(e.target.value)}
-                                    onKeyDown={e => handleEntryKeyDown(e, rateInputRef)}
-                                    className="w-full text-center text-base font-mono"
+                                <ReactSelect
+                                    ref={uomSelectRef}
+                                    instanceId="party-uom-select"
+                                    placeholder="UOM"
+                                    options={(() => {
+                                        const opts = selectedProduct?.uom_allowed.map((o: string) => ({ value: o, label: o })) || [];
+                                        return [...opts].sort((a, b) => a.value === 'KGS' ? -1 : b.value === 'KGS' ? 1 : 0);
+                                    })()}
+                                    value={uom ? { value: uom, label: uom } : null}
+                                    onChange={(option: any) => {
+                                        setUom(option ? option.value : 'KGS');
+                                        setTimeout(() => rateInputRef.current?.focus(), 50);
+                                    }}
+                                    onKeyDown={(e: any) => {
+                                        if (e.key === 'Tab') setTimeout(() => rateInputRef.current?.focus(), 50);
+                                    }}
+                                    styles={reactSelectStyles}
+                                    tabSelectsValue={true}
+                                    openMenuOnFocus={true}
+                                    isSearchable={false}
+                                    isDisabled={!selectedProductId}
+                                    menuPortalTarget={isMounted ? document.body : null}
+                                    menuPosition='fixed'
                                 />
                             </TableCell>
                             <TableCell>
@@ -1068,7 +1134,13 @@ export default function PartyBillPage() {
                             value={products.map(p => ({ value: p.id, label: p.name_en })).find(p => p.value === selectedProductId) || null}
                             onChange={(option) => {
                                 setSelectedProductId(option ? option.value : '');
-                                if (option) setTimeout(() => mobileBoxRef.current?.focus(), 0);
+                                if (option) {
+                                    const prod = products.find(p => p.id === option.value);
+                                    if (prod && prod.uom_allowed.length > 0) {
+                                        setUom(prod.uom_allowed.includes('KGS') ? 'KGS' : prod.uom_allowed[0]);
+                                    }
+                                    setTimeout(() => mobileQtyRef.current?.focus(), 0);
+                                }
                             }}
                             placeholder="Select Product..."
                             styles={reactSelectStyles}
@@ -1077,31 +1149,39 @@ export default function PartyBillPage() {
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Box</Label>
+                        <Label>Qty</Label>
                         <Input
-                            ref={mobileBoxRef}
-                            placeholder="Box"
+                            ref={mobileQtyRef}
+                            placeholder="0.00"
                             type="number"
                             inputMode="decimal"
                             enterKeyHint="next"
-                            value={box}
-                            onChange={e => setBox(e.target.value)}
-                            onKeyDown={e => handleEntryKeyDown(e, mobileKgsRef)}
+                            value={qty}
+                            onChange={e => setQty(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); mobileUomSelectRef.current?.focus(); } }}
                             className="h-11 w-full text-center text-base font-mono"
                         />
                     </div>
                     <div className="grid gap-2">
-                        <Label>Kgs (per box)</Label>
-                        <Input
-                            ref={mobileKgsRef}
-                            placeholder="Kgs"
-                            type="number"
-                            inputMode="decimal"
-                            enterKeyHint="next"
-                            value={kgs}
-                            onChange={e => setKgs(e.target.value)}
-                            onKeyDown={e => handleEntryKeyDown(e, mobileRateRef)}
-                            className="h-11 w-full text-center text-base font-mono"
+                        <Label>UOM</Label>
+                        <ReactSelect
+                            ref={mobileUomSelectRef}
+                            instanceId="party-uom-select-mobile"
+                            placeholder="UOM"
+                            options={(() => {
+                                const opts = selectedProduct?.uom_allowed.map((o: string) => ({ value: o, label: o })) || [];
+                                return [...opts].sort((a, b) => a.value === 'KGS' ? -1 : b.value === 'KGS' ? 1 : 0);
+                            })()}
+                            value={uom ? { value: uom, label: uom } : null}
+                            onChange={(option: any) => {
+                                setUom(option ? option.value : 'KGS');
+                                setTimeout(() => mobileRateRef.current?.focus(), 50);
+                            }}
+                            styles={reactSelectStyles}
+                            isSearchable={false}
+                            isDisabled={!selectedProductId}
+                            menuPortalTarget={isMounted ? document.body : null}
+                            menuPosition='fixed'
                         />
                     </div>
                     <div className="grid gap-2">
@@ -1151,8 +1231,50 @@ export default function PartyBillPage() {
                     </div>
 
                     <div className="space-y-2 order-2 md:order-none">
-                        <div className="flex justify-between items-center gap-2"><Label>Cash</Label><Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} /></div>
-                        <div className="flex justify-between items-center gap-2"><Label>Bank / Acc</Label><Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} /></div>
+                        <div className="flex flex-wrap justify-between items-center gap-2">
+                            <Label className="shrink-0">Cash</Label>
+                            <div className="flex min-w-0 items-center gap-2">
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-11 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none md:h-10"
+                                            onKeyDown={(e) => handleDateKeyDown(e, cashReceivedDate, setCashReceivedDate)}
+                                            onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                                        >
+                                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                                            {format(cashReceivedDate, 'dd-MM-yyyy')}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={cashReceivedDate} onSelect={(d) => setCashReceivedDate(d || new Date())} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                                <Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} />
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap justify-between items-center gap-2">
+                            <Label className="shrink-0">Bank / Acc</Label>
+                            <div className="flex min-w-0 items-center gap-2">
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            className="h-11 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none md:h-10"
+                                            onKeyDown={(e) => handleDateKeyDown(e, bankReceivedDate, setBankReceivedDate)}
+                                            onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                                        >
+                                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                                            {format(bankReceivedDate, 'dd-MM-yyyy')}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0">
+                                        <Calendar mode="single" selected={bankReceivedDate} onSelect={(d) => setBankReceivedDate(d || new Date())} initialFocus />
+                                    </PopoverContent>
+                                </Popover>
+                                <Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} />
+                            </div>
+                        </div>
                         <Separator/>
                          <div className="flex justify-between items-center gap-2 font-semibold"><Label>Total Received</Label><span>{formatINR(totalReceived)}</span></div>
                     </div>

@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Search,
   X,
+  Loader2,
 } from 'lucide-react';
 import { BillItem, Customer, LiveBillSummary } from '@/lib/data';
 import {
@@ -111,6 +112,34 @@ const formatINR = (value: number) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   }).format(value);
+};
+
+/**
+ * Products shown in the "Customer Prices" information card under the Customer
+ * dropdown on Main Billing. Only the IDs are fixed here — the display names are
+ * always read live from the Products data, so renaming a product updates the
+ * card automatically.
+ */
+const CUSTOMER_PRICE_CARD_PRODUCT_IDS = ['002', '004', '037'];
+
+/** How many of the customer's most recent bills to scan for a last-paid rate.
+ *  Bounds the Firestore reads for this card (worst case: this many getDocs). */
+const CUSTOMER_PRICE_CARD_MAX_BILLS = 15;
+
+/** Product IDs appear both zero-padded ("004") and bare ("4") in existing data,
+ *  so compare them numerically when possible. Never mutates stored data. */
+const normalizeProductId = (id: unknown): string => {
+  const raw = String(id ?? '').trim();
+  if (!raw) return '';
+  const numeric = Number(raw);
+  return Number.isFinite(numeric) ? String(numeric) : raw.toLowerCase();
+};
+
+const toMillis = (value: any): number => {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
 };
 
 export default function BillingPage() {
@@ -570,6 +599,162 @@ export default function BillingPage() {
     // NOTE: toast is stable from useToast, no need to list it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBillNo, firestore]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Customer Prices information card (below the Customer dropdown).
+  // Read-only display: it never changes the rate used by Add Item.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // The customer's most recent bills, taken from the ALREADY-CACHED
+  // liveBillSummaries collection — no new listener is created for this card.
+  const priceCardBills = useMemo(() => {
+    if (!selectedCustomerId || selectedCustomerId === 'WALK-IN') return [];
+    return (liveBillSummaries || [])
+      .filter((b) => b.customerId === selectedCustomerId && b.billNo)
+      .sort((a, b) => toMillis(b.date) - toMillis(a.date))
+      .slice(0, CUSTOMER_PRICE_CARD_MAX_BILLS);
+  }, [liveBillSummaries, selectedCustomerId]);
+
+  // Signature changes only when this customer's set of recent bills changes,
+  // so saving a bill refreshes the card but re-renders do not re-query.
+  const priceCardSignature = useMemo(
+    () => priceCardBills.map((b) => b.billNo).join(','),
+    [priceCardBills]
+  );
+
+  const priceCardBillsRef = useRef(priceCardBills);
+  priceCardBillsRef.current = priceCardBills;
+
+  // customerId|signature -> { normalizedProductId: lastPaidRate }
+  const lastPaidRatesCache = useRef<Map<string, Record<string, number>>>(new Map());
+  const priceCardRequestRef = useRef(0);
+
+  const [lastPaidRates, setLastPaidRates] = useState<Record<string, number> | null>(null);
+  const [isPriceCardLoading, setIsPriceCardLoading] = useState(false);
+  const [priceCardError, setPriceCardError] = useState(false);
+
+  useEffect(() => {
+    const customerId = selectedCustomerId;
+
+    if (!customerId || customerId === 'WALK-IN' || !firestore) {
+      setLastPaidRates(null);
+      setIsPriceCardLoading(false);
+      setPriceCardError(false);
+      return;
+    }
+
+    const cacheKey = `${customerId}|${priceCardSignature}`;
+    const cached = lastPaidRatesCache.current.get(cacheKey);
+    if (cached) {
+      setLastPaidRates(cached);
+      setIsPriceCardLoading(false);
+      setPriceCardError(false);
+      return;
+    }
+
+    const requestId = ++priceCardRequestRef.current;
+    let cancelled = false;
+    const isStale = () => cancelled || requestId !== priceCardRequestRef.current;
+
+    setLastPaidRates(null);
+    setPriceCardError(false);
+    setIsPriceCardLoading(true);
+
+    (async () => {
+      try {
+        const wanted = new Set(CUSTOMER_PRICE_CARD_PRODUCT_IDS.map(normalizeProductId));
+        const found: Record<string, number> = {};
+
+        // Newest bill first; stop as soon as every product has a rate.
+        for (const bill of priceCardBillsRef.current) {
+          if (isStale()) return;
+          if (Object.keys(found).length === wanted.size) break;
+
+          const snap = await getDocs(
+            collection(firestore, 'bills', bill.billNo, 'billItems')
+          );
+          snap.forEach((d) => {
+            const item = d.data() as BillItem;
+            const key = normalizeProductId(item?.productId);
+            // First hit wins because bills are walked newest-first.
+            if (!wanted.has(key) || found[key] !== undefined) return;
+            // Use the rate stored on the historical item — never derived
+            // from amount/qty and never overwritten.
+            const rate =
+              typeof item?.rate === 'number' ? item.rate : parseFloat(String(item?.rate ?? ''));
+            if (Number.isFinite(rate)) found[key] = rate;
+          });
+        }
+
+        if (isStale()) return;
+        lastPaidRatesCache.current.set(cacheKey, found);
+        setLastPaidRates(found);
+      } catch (err) {
+        console.error('Customer price card: could not read previous prices', err);
+        if (isStale()) return;
+        // Billing stays fully usable; the card falls back to configured prices.
+        setPriceCardError(true);
+        setLastPaidRates({});
+      } finally {
+        if (!cancelled && requestId === priceCardRequestRef.current) {
+          setIsPriceCardLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCustomerId, priceCardSignature, firestore]);
+
+  // Resolution order: last paid rate -> customer-specific price -> default price.
+  const customerPriceRows = useMemo(() => {
+    if (!selectedCustomerId || selectedCustomerId === 'WALK-IN') return [];
+
+    return CUSTOMER_PRICE_CARD_PRODUCT_IDS.map((targetId) => {
+      const key = normalizeProductId(targetId);
+      const product = products.find((p) => normalizeProductId(p.id) === key);
+      if (!product) return null;
+
+      // 1. Latest rate this customer actually paid for this product.
+      const historical = lastPaidRates?.[key];
+      if (historical !== undefined) {
+        return { id: product.id, name: product.name_en, price: historical, source: 'Last paid' };
+      }
+
+      const uoms = product.uom_allowed || [];
+
+      // 2. Customer-specific price configured on the Set Prices page.
+      for (const u of uoms) {
+        const configured = getCustomerProductPrice(selectedCustomerId, product.id, u);
+        if (configured !== undefined && configured !== null) {
+          return { id: product.id, name: product.name_en, price: configured, source: 'Customer price' };
+        }
+      }
+
+      // 3. Existing default product price.
+      const priceMap = productPrices[product.id] || {};
+      for (const u of uoms) {
+        if (priceMap[u] !== undefined && priceMap[u] !== null) {
+          return { id: product.id, name: product.name_en, price: priceMap[u], source: 'Default' };
+        }
+      }
+      const anyDefault = Object.values(priceMap).find((v) => typeof v === 'number');
+      if (anyDefault !== undefined) {
+        return { id: product.id, name: product.name_en, price: anyDefault as number, source: 'Default' };
+      }
+
+      return { id: product.id, name: product.name_en, price: null, source: 'Not set' };
+    }).filter(Boolean) as {
+      id: string;
+      name: string;
+      price: number | null;
+      source: string;
+    }[];
+  }, [selectedCustomerId, products, lastPaidRates, getCustomerProductPrice, productPrices]);
+
+  const showCustomerPriceCard =
+    !!selectedCustomerId && selectedCustomerId !== 'WALK-IN' && customerPriceRows.length > 0;
 
   useEffect(() => {
     if (isEditingRef.current) {
@@ -1436,6 +1621,47 @@ export default function BillingPage() {
                       onKeyDown={handleManualCustomerNameKeyDown}
                       className="h-11 md:h-10"
                     />
+                  </div>
+                )}
+
+                {/* Customer Prices — read-only info panel, does not affect Add Item */}
+                {showCustomerPriceCard && (
+                  <div className="mt-2 w-full max-w-full min-w-0 rounded-md border bg-muted/40 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Customer Prices
+                      </p>
+                      {isPriceCardLoading && (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      )}
+                    </div>
+
+                    {isPriceCardLoading ? (
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Loading previous prices...
+                      </p>
+                    ) : (
+                      <>
+                        <ul className="mt-1.5 space-y-1">
+                          {customerPriceRows.map((row) => (
+                            <li
+                              key={row.id}
+                              className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm"
+                            >
+                              <span className="min-w-0 break-words font-medium">{row.name}</span>
+                              <span className="font-mono font-semibold tabular-nums">
+                                {row.price !== null ? `Rs. ${row.price}` : '—'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        {priceCardError && (
+                          <p className="mt-1.5 text-[11px] text-muted-foreground">
+                            Showing configured prices — previous bills could not be read.
+                          </p>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>

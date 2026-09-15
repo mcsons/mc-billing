@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "incremental": false, "skipLibCheck": true, "noEmit": true },
+  "include": [
+    "next-env.d.ts",
+    "src/app/dashboard/billing/page.tsx",
+    "src/app/dashboard/prices/page.tsx",
+    "src/context/DataContext.tsx"
+  ]
+}

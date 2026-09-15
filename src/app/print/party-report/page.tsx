@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
+import { getPartyItemQty, getPartyItemUom, isLegacyPartyItem } from '@/lib/data';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
@@ -145,8 +146,8 @@ function PartyReportPrintContent() {
                                 <th className="col-sn">#</th>
                                 <th className="col-date">Date</th>
                                 <th className="col-item">Item</th>
-                                <th className="col-box">Box</th>
-                                <th className="col-kgs">Kgs</th>
+                                <th className="col-box">Qty</th>
+                                <th className="col-kgs">UOM</th>
                                 <th className="col-rate">Rate</th>
                                 <th className="col-total">Amount</th>
                             </tr>
@@ -162,8 +163,8 @@ function PartyReportPrintContent() {
                                             {itemIdx === 0 ? format(d, 'dd/MM/yy') : ''}
                                         </td>
                                         <td className="col-item"><strong>{item.productName}</strong></td>
-                                        <td className="col-box">{item.box}</td>
-                                        <td className="col-kgs">{(item.kgs || 0).toFixed(2)}</td>
+                                        <td className="col-box">{getPartyItemQty(item)}</td>
+                                        <td className="col-kgs">{isLegacyPartyItem(item) ? (item.kgs || 0).toFixed(2) : getPartyItemUom(item)}</td>
                                         <td className="col-rate"><strong>{(item.rate || 0).toFixed(2)}</strong></td>
                                         <td className="col-total">{(item.amount || 0).toFixed(2)}</td>
                                     </tr>

@@ -15,7 +15,7 @@ import { Timestamp } from 'firebase/firestore';
 import { useLoading } from '@/context/LoadingContext';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { PartyBill } from '@/lib/data';
+import { PartyBill, getPartyItemQty, getPartyItemUom, isLegacyPartyItem } from '@/lib/data';
 
 export default function PartyReportsPage() {
     const { parties, partyBills } = useData();
@@ -155,8 +155,8 @@ export default function PartyReportsPage() {
                                     <TableRow>
                                         <TableHead className="py-3 px-4 text-base font-semibold">Date</TableHead>
                                         <TableHead className="py-3 px-4 text-base font-semibold">Item</TableHead>
-                                        <TableHead className="py-3 px-4 text-base font-semibold text-right">Box</TableHead>
-                                        <TableHead className="py-3 px-4 text-base font-semibold text-right">Kgs</TableHead>
+                                        <TableHead className="py-3 px-4 text-base font-semibold text-right">Qty</TableHead>
+                                        <TableHead className="py-3 px-4 text-base font-semibold text-right">UOM</TableHead>
                                         <TableHead className="py-3 px-4 text-base font-semibold text-right">Rate</TableHead>
                                         <TableHead className="py-3 px-4 text-base font-semibold text-right">Amount</TableHead>
                                     </TableRow>
@@ -171,8 +171,8 @@ export default function PartyReportsPage() {
                                                     {itemIdx === 0 ? format(d, 'dd-MM-yyyy') : ''}
                                                 </TableCell>
                                                 <TableCell className="text-base py-3 px-4">{item.productName}</TableCell>
-                                                <TableCell className="text-right font-mono text-base py-3 px-4">{item.box}</TableCell>
-                                                <TableCell className="text-right font-mono text-base py-3 px-4">{(item.kgs || 0).toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-mono text-base py-3 px-4">{getPartyItemQty(item)}</TableCell>
+                                                <TableCell className="text-right font-mono text-base py-3 px-4">{isLegacyPartyItem(item) ? (item.kgs || 0).toFixed(2) : getPartyItemUom(item)}</TableCell>
                                                 <TableCell className="text-right font-mono text-base py-3 px-4">{(item.rate || 0).toFixed(2)}</TableCell>
                                                 <TableCell className="text-right font-mono text-base py-3 px-4">{fmt(item.amount || 0)}</TableCell>
                                             </TableRow>

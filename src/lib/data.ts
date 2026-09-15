@@ -10,6 +10,7 @@ export const pages = [
     'Vehicle Bill',
     'Party Bill',
     'Party Reports',
+    'Party Statements',
     'Sales Report',
     'Bill History',
     'Payments',
@@ -44,6 +45,7 @@ export const initialPermissions: Record<Role, Page[]> = {
     'Vehicle Bill',
     'Party Bill',
     'Party Reports',
+    'Party Statements',
     'Sales Report',
     'Bill History',
     'Payments',
@@ -72,6 +74,7 @@ export const initialPermissions: Record<Role, Page[]> = {
     'Vehicle Bill',
     'Party Bill',
     'Party Reports',
+    'Party Statements',
     'Bill History',
     'Payments',
     'Profile',
@@ -252,10 +255,35 @@ export type PartyBillItem = {
   productId: string;
   productName: string;
   rate: number;
-  box: number;
-  kgs: number;
+  /** Generic quantity — mirrors BillItem.qty in Main Billing. Set on every
+   *  item created or edited after the qty/UOM change. amount = qty * rate. */
+  qty?: number;
+  /** Unit for `qty` (KGS / BOX / TC ...). Sourced from Product.uom_allowed,
+   *  exactly like Main Billing. Mirrors BillItem.uom. */
+  uom?: string;
+  /** LEGACY (bills saved before the qty/UOM change). `box` was the multiplier
+   *  (amount = box * rate) and `kgs` was an informational kgs-per-box figure.
+   *  Read-only for backward compatibility — never written by new/edited items. */
+  box?: number;
+  kgs?: number;
   amount: number;
 };
+
+/**
+ * Quantity of a Party Bill item, for both the new (qty/uom) and the legacy
+ * (box/kgs) shapes. In legacy bills `box` was the value multiplied by the rate,
+ * so it is the quantity; no information is invented here.
+ */
+export const getPartyItemQty = (item: Pick<PartyBillItem, 'qty' | 'box'>): number =>
+  item.qty ?? item.box ?? 0;
+
+/** Unit of a Party Bill item. Legacy items were counted in boxes. */
+export const getPartyItemUom = (item: Pick<PartyBillItem, 'uom'>): string =>
+  item.uom ?? 'BOX';
+
+/** True for items saved before the qty/UOM change (no qty and no uom stored). */
+export const isLegacyPartyItem = (item: Pick<PartyBillItem, 'qty' | 'uom'>): boolean =>
+  item.qty === undefined && item.uom === undefined;
 
 export type PartyBill = {
   id: string;
@@ -274,6 +302,13 @@ export type PartyBill = {
   cashReceived: number;
   bankReceived: number;
   totalReceived: number;
+  /** Transaction date for the cash amount received. Independent of
+   *  bankReceivedDate. Optional: bills saved before this field existed simply
+   *  have no value, and are never back-filled. Informational only — it does not
+   *  take part in any monetary calculation. */
+  cashReceivedDate?: any;
+  /** Transaction date for the bank/account amount received. See above. */
+  bankReceivedDate?: any;
   previousBalance?: number;
   finalBalance?: number;
   createdBy: string;
