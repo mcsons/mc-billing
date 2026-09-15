@@ -182,7 +182,17 @@ function PartyBillPrintContent() {
     return getPartyItemUom(item).toUpperCase() === 'KGS' ? sum + getPartyItemQty(item) : sum;
   }, 0);
   
+  // Top-of-bill "Total Boxes" — the header value, which the user may override.
   const totalBoxes = billData.totalBox;
+
+  // Live box count for the summary row under the items table. Derived from the
+  // items with exactly the same rule as the Party Billing page's
+  // "Live Total Box" (calculatedTotalBox), so the printed figure always matches
+  // what the items actually add up to rather than the header override.
+  const liveTotalBoxes = items.reduce((sum: number, item: PartyBillItem) => {
+    if (isLegacyPartyItem(item)) return sum + (item.box || 0);
+    return getPartyItemUom(item).toUpperCase() === 'BOX' ? sum + getPartyItemQty(item) : sum;
+  }, 0);
 
   /**
    * Received dates. Handles Firestore Timestamp, serialized {seconds}, ISO
@@ -308,7 +318,7 @@ function PartyBillPrintContent() {
       }}>
         <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline' }}>
           <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>Total Box:</span>
-          <span style={{ fontWeight: 600, fontSize: '10pt' }}>{totalBoxes}</span>
+          <span style={{ fontWeight: 600, fontSize: '10pt' }}>{liveTotalBoxes}</span>
         </div>
         <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline' }}>
           <span style={{ fontWeight: 'bold', fontSize: '9pt' }}>Total Weight:</span>
@@ -523,7 +533,7 @@ function PartyBillPrintContent() {
           <div className="table-summary-row">
             <div className="summary-item">
               <span className="label">Total Box:</span>
-              <span className="value">{totalBoxes}</span>
+              <span className="value">{liveTotalBoxes}</span>
             </div>
             <div className="summary-item">
               <span className="label">Total Weight:</span>
