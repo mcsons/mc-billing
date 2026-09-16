@@ -409,7 +409,24 @@ export default function BillingPage() {
       color: 'hsl(var(--muted-foreground))',
     }),
   };
-  
+
+  /**
+   * UI-ONLY: Caps the open dropdown list to ~3 visible rows (~120 px) so that
+   * the Customer Prices card below the Customer selector is not hidden when the
+   * menu is open. All other behaviour (scrolling, keyboard nav, search, etc.)
+   * is unaffected. Only used on the Customer and Product selectors.
+   */
+  const compact3RowMenuStyles = {
+    ...reactSelectStyles,
+    menuList: (baseStyles: any) => ({
+      ...baseStyles,
+      // 3 rows × 36 px (react-select default option height) + 8 px top/bottom padding
+      maxHeight: '120px',
+      overflowY: 'auto' as const,
+      WebkitOverflowScrolling: 'touch',
+    }),
+  };
+
   useEffect(() => {
     customerSelectRef.current?.focus();
   }, []);
@@ -1594,7 +1611,7 @@ export default function BillingPage() {
                     }
                   }}
                   onKeyDown={handleCustomerKeyDown}
-                  styles={reactSelectStyles}
+                  styles={compact3RowMenuStyles}
                   filterOption={(option, rawInput) => {
                     if (!rawInput) return true;
                     const searchInput = rawInput.trim();
@@ -1696,7 +1713,7 @@ export default function BillingPage() {
                       if (product && product.uom_allowed.length > 0) setUom(product.uom_allowed.includes('KGS') ? 'KGS' : product.uom_allowed[0]);
                       setTimeout(() => qtyInputRef.current?.focus(), 0);
                     }}
-                    styles={reactSelectStyles}
+                    styles={compact3RowMenuStyles}
                     ref={productSelectRef}
                     onFocus={handleProductSelectInteraction}
                   />
