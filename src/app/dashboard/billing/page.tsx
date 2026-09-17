@@ -122,9 +122,38 @@ const formatINR = (value: number) => {
  */
 const CUSTOMER_PRICE_CARD_PRODUCT_IDS = ['002', '004', '037'];
 
-/** How many of the customer's most recent bills to scan for a last-paid rate.
- *  Bounds the Firestore reads for this card (worst case: this many getDocs). */
-const CUSTOMER_PRICE_CARD_MAX_BILLS = 15;
+/** How many of the customer's most recent bills to scan for a last-paid BOX rate.
+ *  Bounds the Firestore reads for this card (worst case: this many getDocs).
+ *  Deeper than a plain "latest purchase" scan because qualifying box-weight
+ *  purchases can sit behind several ordinary KGS purchases. */
+const CUSTOMER_PRICE_CARD_MAX_BILLS = 30;
+
+/** One box of these products is always exactly this many KGS. */
+const KGS_PER_BOX = 35;
+
+/**
+ * True when a historical bill item represents a BOX purchase for this card.
+ *
+ * These three products are always entered in KGS on Main Billing, never as
+ * BOX, so a box purchase is identified by weight: the UOM must be KGS and the
+ * quantity must be a whole number of 35-KGS boxes (35, 70, 105, 140, ...).
+ *
+ * Ordinary KGS purchases (10, 11.5, 20, 30) and non-multiples (36, 50, 80) do
+ * NOT qualify, so they can never be mistaken for a box rate. The tolerance
+ * keeps stored decimals such as 105.00 working without letting 34.99 through.
+ */
+const isBoxWeightPurchase = (item: { uom?: unknown; qty?: unknown }): boolean => {
+  const uom = String(item?.uom ?? '').trim().toUpperCase();
+  if (uom !== 'KGS') return false;
+
+  const qty = typeof item?.qty === 'number' ? item.qty : parseFloat(String(item?.qty ?? ''));
+  if (!Number.isFinite(qty) || qty < KGS_PER_BOX) return false;
+
+  const boxes = qty / KGS_PER_BOX;
+  const wholeBoxes = Math.round(boxes);
+  // Reject anything that is not an exact multiple of 35 (within float tolerance).
+  return wholeBoxes >= 1 && Math.abs(boxes - wholeBoxes) < 1e-6;
+};
 
 /** Product IDs appear both zero-padded ("004") and bare ("4") in existing data,
  *  so compare them numerically when possible. Never mutates stored data. */
@@ -695,8 +724,12 @@ export default function BillingPage() {
             const key = normalizeProductId(item?.productId);
             // First hit wins because bills are walked newest-first.
             if (!wanted.has(key) || found[key] !== undefined) return;
+            // Only a whole-box KGS purchase may set the box rate. An ordinary
+            // KGS purchase is skipped entirely, so the scan keeps looking back
+            // through older bills for a genuine box purchase.
+            if (!isBoxWeightPurchase(item)) return;
             // Use the rate stored on the historical item — never derived
-            // from amount/qty and never overwritten.
+            // from amount/qty and never scaled by the number of boxes.
             const rate =
               typeof item?.rate === 'number' ? item.rate : parseFloat(String(item?.rate ?? ''));
             if (Number.isFinite(rate)) found[key] = rate;
@@ -736,7 +769,7 @@ export default function BillingPage() {
       // 1. Latest rate this customer actually paid for this product.
       const historical = lastPaidRates?.[key];
       if (historical !== undefined) {
-        return { id: product.id, name: product.name_en, price: historical, source: 'Last paid' };
+        return { id: product.id, name: product.name_en, price: historical, source: 'Last box rate' };
       }
 
       const uoms = product.uom_allowed || [];
