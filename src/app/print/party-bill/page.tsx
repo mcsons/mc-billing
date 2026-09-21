@@ -3,10 +3,15 @@
 import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { PartyBillItem, getPartyItemQty, getPartyItemUom, isLegacyPartyItem } from '@/lib/data';
+import { PartyBillItem, getPartyItemQty, getPartyItemUom, isLegacyPartyItem, getPartyBillCashEntries, getPartyBillBankEntries } from '@/lib/data';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
+
+/** Actual M.C & SONS logo (background removed), served from /public. */
+const PARTY_BILL_LOGO_SRC = '/party-bill-logo.png';
+/** Professional dark blue for the company name — print and Share PDF. */
+const COMPANY_NAME_BLUE = '#1e40af';
 
 function PartyBillPrintContent() {
   const router = useRouter();
@@ -75,6 +80,14 @@ function PartyBillPrintContent() {
       ]);
       const html2canvas = html2canvasModule.default;
       const { jsPDF } = jsPDFModule;
+
+      // Make sure the header logo has finished loading, or html2canvas
+      // would capture an empty box in its place.
+      await Promise.all(Array.from(captureEl.querySelectorAll('img')).map(img =>
+        img.complete && img.naturalWidth > 0
+          ? Promise.resolve()
+          : new Promise<void>(resolve => { img.onload = () => resolve(); img.onerror = () => resolve(); })
+      ));
 
       const canvas = await html2canvas(captureEl, {
         scale: 2,
@@ -164,8 +177,8 @@ function PartyBillPrintContent() {
   }
 
   const {
-    id, date, partyName, partyLocation, items, totalAmount, commission, expenses, rent, 
-    cashReceived, bankReceived, totalReceived, previousBalance, totalAfterPrevious, finalBalance
+    id, date, partyName, partyLocation, items, totalAmount, commission, expenses, rent, advance = 0, 
+    totalReceived, previousBalance, totalAfterPrevious, finalBalance
   } = billData;
 
   const commissionPercent = commission;
@@ -211,11 +224,25 @@ function PartyBillPrintContent() {
     return isNaN(d.getTime()) ? null : d;
   };
   const billDateForFallback = date ? new Date(date) : null;
-  const cashDate = toReceivedDate(billData.cashReceivedDate) || billDateForFallback;
-  const bankDate = toReceivedDate(billData.bankReceivedDate) || billDateForFallback;
   /** "By Cash (08/09/2026):" — falls back to the plain label if no date exists. */
-  const cashLabel = cashDate ? `By Cash (${format(cashDate, 'dd/MM/yyyy')}):` : 'By Cash:';
-  const bankLabel = bankDate ? `By Bank (${format(bankDate, 'dd/MM/yyyy')}):` : 'By Bank:';
+  const paymentLabel = (kind: 'Cash' | 'Bank', value: any) => {
+    const d = toReceivedDate(value) || billDateForFallback;
+    return d ? `By ${kind} (${format(d, 'dd/MM/yyyy')}):` : `By ${kind}:`;
+  };
+  /**
+   * Every payment printed on its own line, in the order entered: Advance,
+   * then each Cash entry, then each Bank entry. Legacy single-amount bills are
+   * read as one-entry lists by the shared helpers.
+   */
+  const paymentLines: { key: string; label: string; amount: number }[] = [
+    ...(advance > 0 ? [{ key: 'advance', label: 'Advance:', amount: advance }] : []),
+    ...getPartyBillCashEntries(billData)
+      .filter(entry => (entry.amount || 0) > 0)
+      .map((entry, i) => ({ key: `cash-${i}`, label: paymentLabel('Cash', entry.date), amount: entry.amount })),
+    ...getPartyBillBankEntries(billData)
+      .filter(entry => (entry.amount || 0) > 0)
+      .map((entry, i) => ({ key: `bank-${i}`, label: paymentLabel('Bank', entry.date), amount: entry.amount })),
+  ];
 
   // ─────────────────────────────────────────────────────────────
   //  Hidden party bill rendered with INLINE STYLES so html2canvas
@@ -242,12 +269,16 @@ function PartyBillPrintContent() {
         padding: '16px',
       }}
     >
-      {/* Header */}
-      <div style={{ textAlign: 'center', paddingBottom: '6px', marginBottom: '6px', width: '100%' }}>
-        <div style={{ fontWeight: 'bold', fontSize: '16pt', margin: 0 }}>M.C &amp; SONS FISH COMPANY</div>
-        <div style={{ fontSize: '10pt', margin: '1px 0', fontWeight: 500 }}>Dealer : SEA &amp; TANK FOODS</div>
-        <div style={{ fontSize: '9pt', margin: '1px 0' }}>Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
-        <div style={{ fontSize: '9pt', margin: '1px 0' }}>📞 9843223078, 9944444497</div>
+      {/* Header — same structure as #print-area: logo | company identity */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '6px', marginBottom: '6px', width: '100%', boxSizing: 'border-box' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={PARTY_BILL_LOGO_SRC} alt="M.C & SONS" style={{ height: '73px', width: 'auto', flexShrink: 0, display: 'block', marginLeft: '15px' }} />
+        <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
+          <div style={{ fontWeight: 900, fontSize: '17pt', lineHeight: 1.1, margin: 0, color: COMPANY_NAME_BLUE, whiteSpace: 'nowrap' }}>M.C &amp; SONS FISH COMPANY</div>
+          <div style={{ fontSize: '10pt', margin: '2px 0 1px', fontWeight: 600 }}>Dealer : SEA &amp; TANK FOODS</div>
+          <div style={{ fontSize: '9pt', margin: '1px 0' }}>Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+          <div style={{ fontSize: '9pt', margin: '1px 0' }}>📞 9843223078, 9944444497</div>
+        </div>
       </div>
 
       {/* Party Details Grid */}
@@ -361,18 +392,12 @@ function PartyBillPrintContent() {
           <div style={{ flex: '1 1 auto' }} />
           {/* Payments group */}
           <div style={{ marginTop: '4px' }}>
-            {(cashReceived > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
-                <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{cashLabel}</span>
-                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{cashReceived.toFixed(2)}</strong></span>
+            {paymentLines.map(line => (
+              <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
+                <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{line.label}</span>
+                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{line.amount.toFixed(2)}</strong></span>
               </div>
-            )}
-            {(bankReceived > 0) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
-                <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{bankLabel}</span>
-                <span style={{ fontFamily: '"Courier New", monospace' }}><strong>₹{bankReceived.toFixed(2)}</strong></span>
-              </div>
-            )}
+            ))}
           </div>
           <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
           {/* Height of one summary row ("Net Balance"), so the payments block
@@ -381,7 +406,7 @@ function PartyBillPrintContent() {
         </div>
 
         {/* Right: Boxed Summary Table */}
-        <table style={{ border: cellBorder, borderCollapse: 'collapse', width: '48%' }}>
+        <table style={{ border: cellBorder, borderCollapse: 'collapse', width: '48%', alignSelf: 'flex-end' }}>
           <tbody>
             <tr>
               <td style={{ border: 'none', borderBottom: cellBorder, borderRight: cellBorder, padding: '4px 6px', fontWeight: 'bold' }}>Bill Amount:</td>
@@ -479,10 +504,14 @@ function PartyBillPrintContent() {
       <div className="party-bill-invoice">
         <div id="print-area">
           <header className="invoice-header">
-            <h1 className="company-name">M.C &amp; SONS FISH COMPANY</h1>
-            <p className="sub-header">Dealer : SEA &amp; TANK FOODS</p>
-            <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
-            <p className="sub-header-address">📞 9843223078, 9944444497</p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="header-logo" src={PARTY_BILL_LOGO_SRC} alt="M.C & SONS" />
+            <div className="header-text">
+              <h1 className="company-name">M.C &amp; SONS FISH COMPANY</h1>
+              <p className="sub-header">Dealer : SEA &amp; TANK FOODS</p>
+              <p className="sub-header-address">Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</p>
+              <p className="sub-header-address">📞 9843223078, 9944444497</p>
+            </div>
           </header>
 
           <section className="party-details">
@@ -551,8 +580,9 @@ function PartyBillPrintContent() {
                 <Separator className="my-1 border-black" />
                 <div className="pay-spacer" />
                 <div className="payments-group">
-                    {cashReceived > 0 && <div className="detail-row"><span className="pay-label">{cashLabel}</span><span><strong>₹{cashReceived.toFixed(2)}</strong></span></div>}
-                    {bankReceived > 0 && <div className="detail-row"><span className="pay-label">{bankLabel}</span><span><strong>₹{bankReceived.toFixed(2)}</strong></span></div>}
+                    {paymentLines.map(line => (
+                        <div key={line.key} className="detail-row"><span className="pay-label">{line.label}</span><span><strong>₹{line.amount.toFixed(2)}</strong></span></div>
+                    ))}
                 </div>
                 <Separator className="my-1 border-black" />
                 <div className="totals-bottom-offset" />
@@ -605,6 +635,8 @@ function PartyBillPrintContent() {
           #print-area, #print-area * {
             visibility: visible;
           }
+          /* The rule above prints all text black; the company name stays blue. */
+          #print-area .invoice-header .company-name { color: #1e40af /* COMPANY_NAME_BLUE */ !important; }
           #print-area {
             position: absolute;
             left: 0;
@@ -654,14 +686,36 @@ function PartyBillPrintContent() {
           HEADER
         ================================ */
         .invoice-header {
-          text-align: center;
+          display: flex;
+          align-items: center;
+          gap: 10px;
           padding-bottom: 6px;
           margin-bottom: 6px;
           width: 100%;
+          box-sizing: border-box;
+          break-inside: avoid;
+          page-break-inside: avoid;
+          break-after: avoid;
+          page-break-after: avoid;
         }
-        .invoice-header .company-name { font-weight: bold; font-size: 16pt; margin: 0; }
-        .invoice-header .sub-header { font-size: 10pt; margin: 1px 0; font-weight: 500; }
+        /* Logo keeps its own aspect ratio (height fixed, width auto). */
+        /* Logo spans the full text block — top of the company name to the
+           phone line (measured: 73px ≈ 19.3mm) — so both read as one unit. */
+        .invoice-header .header-logo { height: 19.3mm; width: auto; flex-shrink: 0; display: block; margin-left: 4mm; }
+        .invoice-header .header-text { flex: 1 1 auto; min-width: 0; text-align: center; }
+        .invoice-header .company-name {
+          font-weight: 900;
+          /* Measured: at 17pt the name uses ~72% of the width beside the
+             logo at 145mm, so it always stays on one line. */
+          font-size: 17pt;
+          line-height: 1.1;
+          margin: 0;
+          color: #1e40af /* COMPANY_NAME_BLUE */;
+          white-space: nowrap;
+        }
+        .invoice-header .sub-header { font-size: 10pt; margin: 2px 0 1px; font-weight: 600; }
         .invoice-header .sub-header-address { font-size: 9pt; margin: 1px 0; }
+
 
         /* ===============================
           PARTY DETAILS BOX
@@ -764,7 +818,11 @@ function PartyBillPrintContent() {
         /* One summary row tall ("Net Balance"), measured against the rendered
            table, so the received block ends level with "Total Paid". */
         .totals-bottom-offset { flex: 0 0 auto; height: 20px; }
-        .right-totals { width: 48%; }
+        /* Bottom-aligned: when many payment lines make the left column the
+           taller one, the table sits at the bottom instead of being stretched,
+           so "Total Paid" stays level with the last payment line. When the
+           table is taller (the usual case) this changes nothing. */
+        .right-totals { width: 48%; align-self: flex-end; }
         .left-totals .detail-row { display: flex; justify-content: space-between; gap: 6px; padding: 1px 4px; font-size: 10pt; }
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }

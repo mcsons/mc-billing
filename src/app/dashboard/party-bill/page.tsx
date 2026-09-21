@@ -54,7 +54,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ToastAction } from '@/components/ui/toast';
 import { useAlertDialog } from '@/context/AlertDialogProvider';
 import ReactSelect from 'react-select';
-import { PartyBill, PartyBillItem, getPartyItemQty, getPartyItemUom } from '@/lib/data';
+import { PartyBill, PartyBillItem, getPartyItemQty, getPartyItemUom, getPartyBillCashEntries, getPartyBillBankEntries, getPartyBillAmounts } from '@/lib/data';
 import { Timestamp } from 'firebase/firestore';
 import { Separator } from '@/components/ui/separator';
 
@@ -75,6 +75,28 @@ const toSafeDate = (value: any, fallback: Date): Date => {
     const d = new Date(value);
     return isNaN(d.getTime()) ? fallback : d;
 };
+
+/** One editable Cash or Bank row in the form. `amount` is the raw input text. */
+type PaymentRow = { id: string; date: Date; amount: string };
+
+const newPaymentRow = (date: Date = new Date(), amount = ''): PaymentRow => ({
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    date,
+    amount,
+});
+
+/** Sum of a set of rows; blank / non-numeric amounts count as 0. */
+const sumPaymentRows = (rows: PaymentRow[]): number =>
+    rows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+
+/**
+ * Stored payment list for a set of rows: zero / blank rows are dropped (so no
+ * meaningless entries are saved) and the entered order is preserved.
+ */
+const toPaymentEntries = (rows: PaymentRow[]) =>
+    rows
+        .filter(row => (parseFloat(row.amount) || 0) !== 0)
+        .map(row => ({ date: Timestamp.fromDate(row.date), amount: parseFloat(row.amount) || 0 }));
 
 const formatINR = (val: number | string) => {
     const num = typeof val === 'string' ? parseFloat(val.toString().replace(/,/g, '')) : val;
@@ -178,12 +200,12 @@ export default function PartyBillPage() {
     const [commission, setCommission] = useState('10');
     const [expenses, setExpenses] = useState('');
     const [rent, setRent] = useState('');
-    const [cashReceived, setCashReceived] = useState('');
-    const [bankReceived, setBankReceived] = useState('');
-    // Transaction dates for the received amounts. Independent of each other and
-    // of the bill date; informational only (no effect on any calculation).
-    const [cashReceivedDate, setCashReceivedDate] = useState<Date>(new Date());
-    const [bankReceivedDate, setBankReceivedDate] = useState<Date>(new Date());
+    // Advance is a PAYMENT (first row of the paid section), never a deduction.
+    const [advance, setAdvance] = useState('');
+    // Dated Cash and Bank payments. Each row has its own independent date; the
+    // first row of each type is permanent, further rows are added with "+".
+    const [cashEntries, setCashEntries] = useState<PaymentRow[]>(() => [newPaymentRow()]);
+    const [bankEntries, setBankEntries] = useState<PaymentRow[]>(() => [newPaymentRow()]);
     
     // Editing state
     const [editingBillId, setEditingBillId] = useState<string | null>(null);
@@ -279,12 +301,11 @@ export default function PartyBillPage() {
         setUom('KGS');
         setCommission('10');
         setExpenses('');
+        setAdvance('');
         setRent('');
-        setCashReceived('');
-        setBankReceived('');
-        // New bill: both received dates default to the current date.
-        setCashReceivedDate(new Date());
-        setBankReceivedDate(new Date());
+        // New bill: one empty Cash and one empty Bank row, dated today.
+        setCashEntries([newPaymentRow()]);
+        setBankEntries([newPaymentRow()]);
         setEditingBillId(null);
         setBillOriginalState(null);
         setPrevBalInput('0');
@@ -298,12 +319,13 @@ export default function PartyBillPage() {
         partyId !== '' ||
         items.length > 0 ||
         expenses !== '' ||
+        advance !== '' ||
         rent !== '' ||
-        cashReceived !== '' ||
-        bankReceived !== '' ||
+        cashEntries.length > 1 || cashEntries.some(row => row.amount !== '') ||
+        bankEntries.length > 1 || bankEntries.some(row => row.amount !== '') ||
         editingBillId !== null ||
         isPrevBalModified,
-    [partyId, items, expenses, rent, cashReceived, bankReceived, editingBillId, isPrevBalModified]);
+    [partyId, items, expenses, advance, rent, cashEntries, bankEntries, editingBillId, isPrevBalModified]);
 
     // Warn on browser tab close / reload with unsaved changes
     useEffect(() => {
@@ -348,16 +370,22 @@ export default function PartyBillPage() {
                 setCommission((billToEdit.commission ?? 0).toString());
                 setExpenses((billToEdit.expenses ?? 0).toString());
                 setRent((billToEdit.rent ?? 0).toString());
-                setCashReceived((billToEdit.cashReceived ?? 0).toString());
-                setBankReceived((billToEdit.bankReceived ?? 0).toString());
-                // Restore the saved received dates. Legacy bills predate these
-                // fields, so they fall back to the bill's own date rather than
-                // today's — the bill is never silently re-dated.
+                // Bills created before Advance existed simply read as 0. Bills
+                // saved while Advance was a deduction load it here, as a payment.
+                setAdvance((billToEdit.advance ?? 0).toString());
+                // Restore every dated payment. Legacy single-amount bills are
+                // converted to one-entry lists in memory (nothing is written).
+                // Dates missing on legacy bills fall back to the bill's own
+                // date rather than today's — the bill is never silently re-dated.
                 const billDateValue = billToEdit.date instanceof Timestamp
                     ? billToEdit.date.toDate()
                     : new Date(billToEdit.date);
-                setCashReceivedDate(toSafeDate(billToEdit.cashReceivedDate, billDateValue));
-                setBankReceivedDate(toSafeDate(billToEdit.bankReceivedDate, billDateValue));
+                const toRows = (entries: { date: any; amount: number }[], emptyDate: any): PaymentRow[] =>
+                    entries.length > 0
+                        ? entries.map(entry => newPaymentRow(toSafeDate(entry.date, billDateValue), String(entry.amount)))
+                        : [newPaymentRow(toSafeDate(emptyDate, billDateValue))];
+                setCashEntries(toRows(getPartyBillCashEntries(billToEdit), billToEdit.cashReceivedDate));
+                setBankEntries(toRows(getPartyBillBankEntries(billToEdit), billToEdit.bankReceivedDate));
 
                 const currentBalance = partyBalances[billToEdit.partyId] || 0;
                 const originalNetAmount = billToEdit.netAmount;
@@ -388,9 +416,32 @@ export default function PartyBillPage() {
     // Calculations
     const totalAmount = useMemo(() => items.reduce((sum, item) => sum + item.amount, 0), [items]);
     const commissionAmount = useMemo(() => (totalAmount * (parseFloat(commission) || 0)) / 100, [totalAmount, commission]);
+    // Deductions are Commission + Expenses + Rent only. Advance is a payment.
     const totalDeductions = useMemo(() => commissionAmount + (parseFloat(expenses) || 0) + (parseFloat(rent) || 0), [commissionAmount, expenses, rent]);
     const netAmount = useMemo(() => totalAmount - totalDeductions, [totalAmount, totalDeductions]);
-    const totalReceived = useMemo(() => (parseFloat(cashReceived) || 0) + (parseFloat(bankReceived) || 0), [cashReceived, bankReceived]);
+    const cashTotal = useMemo(() => sumPaymentRows(cashEntries), [cashEntries]);
+    const bankTotal = useMemo(() => sumPaymentRows(bankEntries), [bankEntries]);
+    // Total paid = Advance + every Cash entry + every Bank entry. This is the
+    // single figure the existing balance chain (finalBalance, partyBalances,
+    // statements) already consumes as `totalReceived`.
+    const totalReceived = useMemo(() => (parseFloat(advance) || 0) + cashTotal + bankTotal, [advance, cashTotal, bankTotal]);
+
+    /** Payment fields shared by the saved bill and the print/PDF data. */
+    const paymentFields = useMemo(() => {
+        const cashPayments = toPaymentEntries(cashEntries);
+        const bankPayments = toPaymentEntries(bankEntries);
+        return {
+            advance: parseFloat(advance) || 0,
+            cashPayments,
+            bankPayments,
+            // Kept in sync for anything still reading the single-value fields.
+            cashReceived: Number(cashTotal.toFixed(2)),
+            bankReceived: Number(bankTotal.toFixed(2)),
+            totalReceived,
+            cashReceivedDate: cashPayments[0]?.date ?? Timestamp.fromDate(cashEntries[0]?.date ?? new Date()),
+            bankReceivedDate: bankPayments[0]?.date ?? Timestamp.fromDate(bankEntries[0]?.date ?? new Date()),
+        };
+    }, [advance, cashEntries, bankEntries, cashTotal, bankTotal, totalReceived]);
     const previousBalance = useMemo(() => {
         if (!partyId) return 0;
         const currentBalance = partyBalances[partyId] || 0;
@@ -583,11 +634,7 @@ export default function PartyBillPage() {
             rent: parseFloat(rent) || 0,
             totalDeductions,
             netAmount,
-            cashReceived: parseFloat(cashReceived) || 0,
-            bankReceived: parseFloat(bankReceived) || 0,
-            totalReceived,
-            cashReceivedDate: Timestamp.fromDate(cashReceivedDate),
-            bankReceivedDate: Timestamp.fromDate(bankReceivedDate),
+            ...paymentFields,
             previousBalance: staticPrevBalance,
             finalBalance,
         };
@@ -683,11 +730,7 @@ export default function PartyBillPage() {
             rent: parseFloat(rent) || 0,
             totalDeductions,
             netAmount,
-            cashReceived: parseFloat(cashReceived) || 0,
-            bankReceived: parseFloat(bankReceived) || 0,
-            totalReceived,
-            cashReceivedDate: Timestamp.fromDate(cashReceivedDate),
-            bankReceivedDate: Timestamp.fromDate(bankReceivedDate),
+            ...paymentFields,
             previousBalance: staticPrevBalance,
             totalAfterPrevious,
             finalBalance,
@@ -695,7 +738,7 @@ export default function PartyBillPage() {
         return data;
     }, [
         partyId, parties, editingBillId, date, items, totalAmount, commission, 
-        expenses, rent, cashReceived, bankReceived, cashReceivedDate, bankReceivedDate, previousBalance, netAmount, totalDeductions, totalReceived, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
+        expenses, rent, paymentFields, previousBalance, netAmount, totalDeductions, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
     const proceedToPrint = useCallback((data: any) => {
@@ -827,6 +870,69 @@ export default function PartyBillPage() {
       setDateFn(new Date(current));
     }
   };
+
+  // ── Dated Cash / Bank payment rows ───────────────────────────────
+  // Every update is scoped to one row id, so editing one entry's date or
+  // amount never touches another. The first row of each type is permanent
+  // (it carries "+"); later rows carry a remove button instead.
+  const updatePaymentRow = (
+    setRows: React.Dispatch<React.SetStateAction<PaymentRow[]>>,
+    id: string,
+    patch: Partial<Omit<PaymentRow, 'id'>>,
+  ) => setRows(prev => prev.map(row => (row.id === id ? { ...row, ...patch } : row)));
+
+  const addPaymentRow = (setRows: React.Dispatch<React.SetStateAction<PaymentRow[]>>) =>
+    setRows(prev => [...prev, newPaymentRow()]);
+
+  const removePaymentRow = (setRows: React.Dispatch<React.SetStateAction<PaymentRow[]>>, id: string) =>
+    setRows(prev => (prev.length > 1 ? prev.filter(row => row.id !== id) : prev));
+
+  const renderPaymentRows = (
+    label: string,
+    rows: PaymentRow[],
+    setRows: React.Dispatch<React.SetStateAction<PaymentRow[]>>,
+  ) => rows.map((row, index) => (
+    <div key={row.id} className="flex flex-wrap justify-between items-center gap-2">
+      {index === 0
+        ? <Label className="shrink-0">{label}</Label>
+        : <span className="shrink-0" aria-hidden="true" />}
+      <div className="flex min-w-0 items-center gap-2">
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className="h-11 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none md:h-10"
+              onKeyDown={(e) => handleDateKeyDown(e, row.date, (d) => updatePaymentRow(setRows, row.id, { date: d }))}
+              onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+              aria-label={`${label} date ${index + 1}`}
+            >
+              <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+              {format(row.date, 'dd-MM-yyyy')}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar mode="single" selected={row.date} onSelect={(d) => updatePaymentRow(setRows, row.id, { date: d || new Date() })} initialFocus />
+          </PopoverContent>
+        </Popover>
+        <Input
+          className="h-11 w-32 max-w-32 min-w-0 md:h-10"
+          type="number"
+          value={row.amount}
+          onChange={e => updatePaymentRow(setRows, row.id, { amount: e.target.value })}
+          aria-label={`${label} amount ${index + 1}`}
+        />
+        {index === 0 ? (
+          <Button type="button" variant="outline" size="icon" className="h-11 w-11 shrink-0 md:h-10 md:w-10" onClick={() => addPaymentRow(setRows)} aria-label={`Add ${label} entry`}>
+            <PlusCircle className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 md:h-10 md:w-10" onClick={() => removePaymentRow(setRows, row.id)} aria-label={`Remove ${label} entry ${index + 1}`}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        )}
+      </div>
+    </div>
+  ));
 
   return (
     <>
@@ -1231,50 +1337,10 @@ export default function PartyBillPage() {
                     </div>
 
                     <div className="space-y-2 order-2 md:order-none">
-                        <div className="flex flex-wrap justify-between items-center gap-2">
-                            <Label className="shrink-0">Cash</Label>
-                            <div className="flex min-w-0 items-center gap-2">
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="h-11 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none md:h-10"
-                                            onKeyDown={(e) => handleDateKeyDown(e, cashReceivedDate, setCashReceivedDate)}
-                                            onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
-                                        >
-                                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                                            {format(cashReceivedDate, 'dd-MM-yyyy')}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={cashReceivedDate} onSelect={(d) => setCashReceivedDate(d || new Date())} initialFocus />
-                                    </PopoverContent>
-                                </Popover>
-                                <Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)} />
-                            </div>
-                        </div>
-                        <div className="flex flex-wrap justify-between items-center gap-2">
-                            <Label className="shrink-0">Bank / Acc</Label>
-                            <div className="flex min-w-0 items-center gap-2">
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className="h-11 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none md:h-10"
-                                            onKeyDown={(e) => handleDateKeyDown(e, bankReceivedDate, setBankReceivedDate)}
-                                            onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
-                                        >
-                                            <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
-                                            {format(bankReceivedDate, 'dd-MM-yyyy')}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0">
-                                        <Calendar mode="single" selected={bankReceivedDate} onSelect={(d) => setBankReceivedDate(d || new Date())} initialFocus />
-                                    </PopoverContent>
-                                </Popover>
-                                <Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={bankReceived} onChange={e => setBankReceived(e.target.value)} />
-                            </div>
-                        </div>
+                        {/* Paid: Advance, then every dated Cash and Bank entry. */}
+                        <div className="flex justify-between items-center gap-2"><Label>Advance</Label><Input className="h-11 w-32 max-w-32 md:h-10" type="number" value={advance} onChange={e => setAdvance(e.target.value)} /></div>
+                        {renderPaymentRows('Cash', cashEntries, setCashEntries)}
+                        {renderPaymentRows('Bank / Acc', bankEntries, setBankEntries)}
                         <Separator/>
                          <div className="flex justify-between items-center gap-2 font-semibold"><Label>Total Received</Label><span>{formatINR(totalReceived)}</span></div>
                     </div>
@@ -1384,6 +1450,10 @@ export default function PartyBillPage() {
                         const final = bill.finalBalance !== undefined
                             ? bill.finalBalance
                             : (partyBalances[bill.partyId] || 0);
+                        // Amount and Paid for THIS bill only, read straight off the bill
+                        // document — no per-row payment query. Paid = Advance + all Cash +
+                        // all Bank. Older bills are normalised in memory by the helper.
+                        const { netAmount: billAmount, totalPaid: paid } = getPartyBillAmounts(bill);
 
                         return (
                             <div
@@ -1420,7 +1490,11 @@ export default function PartyBillPage() {
                                     </div>
                                     <div className="flex justify-between gap-2">
                                         <span className="text-muted-foreground">Bill Amount</span>
-                                        <span className="font-mono">{formatINR(bill.netAmount)}</span>
+                                        <span className="font-mono">{formatINR(billAmount)}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-2">
+                                        <span className="text-muted-foreground">Paid</span>
+                                        <span className="font-mono">{formatINR(paid)}</span>
                                     </div>
                                     <div className="flex justify-between gap-2">
                                         <span className="text-muted-foreground">Final Balance</span>
@@ -1440,6 +1514,7 @@ export default function PartyBillPage() {
                                 <TableHead>Party</TableHead>
                                 <TableHead className="text-right">Prev Bal</TableHead>
                                 <TableHead className="text-right">Amount</TableHead>
+                                <TableHead className="text-right">Paid</TableHead>
                                 <TableHead className="text-right">Final Balance</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
@@ -1452,6 +1527,10 @@ export default function PartyBillPage() {
                                 const final = bill.finalBalance !== undefined
                                     ? bill.finalBalance
                                     : (partyBalances[bill.partyId] || 0);
+                                // Amount and Paid for THIS bill only, read straight off the bill
+                                // document — no per-row payment query. Paid = Advance + all Cash +
+                                // all Bank. Older bills are normalised in memory by the helper.
+                                const { netAmount: billAmount, totalPaid: paid } = getPartyBillAmounts(bill);
 
                                 return (
                                 <TableRow 
@@ -1464,7 +1543,8 @@ export default function PartyBillPage() {
                                     <TableCell>{format(bill.date instanceof Timestamp ? bill.date.toDate() : new Date(bill.date), 'dd-MM-yy')}</TableCell>
                                     <TableCell>{bill.partyName}</TableCell>
                                     <TableCell className="text-right font-bold whitespace-nowrap">{formatINR(prev)}</TableCell>
-                                    <TableCell className="text-right whitespace-nowrap">{formatINR(bill.netAmount)}</TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">{formatINR(billAmount)}</TableCell>
+                                    <TableCell className="text-right whitespace-nowrap">{formatINR(paid)}</TableCell>
                                     <TableCell className="text-right font-bold whitespace-nowrap">{formatINR(final)}</TableCell>
                                     <TableCell className="text-right flex justify-end gap-1">
                                         <Button variant="ghost" size="icon" onClick={(e) => { 

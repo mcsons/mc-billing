@@ -1464,7 +1464,18 @@ export default function BillingPage() {
   const handleProductSelectInteraction = () => {
     if (!selectedCustomerId) {
         setShowWalkInConfirm(true);
+        return;
     }
+    // A customer is already chosen, so focus is legitimately on the product
+    // field: scroll the Add Item row up to the bottom of the viewport. That
+    // keeps Product / Qty / UOM / Rate in view while the Current Bill items
+    // and totals on the right stay visible above them. The
+    // delay lets the browser's own focus scroll and react-select's menu
+    // opening settle first, otherwise this scroll gets undone.
+    if (typeof window === 'undefined') return;
+    setTimeout(() => {
+        document.getElementById('product-section')?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 120);
   };
 
   const itemsTotal = useMemo(() => localBillItems.reduce((sum, item) => sum + item.amount, 0), [localBillItems]);
@@ -1718,7 +1729,7 @@ export default function BillingPage() {
             </CardContent>
           </Card>
 
-          <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t">
+          <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t scroll-mt-4 scroll-mb-40 md:scroll-mb-28">
             <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
             <CardContent className="p-4 md:p-6">
             <div className="flex flex-wrap md:flex-nowrap items-end gap-2">
@@ -1822,7 +1833,7 @@ export default function BillingPage() {
           </Card>
         </div>
 
-        <div className="lg:sticky lg:top-20">
+        <div className="lg:sticky lg:top-4">
           <Card className="section-box">
             <CardHeader className="pb-2">
               <CardTitle className="font-headline">Current Bill</CardTitle>

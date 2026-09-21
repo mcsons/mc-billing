@@ -285,6 +285,65 @@ export const getPartyItemUom = (item: Pick<PartyBillItem, 'uom'>): string =>
 export const isLegacyPartyItem = (item: Pick<PartyBillItem, 'qty' | 'uom'>): boolean =>
   item.qty === undefined && item.uom === undefined;
 
+/** One dated Cash or Bank payment recorded on a Party Bill. */
+export type PartyBillPaymentEntry = {
+  /** Firestore Timestamp when stored; any date-like value when read back. */
+  date: any;
+  amount: number;
+};
+
+type PartyBillPaymentSource = {
+  date?: any;
+  cashPayments?: PartyBillPaymentEntry[];
+  bankPayments?: PartyBillPaymentEntry[];
+  cashReceived?: number;
+  bankReceived?: number;
+  cashReceivedDate?: any;
+  bankReceivedDate?: any;
+};
+
+/** True for bills saved with the multi-entry payment model. */
+export const hasPartyBillPaymentEntries = (bill: Pick<PartyBillPaymentSource, 'cashPayments' | 'bankPayments'>): boolean =>
+  Array.isArray(bill.cashPayments) || Array.isArray(bill.bankPayments);
+
+/**
+ * Cash entries of a Party Bill. New bills return their stored list as-is (in
+ * the order entered). Legacy bills with a single cash figure are converted to
+ * a one-entry list IN MEMORY — nothing is written back.
+ */
+export const getPartyBillCashEntries = (bill: PartyBillPaymentSource): PartyBillPaymentEntry[] => {
+  if (Array.isArray(bill.cashPayments)) return bill.cashPayments;
+  const amount = bill.cashReceived || 0;
+  return amount !== 0 ? [{ date: bill.cashReceivedDate ?? bill.date, amount }] : [];
+};
+
+/** Bank / Acc entries of a Party Bill. Same rules as getPartyBillCashEntries. */
+export const getPartyBillBankEntries = (bill: PartyBillPaymentSource): PartyBillPaymentEntry[] => {
+  if (Array.isArray(bill.bankPayments)) return bill.bankPayments;
+  const amount = bill.bankReceived || 0;
+  return amount !== 0 ? [{ date: bill.bankReceivedDate ?? bill.date, amount }] : [];
+};
+
+/**
+ * Net amount and total paid of a Party Bill, under the current model where
+ * Advance is a payment. New bills already store both that way. Older bills
+ * stored Advance (if any) as a deduction, so it is moved across in memory:
+ * net goes up by it and paid goes up by it. Net minus paid — and so every
+ * balance — is identical either way. For bills with no advance nothing
+ * changes at all.
+ */
+export const getPartyBillAmounts = (
+  bill: Pick<PartyBill, 'netAmount' | 'totalReceived' | 'cashReceived' | 'bankReceived' | 'advance' | 'cashPayments' | 'bankPayments'>
+): { netAmount: number; totalPaid: number } => {
+  const netAmount = bill.netAmount || 0;
+  const received = bill.totalReceived !== undefined
+    ? bill.totalReceived
+    : (bill.cashReceived || 0) + (bill.bankReceived || 0);
+  if (hasPartyBillPaymentEntries(bill)) return { netAmount, totalPaid: received };
+  const legacyAdvance = bill.advance || 0;
+  return { netAmount: netAmount + legacyAdvance, totalPaid: received + legacyAdvance };
+};
+
 export type PartyBill = {
   id: string;
   date: any;
@@ -296,12 +355,28 @@ export type PartyBill = {
   totalAmount: number;
   commission: number;
   expenses: number;
+  /** Advance already paid by the party. A PAYMENT, not a deduction: it is part
+   *  of totalReceived and never of totalDeductions. Optional — bills saved
+   *  before this field existed read as 0. (Bills saved while Advance was briefly
+   *  a deduction have no cashPayments/bankPayments arrays; see
+   *  getPartyBillAmounts for how they are read.) */
+  advance?: number;
   rent: number;
   totalDeductions: number;
   netAmount: number;
+  /** SUM of cashPayments (kept in sync on every save so older readers work). */
   cashReceived: number;
+  /** SUM of bankPayments (kept in sync on every save so older readers work). */
   bankReceived: number;
+  /** Total paid on this bill = advance + cashReceived + bankReceived. This is
+   *  the figure every balance calculation already uses. */
   totalReceived: number;
+  /** Individual dated cash payments, in the order entered. Absent on bills
+   *  saved before multiple entries existed — read those through
+   *  getPartyBillCashEntries, which derives a one-entry list in memory. */
+  cashPayments?: PartyBillPaymentEntry[];
+  /** Individual dated bank / account payments. See cashPayments. */
+  bankPayments?: PartyBillPaymentEntry[];
   /** Transaction date for the cash amount received. Independent of
    *  bankReceivedDate. Optional: bills saved before this field existed simply
    *  have no value, and are never back-filled. Informational only — it does not
@@ -309,6 +384,8 @@ export type PartyBill = {
   cashReceivedDate?: any;
   /** Transaction date for the bank/account amount received. See above. */
   bankReceivedDate?: any;
+  // Since multiple entries: these two hold the FIRST entry's date, so
+  // anything still reading the single-date fields sees a sensible value.
   previousBalance?: number;
   finalBalance?: number;
   createdBy: string;
