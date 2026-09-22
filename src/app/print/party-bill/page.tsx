@@ -6,14 +6,23 @@ import { Button } from '@/components/ui/button';
 import { PartyBillItem, getPartyItemQty, getPartyItemUom, isLegacyPartyItem, getPartyBillCashEntries, getPartyBillBankEntries } from '@/lib/data';
 import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Separator } from '@/components/ui/separator';
 
 /** Actual M.C & SONS logo (background removed), served from /public. */
 const PARTY_BILL_LOGO_SRC = '/party-bill-logo.png';
 /** Professional dark blue for the company name — print and Share PDF. */
 const COMPANY_NAME_BLUE = '#1e40af';
-/** Font for the company name only — nothing else on the bill uses it. */
-const COMPANY_NAME_FONT = '"Comic Sans MS", cursive';
+/** Net Balance row height: lifts the paid box to end level with "Total Paid". */
+const PAID_BOX_BOTTOM_OFFSET_PX = 29.5;
+/**
+ * Font for the company name only — the visiting-card font.
+ * 'MC Company Name' = the installed Balloon XBd BT (already bold + slanted, so
+ * it is declared as an italic 700 face and never gets a fake slant on top).
+ * 'MC Company Name Fallback' = bundled Chewy (Apache-2.0) for devices without
+ * Balloon, e.g. phones; it is slanted/bolded by the browser to match.
+ */
+const COMPANY_NAME_FONT = "'MC Company Name', 'MC Company Name Fallback', Arial, Helvetica, sans-serif";
+/** Share PDF company-name font (requested separately from the print). */
+const SHARE_PDF_COMPANY_NAME_FONT = '"Arial Rounded MT Bold", Arial, sans-serif';
 
 function PartyBillPrintContent() {
   const router = useRouter();
@@ -83,6 +92,8 @@ function PartyBillPrintContent() {
       const html2canvas = html2canvasModule.default;
       const { jsPDF } = jsPDFModule;
 
+      // The company-name web font must be ready too, or the PDF shows Arial.
+      await document.fonts.ready;
       // Make sure the header logo has finished loading, or html2canvas
       // would capture an empty box in its place.
       await Promise.all(Array.from(captureEl.querySelectorAll('img')).map(img =>
@@ -271,7 +282,7 @@ function PartyBillPrintContent() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={PARTY_BILL_LOGO_SRC} alt="M.C & SONS" style={{ height: '73px', width: 'auto', flexShrink: 0, display: 'block', marginLeft: '15px' }} />
         <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
-          <div style={{ fontWeight: 900, fontSize: '17pt', lineHeight: 1.1, margin: 0, color: COMPANY_NAME_BLUE, whiteSpace: 'nowrap', fontFamily: COMPANY_NAME_FONT }}>M.C &amp; SONS FISH COMPANY</div>
+          <div style={{ fontWeight: 'bold', fontStyle: 'italic', fontSize: '17pt', lineHeight: 1.15, margin: 0, color: COMPANY_NAME_BLUE, whiteSpace: 'nowrap', fontFamily: SHARE_PDF_COMPANY_NAME_FONT }}>M.C &amp; SONS FISH COMPANY</div>
           <div style={{ fontSize: '10pt', margin: '2px 0 1px', fontWeight: 600 }}>Dealer : SEA &amp; TANK FOODS</div>
           <div style={{ fontSize: '9pt', margin: '1px 0' }}>Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
           <div style={{ fontSize: '9pt', margin: '1px 0' }}>📞 9843223078, 9944444497</div>
@@ -355,15 +366,17 @@ function PartyBillPrintContent() {
       </div>
 
       {/* Totals Section */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '5px', marginTop: '8px', width: '100%', boxSizing: 'border-box' }}>
         {/* Left: Deductions & Payments.
             Flex column: the deductions sit at the top, a flexible spacer pushes
             the payments group down, and a fixed bottom offset equal to one
             summary row lifts it so it ends level with the "Total Paid" row of
             the table on the right. Offset measured against the rendered table. */}
-        <div style={{ width: '50%', display: 'flex', flexDirection: 'column' }}>
-          {/* Deductions group */}
-          <div style={{ marginBottom: 0 }}>
+        {/* Never narrower than its widest payment line, so the box never clips. */}
+        <div style={{ width: '50%', minWidth: 'max-content', display: 'flex', flexDirection: 'column' }}>
+          {/* Deductions box */}
+          {(commissionPercent > 0 || expenses > 0 || rent > 0) && (
+          <div style={{ border: cellBorder, padding: '3px 2px' }}>
             {(commissionPercent > 0) && (
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
                 <span style={{ fontWeight: 'bold' }}>Commission:</span>
@@ -383,12 +396,12 @@ function PartyBillPrintContent() {
               </div>
             )}
           </div>
-          {/* Separator */}
-          <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
-          {/* Spacer: pushes the payments group down to the Total Paid row */}
-          <div style={{ flex: '1 1 auto' }} />
-          {/* Payments group */}
-          <div style={{ marginTop: '4px' }}>
+          )}
+          {/* Spacer: pushes the payments box down to the Total Paid row */}
+          <div style={{ flex: '1 1 auto', minHeight: '6px' }} />
+          {/* Paid box */}
+          {paymentLines.length > 0 && (
+          <div style={{ border: cellBorder, padding: '3px 2px' }}>
             {paymentLines.map(line => (
               <div key={line.key} style={{ display: 'flex', justifyContent: 'space-between', gap: '6px', padding: '1px 4px', fontSize: '10pt' }}>
                 <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{line.label}</span>
@@ -396,10 +409,10 @@ function PartyBillPrintContent() {
               </div>
             ))}
           </div>
-          <div style={{ borderTop: '1px solid black', margin: '4px 0' }} />
-          {/* Height of one summary row ("Net Balance"), so the payments block
-              lines up with "Total Paid" rather than the bottom of the table. */}
-          <div style={{ flex: '0 0 auto', height: '20px' }} />
+          )}
+          {/* Height of the "Net Balance" row, so the paid box ends level with
+              the bottom of "Total Paid" rather than the bottom of the table. */}
+          <div style={{ flex: '0 0 auto', height: `${PAID_BOX_BOTTOM_OFFSET_PX}px` }} />
         </div>
 
         {/* Right: Boxed Summary Table */}
@@ -569,19 +582,17 @@ function PartyBillPrintContent() {
 
           <section className="totals-container" style={{breakInside: 'avoid', pageBreakInside: 'avoid'}}>
             <div className="left-totals">
-                <div className="deductions-group">
+                {(commission > 0 || expenses > 0 || rent > 0) && <div className="deductions-group">
                     {commission > 0 && <div className="detail-row"><span>Commission:</span><span><strong>₹{commissionAmount.toFixed(2)}</strong></span></div>}
                     {expenses > 0 && <div className="detail-row"><span>Expenses:</span><span><strong>₹{expenses.toFixed(2)}</strong></span></div>}
                     {rent > 0 && <div className="detail-row"><span>Rent:</span><span><strong>₹{rent.toFixed(2)}</strong></span></div>}
-                </div>
-                <Separator className="my-1 border-black" />
+                </div>}
                 <div className="pay-spacer" />
-                <div className="payments-group">
+                {paymentLines.length > 0 && <div className="payments-group">
                     {paymentLines.map(line => (
                         <div key={line.key} className="detail-row"><span className="pay-label">{line.label}</span><span><strong>₹{line.amount.toFixed(2)}</strong></span></div>
                     ))}
-                </div>
-                <Separator className="my-1 border-black" />
+                </div>}
                 <div className="totals-bottom-offset" />
             </div>
              <table className="right-totals boxed-summary-table">
@@ -611,6 +622,21 @@ function PartyBillPrintContent() {
       {hiddenPdfArea}
 
       <style jsx global>{`
+        @font-face {
+          font-family: 'MC Company Name';
+          /* Bundled copy first so every browser (incl. Brave, which hides
+             installed fonts) and every phone gets it; installed copy as backup. */
+          src: url('/fonts/balloon-xbd.ttf') format('truetype'), local('Balloon XBd BT'), local('Balloon Extra Bold BT'), local('BalloonBT-ExtraBold');
+          font-display: block;
+          font-style: italic;
+          font-weight: 700;
+        }
+        @font-face {
+          font-family: 'MC Company Name Fallback';
+          src: url('/fonts/chewy-400.woff2') format('woff2');
+          size-adjust: 108%; /* measured: matches Balloon's width */
+          font-display: block;
+        }
         /* ===============================
           PRINT SETUP (145mm x 210mm)
         ================================ */
@@ -701,14 +727,18 @@ function PartyBillPrintContent() {
         .invoice-header .header-logo { height: 19.3mm; width: auto; flex-shrink: 0; display: block; margin-left: 4mm; }
         .invoice-header .header-text { flex: 1 1 auto; min-width: 0; text-align: center; }
         .invoice-header .company-name {
-          font-weight: 900;
+          font-weight: 700;
+          font-style: italic;
           /* Measured: at 17pt the name uses ~72% of the width beside the
              logo at 145mm, so it always stays on one line. */
-          font-size: 17pt;
+          /* Sized for Balloon (a wide face); the Chewy fallback is scaled up
+             via size-adjust so both fill the same width. */
+          font-size: 20pt;
+          letter-spacing: 0.5px;
           line-height: 1.1;
           margin: 0;
           color: #1e40af /* COMPANY_NAME_BLUE */;
-          font-family: "Comic Sans MS", cursive /* COMPANY_NAME_FONT */;
+          font-family: 'MC Company Name', 'MC Company Name Fallback', Arial, Helvetica, sans-serif /* COMPANY_NAME_FONT */;
           white-space: nowrap;
         }
         .invoice-header .sub-header { font-size: 10pt; margin: 2px 0 1px; font-weight: 600; }
@@ -807,7 +837,7 @@ function PartyBillPrintContent() {
         /* ===============================
           TOTALS SECTION
         ================================ */
-        .totals-container { display: flex; justify-content: space-between; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; box-sizing: border-box; }
+        .totals-container { display: flex; justify-content: space-between; gap: 5px; margin-top: 8px; width: 100%; break-inside: avoid; page-break-inside: avoid; box-sizing: border-box; }
         /* Flex column so the payments group can be pushed down to align with
            the "Total Paid" row of the summary table on the right. */
         .left-totals { width: 50%; display: flex; flex-direction: column; }
@@ -815,7 +845,7 @@ function PartyBillPrintContent() {
         .pay-spacer { flex: 1 1 auto; }
         /* One summary row tall ("Net Balance"), measured against the rendered
            table, so the received block ends level with "Total Paid". */
-        .totals-bottom-offset { flex: 0 0 auto; height: 20px; }
+        .totals-bottom-offset { flex: 0 0 auto; height: 29.5px; }
         /* Bottom-aligned: when many payment lines make the left column the
            taller one, the table sits at the bottom instead of being stretched,
            so "Total Paid" stays level with the last payment line. When the
@@ -825,8 +855,9 @@ function PartyBillPrintContent() {
         .left-totals .detail-row span:first-child { font-weight: bold; }
         .left-totals .detail-row span:last-child { font-family: "Courier New", monospace; }
         
-        .deductions-group { margin-bottom: 0; }
-        .payments-group { margin-top: 4px; }
+        /* Boxed deductions / paid sections, same rule as the totals table. */
+        .deductions-group, .payments-group { border: 1.5px solid black; padding: 3px 2px; }
+        .pay-spacer { min-height: 6px; }
 
         .boxed-summary-table {
             border: 1.5px solid black;
