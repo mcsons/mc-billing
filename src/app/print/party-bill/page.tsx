@@ -12,6 +12,8 @@ import { Separator } from '@/components/ui/separator';
 const PARTY_BILL_LOGO_SRC = '/party-bill-logo.png';
 /** Professional dark blue for the company name — print and Share PDF. */
 const COMPANY_NAME_BLUE = '#1e40af';
+/** Font for the company name only — nothing else on the bill uses it. */
+const COMPANY_NAME_FONT = '"Comic Sans MS", cursive';
 
 function PartyBillPrintContent() {
   const router = useRouter();
@@ -112,9 +114,8 @@ function PartyBillPrintContent() {
       const fileName = storedName || `MC_PartyBill_${partyName}_${billDateFormatted}.pdf`;
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      const waMessage =
-        `*M.C & SONS FISH COMPANY*\n*Party Bill PDF*\n\nParty Bill Date: ${billDateFormatted}\nParty: ${billData.partyName || ''}\n\nPlease find the attached PDF party bill.\n\nThank you!`;
-      const waUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+      // Share the PDF alone — no caption/message text.
+      const waUrl = 'https://wa.me/';
 
       // ── Mobile: try Web Share API (opens native share sheet → WhatsApp) ──
       // We attempt this first; if it fails for any non-user-cancel reason,
@@ -124,11 +125,7 @@ function PartyBillPrintContent() {
         try {
           // Skip canShare() gate — it returns false on many Android browsers
           // even when sharing IS supported. Try directly and catch failures.
-          await navigator.share({
-            title: `Party Bill Date: ${billDateFormatted} - M.C & SONS`,
-            text: `Party Bill Date: ${billDateFormatted} from M.C & SONS FISH COMPANY`,
-            files: [file],
-          });
+          await navigator.share({ files: [file] });
           sharedViaWebShare = true;
         } catch (shareErr: any) {
           if (shareErr?.name === 'AbortError') {
@@ -235,7 +232,7 @@ function PartyBillPrintContent() {
    * read as one-entry lists by the shared helpers.
    */
   const paymentLines: { key: string; label: string; amount: number }[] = [
-    ...(advance > 0 ? [{ key: 'advance', label: 'Advance:', amount: advance }] : []),
+    ...(advance > 0 ? [{ key: 'advance', label: 'Advance(LESS):', amount: advance }] : []),
     ...getPartyBillCashEntries(billData)
       .filter(entry => (entry.amount || 0) > 0)
       .map((entry, i) => ({ key: `cash-${i}`, label: paymentLabel('Cash', entry.date), amount: entry.amount })),
@@ -274,7 +271,7 @@ function PartyBillPrintContent() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={PARTY_BILL_LOGO_SRC} alt="M.C & SONS" style={{ height: '73px', width: 'auto', flexShrink: 0, display: 'block', marginLeft: '15px' }} />
         <div style={{ flex: '1 1 auto', minWidth: 0, textAlign: 'center' }}>
-          <div style={{ fontWeight: 900, fontSize: '17pt', lineHeight: 1.1, margin: 0, color: COMPANY_NAME_BLUE, whiteSpace: 'nowrap' }}>M.C &amp; SONS FISH COMPANY</div>
+          <div style={{ fontWeight: 900, fontSize: '17pt', lineHeight: 1.1, margin: 0, color: COMPANY_NAME_BLUE, whiteSpace: 'nowrap', fontFamily: COMPANY_NAME_FONT }}>M.C &amp; SONS FISH COMPANY</div>
           <div style={{ fontSize: '10pt', margin: '2px 0 1px', fontWeight: 600 }}>Dealer : SEA &amp; TANK FOODS</div>
           <div style={{ fontSize: '9pt', margin: '1px 0' }}>Shop No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
           <div style={{ fontSize: '9pt', margin: '1px 0' }}>📞 9843223078, 9944444497</div>
@@ -711,6 +708,7 @@ function PartyBillPrintContent() {
           line-height: 1.1;
           margin: 0;
           color: #1e40af /* COMPANY_NAME_BLUE */;
+          font-family: "Comic Sans MS", cursive /* COMPANY_NAME_FONT */;
           white-space: nowrap;
         }
         .invoice-header .sub-header { font-size: 10pt; margin: 2px 0 1px; font-weight: 600; }

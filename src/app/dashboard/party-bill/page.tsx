@@ -76,6 +76,10 @@ const toSafeDate = (value: any, fallback: Date): Date => {
     return isNaN(d.getTime()) ? fallback : d;
 };
 
+/** Walk-in bills use this party id, exactly like Main Billing's 'WALK-IN' customer. */
+const WALK_IN = 'WALK-IN';
+const WALK_IN_LABEL = 'Walk-in Customer';
+
 /** One editable Cash or Bank row in the form. `amount` is the raw input text. */
 type PaymentRow = { id: string; date: Date; amount: string };
 
@@ -184,6 +188,14 @@ export default function PartyBillPage() {
     // Form State
     const [date, setDate] = useState<Date>(new Date());
     const [partyId, setPartyId] = useState('');
+    // Walk-in (same flow as Main Billing): optional name + Tab confirmation dialog.
+    const [walkInName, setWalkInName] = useState('');
+    const [showWalkInConfirm, setShowWalkInConfirm] = useState(false);
+    const [walkInSelectedIndex, setWalkInSelectedIndex] = useState(0);
+    const [partySearchText, setPartySearchText] = useState('');
+    const walkInModalRef = useRef<HTMLDivElement>(null);
+    const walkInNameRef = useRef<HTMLInputElement>(null);
+    const isWalkIn = partyId === WALK_IN;
     const [totalBox, setTotalBox] = useState('');
     const [totalKgs, setTotalKgs] = useState('');
     const [items, setItems] = useState<PartyBillItem[]>([]);
@@ -257,6 +269,46 @@ export default function PartyBillPage() {
         partySelectRef.current?.focus();
     }, []);
 
+    // ── Walk-in (mirrors Main Billing's handleWalkInSelection) ──────────
+    // 0 = Continue as Walk-in, 1 = Select Party, 2 = Cancel
+    const handleWalkInSelection = useCallback((index: number) => {
+        setShowWalkInConfirm(false);
+        if (index === 0) {
+            setPartyId(WALK_IN);
+            setTimeout(() => walkInNameRef.current?.focus(), 50);
+        } else if (index === 1) {
+            setTimeout(() => partySelectRef.current?.focus(), 50);
+        }
+    }, []);
+
+    // Focus the dialog so arrow keys / Enter work straight away.
+    useEffect(() => {
+        if (!showWalkInConfirm) return;
+        setWalkInSelectedIndex(0);
+        const timer = setTimeout(() => walkInModalRef.current?.focus(), 50);
+        return () => clearTimeout(timer);
+    }, [showWalkInConfirm]);
+
+    // Leaving Walk-in for a real party drops the stale walk-in name.
+    useEffect(() => {
+        if (partyId !== WALK_IN) setWalkInName('');
+    }, [partyId]);
+
+    const partyOptions = useMemo(
+        () => [{ value: WALK_IN, label: WALK_IN_LABEL }, ...parties.map(p => ({ value: p.id, label: p.name }))],
+        [parties]
+    );
+
+    // Tab on an EMPTY party field → Walk-in confirmation, like Main Billing.
+    // If the typed text matches a party, react-select's Tab selects it instead.
+    const handlePartyKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key !== 'Tab' || e.shiftKey || partyId) return;
+        const query = partySearchText.trim().toLowerCase();
+        if (query && partyOptions.some(o => o.label.toLowerCase().includes(query))) return;
+        e.preventDefault();
+        setShowWalkInConfirm(true);
+    };
+
     const filterAndSortBills = useCallback(() => {
         let results = partyBills || [];
         if (historyPartyId) {
@@ -290,6 +342,7 @@ export default function PartyBillPage() {
     const resetForm = useCallback(() => {
         setDate(new Date());
         setPartyId('');
+        setWalkInName('');
         setTotalBox('');
         setTotalKgs('');
         setItems([]);
@@ -363,6 +416,7 @@ export default function PartyBillPage() {
                 setBillOriginalState(billToEdit);
                 setDate(billToEdit.date instanceof Timestamp ? billToEdit.date.toDate() : new Date(billToEdit.date));
                 setPartyId(billToEdit.partyId);
+                setWalkInName(billToEdit.partyId === WALK_IN && billToEdit.partyName && billToEdit.partyName !== WALK_IN_LABEL ? billToEdit.partyName : '');
                 setTotalBox((billToEdit.totalBox ?? 0).toString());
                 setTotalKgs((billToEdit.totalKgs ?? 0).toString());
                 setItems(billToEdit.items || []);
@@ -390,7 +444,7 @@ export default function PartyBillPage() {
                 const currentBalance = partyBalances[billToEdit.partyId] || 0;
                 const originalNetAmount = billToEdit.netAmount;
                 const originalReceived = billToEdit.totalReceived;
-                const prev = currentBalance - (originalNetAmount - originalReceived);
+                const prev = billToEdit.partyId === WALK_IN ? 0 : currentBalance - (originalNetAmount - originalReceived);
                 
                 setPrevBalInput(prev.toString());
                 setOriginalPrevBalance(prev);
@@ -401,7 +455,7 @@ export default function PartyBillPage() {
         } else {
             // New Bill Mode
             if (partyId && lastSessionRef.current.partyId !== partyId) {
-                const prev = partyBalances[partyId] || 0;
+                const prev = partyId === WALK_IN ? 0 : (partyBalances[partyId] || 0);
                 setPrevBalInput(prev.toString());
                 setOriginalPrevBalance(prev);
                 setIsPrevBalModified(false);
@@ -443,7 +497,7 @@ export default function PartyBillPage() {
         };
     }, [advance, cashEntries, bankEntries, cashTotal, bankTotal, totalReceived]);
     const previousBalance = useMemo(() => {
-        if (!partyId) return 0;
+        if (!partyId || partyId === WALK_IN) return 0;
         const currentBalance = partyBalances[partyId] || 0;
         if (editingBillId && billOriginalState) {
             // Revert the effect of the original bill to get the balance *before* this bill was saved
@@ -614,8 +668,15 @@ export default function PartyBillPage() {
         });
     };
 
+    /** Selected party, or a pseudo party for Walk-in (never written to parties). */
+    const resolveParty = useCallback(() => (
+        partyId === WALK_IN
+            ? { id: WALK_IN, name: walkInName.trim() || WALK_IN_LABEL, location: '-' }
+            : parties.find(p => p.id === partyId)
+    ), [partyId, walkInName, parties]);
+
     const handleSave = async () => {
-        const party = parties.find(p => p.id === partyId);
+        const party = resolveParty();
         if (!party || !currentUser) {
             toast({ variant: 'destructive', title: 'Missing required fields' });
             return null;
@@ -641,7 +702,7 @@ export default function PartyBillPage() {
         
         const savedBill = await addOrUpdatePartyBill(billData, editingBillId);
         
-        if (savedBill && isPrevBalModified && partyId) {
+        if (savedBill && isPrevBalModified && partyId && partyId !== WALK_IN) {
             await setPartyBalance(partyId, finalBalance);
         }
         
@@ -707,7 +768,7 @@ export default function PartyBillPage() {
     };
 
     const getPrintData = useCallback(() => {
-        const party = parties.find(p => p.id === partyId);
+        const party = resolveParty();
         if (!party) return null;
         
         const finalBoxValue = totalBox !== '' ? parseFloat(totalBox) || 0 : calculatedTotalBox;
@@ -737,7 +798,7 @@ export default function PartyBillPage() {
         };
         return data;
     }, [
-        partyId, parties, editingBillId, date, items, totalAmount, commission, 
+        partyId, resolveParty, editingBillId, date, items, totalAmount, commission, 
         expenses, rent, paymentFields, previousBalance, netAmount, totalDeductions, finalBalance, totalBox, totalKgs, calculatedTotalBox, calculatedTotalKgs
     ]);
     
@@ -751,7 +812,7 @@ export default function PartyBillPage() {
     }, [toast]);
 
     const handlePrint = () => {
-         const party = parties.find(p => p.id === partyId);
+         const party = resolveParty();
         if (!party) {
             toast({ variant: 'destructive', title: 'Cannot Print', description: 'Please select a party.' });
             return;
@@ -790,7 +851,7 @@ export default function PartyBillPage() {
     };
 
     const handleSharePDF = async () => {
-        const party = parties.find(p => p.id === partyId);
+        const party = resolveParty();
         if (!party) {
             toast({ variant: 'destructive', title: 'Cannot Share', description: 'Please select a party.' });
             return;
@@ -972,15 +1033,35 @@ export default function PartyBillPage() {
                          <ReactSelect
                             ref={partySelectRef}
                             instanceId="party-select"
-                            options={parties.map(p => ({ value: p.id, label: p.name }))}
-                            value={parties.map(p => ({ value: p.id, label: p.name })).find(p => p.value === partyId) || null}
-                            onChange={(option) => setPartyId(option ? option.value : '')}
+                            options={partyOptions}
+                            value={partyOptions.find(p => p.value === partyId) || null}
+                            onChange={(option) => {
+                                const id = option ? option.value : '';
+                                setPartyId(id);
+                                if (id === WALK_IN) setTimeout(() => walkInNameRef.current?.focus(), 50);
+                            }}
+                            onInputChange={(val) => setPartySearchText(val)}
+                            onKeyDown={handlePartyKeyDown}
                             placeholder="Select Party..."
                             isClearable
                             styles={reactSelectStyles}
                             menuPortalTarget={isMounted ? document.body : null}
                             menuPosition='fixed'
                         />
+                        {isWalkIn && (
+                            <div className="mt-2 grid gap-1.5">
+                                <Label htmlFor="walkInName" className="text-xs text-muted-foreground">Enter Customer Name (optional)</Label>
+                                <Input
+                                    id="walkInName"
+                                    ref={walkInNameRef}
+                                    placeholder="Enter customer name (optional)"
+                                    value={walkInName}
+                                    onChange={(e) => setWalkInName(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); focusProductEntry(); } }}
+                                    className="h-11 w-full md:h-10"
+                                />
+                            </div>
+                        )}
                     </div>
                      <div className="w-full min-w-0 lg:w-auto lg:flex lg:items-center lg:gap-2">
                         <Label className="mb-2 block lg:mb-0 lg:whitespace-nowrap">Total Box :</Label>
@@ -1566,6 +1647,43 @@ export default function PartyBillPage() {
             </CardContent>
         </Card>
     </div>
+    <AlertDialog open={showWalkInConfirm} onOpenChange={setShowWalkInConfirm}>
+        <AlertDialogContent
+          className="outline-none"
+          tabIndex={0}
+          ref={walkInModalRef}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setWalkInSelectedIndex((prev) => (prev + 1) % 3);
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setWalkInSelectedIndex((prev) => (prev - 1 + 3) % 3);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              handleWalkInSelection(walkInSelectedIndex);
+            }
+          }}
+        >
+            <AlertDialogHeader>
+                <AlertDialogTitle>Walk-in Customer Confirmation</AlertDialogTitle>
+                <AlertDialogDescription>
+                    You are about to continue in Walk-in Customer mode.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex flex-col gap-2 pt-2">
+                <Button onClick={() => handleWalkInSelection(0)} className={cn(walkInSelectedIndex === 0 && "bg-blue-600 text-white hover:bg-blue-700")}>
+                  Continue as Walk-in
+                </Button>
+                <Button variant="outline" onClick={() => handleWalkInSelection(1)} className={cn(walkInSelectedIndex === 1 && "bg-blue-600 text-white hover:bg-blue-700")}>
+                  Select Party
+                </Button>
+                <Button variant="ghost" onClick={() => handleWalkInSelection(2)} className={cn(walkInSelectedIndex === 2 && "bg-blue-600 text-white hover:bg-blue-700")}>
+                  Cancel
+                </Button>
+            </div>
+        </AlertDialogContent>
+    </AlertDialog>
     <AlertDialog open={showPrintConfirm} onOpenChange={setShowPrintConfirm}>
         <AlertDialogContent>
             <AlertDialogHeader>

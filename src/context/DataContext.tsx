@@ -2119,7 +2119,10 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         newBalance += balanceChange;
     }
 
-    batch.set(balanceRef, { partyId: billData.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
+    // Walk-in bills (partyId 'WALK-IN') carry no running party balance, as in Main Billing.
+    if (billData.partyId !== 'WALK-IN') {
+      batch.set(balanceRef, { partyId: billData.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
+    }
     
     try {
         await batch.commit();
@@ -2156,7 +2159,9 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
     
     const balanceChange = billToDelete.netAmount - billToDelete.totalReceived;
     const newBalance = currentBalance - balanceChange;
-    batch.set(balanceRef, { partyId: billToDelete.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
+    if (billToDelete.partyId !== 'WALK-IN') {
+      batch.set(balanceRef, { partyId: billToDelete.partyId, balanceAmount: Number(newBalance.toFixed(2)), updatedAt: serverTimestamp() }, { merge: true });
+    }
 
     batch.commit().catch(e => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({ operation: 'delete', path: billRef.path }));
