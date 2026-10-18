@@ -143,6 +143,7 @@ export type LiveBillSummary = {
   amount: number;
   deliveryCharge?: number;
   paidAmount?: number;
+  paidDate?: any; // date the paid amount was received (defaults to bill date for legacy bills)
   createdBy: string;
   stall: string;
   date?: any;

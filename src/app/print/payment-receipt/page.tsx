@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,7 +12,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Customer } from '@/lib/data';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Share2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface PrintData {
@@ -29,6 +29,8 @@ function PrintPaymentReceiptContent() {
   const paper = searchParams.get('paper') || 'thermal';
   const [printData, setPrintData] = useState<PrintData | null>(null);
   const [printedDate, setPrintedDate] = useState<Date>(new Date());
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('paymentReceiptData');
@@ -47,6 +49,97 @@ function PrintPaymentReceiptContent() {
       sessionStorage.removeItem('paymentReceiptData');
     };
   }, [router]);
+
+  // ─────────────────────────────────────────────────────────────
+  //  Share PDF handler — same flow as the main bill print page:
+  //  capture the hidden inline-styled #pdf-area, navigator.share()
+  //  on mobile, download + wa.me fallback on desktop.
+  // ─────────────────────────────────────────────────────────────
+  const handleSharePDF = useCallback(async () => {
+    const captureEl = document.getElementById('pdf-area');
+    if (!captureEl || !printData) return;
+
+    setIsSharing(true);
+    setShareError(null);
+
+    try {
+      const [html2canvasModule, jsPDFModule] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ]);
+      const html2canvas = html2canvasModule.default;
+      const { jsPDF } = jsPDFModule;
+
+      const canvas = await html2canvas(captureEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        windowWidth: captureEl.scrollWidth,
+        windowHeight: captureEl.scrollHeight,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = pageWidth * (canvas.height / canvas.width);
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, Math.min(imgHeight, pageHeight));
+
+      const pdfBlob = pdf.output('blob');
+      const rDate = new Date(printData.receivedDate);
+      const receivedDateFormatted = !isNaN(rDate.getTime()) ? format(rDate, 'dd-MM-yyyy') : 'receipt';
+      const fileName = `MC_Receipt_${receivedDateFormatted}.pdf`;
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+      const phone = (printData.customer?.phone || '').replace(/\D/g, '');
+      const waMessage =
+        `*M.C & SONS FISH COMPANY*\n*Payment Receipt PDF*\n\nReceived Date: ${receivedDateFormatted}\nCustomer: ${printData.customer?.name_en || ''}\nReceived: ₹${printData.receivedCash.toFixed(2)}\n\nPlease find the attached PDF receipt.\n\nThank you!`;
+      const waUrl = phone
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(waMessage)}`
+        : `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+
+      // ── Mobile: Web Share API (native share sheet → WhatsApp) ──
+      let sharedViaWebShare = false;
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        try {
+          // Skip canShare() gate — it returns false on many Android browsers.
+          await navigator.share({
+            title: `Receipt Date: ${receivedDateFormatted} - M.C & SONS`,
+            text: `Payment Receipt (${receivedDateFormatted}) from M.C & SONS FISH COMPANY`,
+            files: [file],
+          });
+          sharedViaWebShare = true;
+        } catch (shareErr: any) {
+          if (shareErr?.name === 'AbortError') return; // user dismissed the sheet
+          console.warn('Web Share API failed, using fallback:', shareErr);
+        }
+      }
+
+      // ── Desktop / fallback: download PDF + open WhatsApp ──
+      if (!sharedViaWebShare) {
+        const url = URL.createObjectURL(pdfBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => {
+          URL.revokeObjectURL(url);
+          window.open(waUrl, '_blank');
+        }, 400);
+        setShareError('PDF downloaded! Attach it to the WhatsApp chat that just opened.');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        console.error('Share PDF failed:', err);
+        setShareError('Could not generate PDF. Please try printing to PDF instead.');
+      }
+    } finally {
+      setIsSharing(false);
+    }
+  }, [printData]);
 
   if (!printData) {
     return (
@@ -67,18 +160,114 @@ function PrintPaymentReceiptContent() {
   const bDate = new Date(receivedDate);
   const isValidDate = !isNaN(bDate.getTime());
 
+  // Hidden receipt rendered with INLINE STYLES for html2canvas (print media
+  // queries are invisible to it). Mirrors the printed receipt structure.
+  const cell: React.CSSProperties = { padding: '5px 6px', border: '1px solid #ccc', fontSize: '12px' };
+  const hiddenPdf = (
+    <div
+      id="pdf-area"
+      style={{
+        position: 'fixed', left: '-9999px', top: 0, width: '480px',
+        background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif',
+        fontSize: '12px', boxSizing: 'border-box', padding: '16px',
+      }}
+    >
+      {/* Header */}
+      <div style={{ textAlign: 'center', marginBottom: '8px', borderBottom: '2px solid #333', paddingBottom: '6px' }}>
+        <div style={{ fontSize: '15px', fontWeight: 'bold', margin: '0 0 2px 0', letterSpacing: '0.3px' }}>M.C &amp; SONS FISH COMPANY</div>
+        <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>No. 1, Fish Market, Palladam Road, Tiruppur - 641604</div>
+        <div style={{ fontSize: '10px', color: '#444', margin: '1px 0' }}>📞 9894089889, 9597833277</div>
+      </div>
+
+      <div style={{ textAlign: 'center', fontSize: '14px', fontWeight: 'bold', margin: '4px 0 8px' }}>Received Amount</div>
+
+      {/* Customer Info */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', margin: '6px 0', fontSize: '11px' }}>
+        <div>
+          <div style={{ fontWeight: 600 }}>Cust Name:</div>
+          <div style={{ fontWeight: 700, fontSize: '12px', marginTop: '2px' }}>
+            {customer?.name_ta && customer.name_ta !== '--' ? customer.name_ta : (customer?.name_en || '-')}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontWeight: 600 }}>Date:</div>
+          <div style={{ fontWeight: 700, marginTop: '2px' }}>{format(printedDate, 'dd-MM-yyyy')}</div>
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1.5px solid #444', margin: '5px 0 8px' }} />
+
+      {/* Received table */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: '12px' }}>
+        <thead>
+          <tr style={{ background: '#f0f0f0' }}>
+            <th style={{ ...cell, width: '50%', textAlign: 'left', fontWeight: 'bold' }}>Received Date</th>
+            <th style={{ ...cell, width: '50%', textAlign: 'right', fontWeight: 'bold' }}>Received Cash</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style={{ ...cell, fontWeight: 600 }}>{isValidDate ? format(bDate, 'dd-MM-yyyy') : '-'}</td>
+            <td style={{ ...cell, textAlign: 'right', fontWeight: 600 }}>{receivedCash > 0 ? receivedCash.toFixed(2) : '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Summary */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginTop: '10px' }}>
+        <tbody>
+          {[
+            { label: 'Prev Balance', value: prevBalance.toFixed(2) },
+            { label: 'Cash Received (-)', value: receivedCash.toFixed(2) },
+          ].map(({ label, value }) => (
+            <tr key={label}>
+              <td style={{ padding: '4px 6px', fontWeight: 600, borderBottom: '1px solid #eee' }}>{label}</td>
+              <td style={{ padding: '4px 2px', textAlign: 'center', color: '#555', borderBottom: '1px solid #eee', width: '12px' }}>:</td>
+              <td style={{ padding: '4px 6px', textAlign: 'right', whiteSpace: 'nowrap', borderBottom: '1px solid #eee' }}>₹{value}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '2px solid #333' }}>
+            <td style={{ padding: '6px 6px', fontWeight: 'bold', fontSize: '13px' }}>Final Balance</td>
+            <td style={{ padding: '6px 2px', textAlign: 'center', color: '#555' }}>:</td>
+            <td style={{ padding: '6px 6px', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 'bold', fontSize: '13px' }}>₹{finalBalance.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style={{ marginTop: '12px', fontSize: '9px', fontStyle: 'italic', color: '#1a6db5' }}>Developed by MC &amp; SONS</div>
+    </div>
+  );
+
   return (
     <div>
-        <div className="p-4 print:hidden flex justify-between items-center">
+        {shareError && (
+          <div className="print:hidden bg-amber-50 border-b border-amber-200 px-4 py-2 text-amber-800 text-sm">
+            {shareError}
+          </div>
+        )}
+        <div className="p-4 print:hidden flex justify-between items-center gap-2">
           <Button variant="outline" onClick={() => window.close()} className="text-foreground">
             <X className="mr-2 h-4 w-4" />
             Close Preview
           </Button>
-          <Button onClick={() => window.print()}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSharePDF}
+              disabled={isSharing}
+              className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+            >
+              {isSharing
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
+                : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
+            </Button>
+            <Button onClick={() => window.print()}>
+              <Printer className="mr-2 h-4 w-4" />
+              Print
+            </Button>
+          </div>
         </div>
+        {hiddenPdf}
         <div className={`print-root ${paper}`}>
           <div id="print-area">
             <header className="text-center">

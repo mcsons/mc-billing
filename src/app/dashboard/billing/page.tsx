@@ -226,6 +226,8 @@ export default function BillingPage() {
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
+  // Date the paid amount was received — lets past-dated payments be recorded. Defaults to today.
+  const [paidDate, setPaidDate] = useState<Date>(new Date());
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
 
@@ -517,6 +519,9 @@ export default function BillingPage() {
             setInitialBillTotal(billToLoad.amount);
             setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
             setPaidAmount(billToLoad.paidAmount?.toString() || '');
+            // Legacy bills have no paidDate — their linked payment was dated with the bill.
+            const storedPaidDate = billToLoad.paidDate ?? billToLoad.date;
+            setPaidDate(storedPaidDate ? (storedPaidDate instanceof Timestamp ? storedPaidDate.toDate() : new Date(storedPaidDate)) : new Date());
             setDescription(billToLoad.description || '');
 
             // Fetch items from Firestore once
@@ -559,6 +564,7 @@ export default function BillingPage() {
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setPaidAmount('');
+            setPaidDate(new Date());
             setLocalBillItems([]);
             setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
@@ -989,6 +995,7 @@ export default function BillingPage() {
     setRate('');
     setUom('KGS'); // Default reset to KGS
     setPaidAmount('');
+    setPaidDate(new Date());
     setDeliveryCharge('');
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
@@ -1171,7 +1178,9 @@ export default function BillingPage() {
       parseFloat(paidAmount) || 0,
       parseFloat(deliveryCharge) || 0,
       date || new Date(),
-      activeBillNo
+      activeBillNo,
+      undefined,
+      paidDate
     );
 
     try {
@@ -1357,7 +1366,11 @@ export default function BillingPage() {
                   data.summary.paidAmount || 0,
                   data.summary.deliveryCharge || 0,
                   data.summary.date instanceof Timestamp ? data.summary.date.toDate() : new Date(data.summary.date),
-                  data.summary.billNo
+                  data.summary.billNo,
+                  undefined,
+                  data.summary.paidDate
+                    ? (data.summary.paidDate instanceof Timestamp ? data.summary.paidDate.toDate() : new Date(data.summary.paidDate))
+                    : undefined
                 );
               });
               toast({ title: "Bills restored" });
@@ -1995,7 +2008,26 @@ export default function BillingPage() {
                     />
 
                     <span className="font-medium text-muted-foreground flex items-center">Paid</span>
-                    <Input className="h-10 text-right font-mono text-base px-2 border-primary/20" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                    <div className="flex min-w-0 gap-1">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="h-10 w-[112px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none"
+                          onKeyDown={(e) => handleDateKeyDown(e, paidDate, (d) => setPaidDate(d || new Date()))}
+                          onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                          aria-label="Paid date"
+                        >
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                          {format(paidDate, 'dd-MM-yyyy')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={paidDate} onSelect={(d) => setPaidDate(d || new Date())} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                    <Input className="h-10 min-w-0 flex-1 text-right font-mono text-base px-2 border-primary/20" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                    </div>
 
                     <span className="font-semibold text-base border-t pt-3">Balance</span>
                     <span className="font-mono font-bold text-right text-base text-primary border-t pt-3">₹{finalBalance.toFixed(2)}</span>
@@ -2020,7 +2052,27 @@ export default function BillingPage() {
                     onFocus={(e) => e.target.select()}
                     disabled={!canEditBalances}
                   />
-                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold">Paid:</span>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="h-9 md:h-10 w-[120px] shrink-0 justify-start px-2 text-left text-xs font-normal select-none"
+                          onKeyDown={(e) => handleDateKeyDown(e, paidDate, (d) => setPaidDate(d || new Date()))}
+                          onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }}
+                          aria-label="Paid date"
+                        >
+                          <CalendarIcon className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                          {format(paidDate, 'dd-MM-yyyy')}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={paidDate} onSelect={(d) => setPaidDate(d || new Date())} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                    <Input className="max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  </div>
                   <span className="font-semibold text-lg pt-1">Balance:</span>
                   <span className={cn(
                     "font-mono font-bold text-xl md:text-2xl pt-1",
