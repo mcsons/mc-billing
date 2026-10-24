@@ -446,6 +446,17 @@ function PrintPageContent() {
           </div>
 
           <Table className="print-table">
+            {/* table-layout:fixed reads column widths from <col> first; without
+                this the colSpan=4 divider row above the headings would force
+                four equal columns. Only the 3-inch roll needs it. */}
+            {paper === 'thermal3' && (
+              <colgroup>
+                <col className="col-product" />
+                <col className="col-qty" />
+                <col className="col-rate" />
+                <col className="col-amount" />
+              </colgroup>
+            )}
             <TableHeader>
               <TableRow className="header-row-divider">
                 <TableCell colSpan={4} className="p-0">
@@ -475,7 +486,9 @@ function PrintPageContent() {
                     </span>
                   </TableCell>
                   <TableCell className="col-rate text-right font-mono">
-                    {item.rate.toFixed(2)}
+                    {paper === 'thermal3'
+                      ? (Number.isInteger(item.rate) ? item.rate : item.rate.toFixed(2))
+                      : item.rate.toFixed(2)}
                   </TableCell>
                   <TableCell className="col-amount text-right font-mono">
                     {paper === 'a4' ? formatINR(item.amount) : (paper === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
@@ -672,18 +685,8 @@ function PrintPageContent() {
             .print-root.thermal #print-area {
                 width: 106mm;
             }
-            .print-root.thermal3 #print-area {
-                width: 74mm;
-                padding: 1rem 3mm;
-                margin: 1rem auto;
-                box-sizing: border-box;
-            }
-            .print-root.thermal3 {
-                width: 80mm;
-                max-width: 80mm;
-                margin: 0 auto;
-                padding: 0;
-            }
+            /* 3-inch preview is styled by the shared block further down so
+               the preview and the paper are identical. */
             .print-root.a4 #print-area {
                 width: 210mm;
                 min-height: 297mm;
@@ -724,7 +727,10 @@ function PrintPageContent() {
           }
 
           @page {
-            size: ${paper === 'thermal3' ? '78mm auto' : paper === 'thermal' ? '106mm auto' : 'A4'};
+            /* Roll papers deliberately set no size: the printer's own roll
+               width governs and the sheet stays continuous. (A '<width> auto'
+               value is invalid CSS and silently voids the whole rule.) */
+            ${paper === 'a4' ? 'size: A4;' : ''}
             margin: 0;
           }
         }
@@ -893,174 +899,225 @@ function PrintPageContent() {
           }
         }
         /* ===============================
-           3-INCH THERMAL (80mm)
+           3-INCH THERMAL (80mm roll)
+           Printable width on a standard 80mm roll is 72mm (576 dots @203dpi).
+           Everything below is sized to that, so nothing runs off the paper.
+           Not inside @media print: the preview must show exactly what prints.
         ================================ */
-         @media print {
+        @media all {
           .print-root.thermal3 {
-            width: 80mm;
-            max-width: 80mm;
+            width: 72mm;
+            max-width: 72mm;
             margin: 0 auto;
+            padding: 0;
             display: block;
             font-family: 'Courier New', 'Noto Sans Tamil', monospace !important;
           }
 
           .print-root.thermal3 #print-area {
-            padding: 1.5cm 2px 10mm 2px;
-            margin: 0 !important;
+            width: 72mm;
+            max-width: 72mm;
+            box-sizing: border-box;
+            padding: 2mm 1.5mm 8mm 1.5mm;
+            margin: 0 auto !important;
+            overflow: hidden;
           }
 
+          /* ---- Header ---- */
+          /* Margins are set explicitly: browser defaults on h1/p would
+             otherwise open big gaps in the middle of the receipt. */
+          .print-root.thermal3 header { text-align: center !important; margin: 0 !important; }
           .print-root.thermal3 .header-title {
-            font-size: 18px !important;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            line-height: 1.2;
-            white-space: nowrap;
+            font-size: 15px !important;
+            font-weight: 800;
+            letter-spacing: 0;
+            line-height: 1.25;
+            white-space: normal;
+            margin: 0 !important;
           }
           .print-root.thermal3 .header-sub {
             display: block;
             text-align: center;
-            font-size: 11px !important;
+            font-size: 10px !important;
             font-weight: 700;
             line-height: 1.3;
-            margin-top: 2px;
+            margin: 1px 0 0 !important;
           }
-          .print-root.thermal3 .header-phone {
-            margin-top: 4px;
-          }
+          .print-root.thermal3 .header-phone { margin-top: 2px !important; }
           .print-root.thermal3 .hr-line {
-            border-top: 2px solid #000;
-            margin: 6px 0;
+            border-top: 1.5px solid #000;
+            margin: 3px 0 !important;
           }
+          .print-root.thermal3 .mb-2 { margin-bottom: 2px !important; }
           .print-root.thermal3 .table-header-line {
             border-top: 1px solid #000;
             margin: 0;
           }
 
-          /* ---- Customer info section (ID / Name / Bill No / Date) ---- */
-          /* Smaller font so Tamil names fit across 78mm */
+          /* ---- Customer / bill info ---- */
           .print-root.thermal3 .mb-2.font-mono {
-            font-size: 10px !important;
+            font-size: 9px !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            gap: 0;
+            align-items: flex-start;
           }
-          /* Allow Name to wrap fully -- override Tailwind 'truncate' */
           .print-root.thermal3 .truncate {
-            overflow: visible !important;
+            overflow: hidden !important;
             white-space: normal !important;
             text-overflow: clip !important;
+            word-break: break-word;
           }
-          /* Give the left (ID/Name) table a bit more room */
+          /* Left block takes the slack and wraps; the Bill No / Date block
+             keeps its natural width so the date can never spill off the roll. */
           .print-root.thermal3 .mb-2.font-mono > table:first-child {
-            width: 50% !important;
+            width: auto !important;
+            flex: 1 1 auto;
+            min-width: 0;
+            table-layout: auto !important;
           }
-          /* Right (Bill No / Date) table: auto-width, all cells left-aligned */
-          /* so there is no dead gap between label and value                  */
           .print-root.thermal3 .mb-2.font-mono > table:last-child {
             width: auto !important;
+            flex: 0 0 auto;
+            table-layout: auto !important;
             text-align: left !important;
           }
           .print-root.thermal3 .mb-2.font-mono > table:last-child td {
             text-align: left !important;
             white-space: nowrap;
-            padding-left: 1px;
-            padding-right: 2px;
+            padding: 0 1px;
           }
-          .print-root.thermal3 .mb-2.font-mono .w-4 {
+          .print-root.thermal3 .mb-2.font-mono > table.text-right { text-align: left !important; }
+          .print-root.thermal3 .mb-2.font-mono .w-4,
+          .print-root.thermal3 .mb-2.font-mono .w-12 {
             width: auto !important;
-            padding-left: 2px !important;
-            padding-right: 2px !important;
+            padding: 0 2px !important;
           }
-          /* ---- End customer info ---- */
+          .print-root.thermal3 .mb-2.font-mono td { padding: 0 1px; white-space: nowrap; }
+          /* Value column takes all spare width: no gap after 'ID' or 'Name'. */
+          .print-root.thermal3 .mb-2.font-mono > table:first-child td:last-child { width: 100%; }
+          .print-root.thermal3 .mb-2.font-mono > table:first-child td:first-child,
+          .print-root.thermal3 .mb-2.font-mono > table:last-child td:first-child { width: 1%; }
+          .print-root.thermal3 .mb-2.font-mono .truncate { white-space: normal !important; }
 
+          /* ---- Items table ---- */
           .print-root.thermal3 .print-table {
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
           }
-
           .print-root.thermal3 .print-table th,
           .print-root.thermal3 .print-table td {
             border: none;
-            padding: 0px 1px;
-            vertical-align: middle !important;
-            white-space: nowrap;
+            padding: 1px 1px;
+            vertical-align: top !important;
+            overflow: hidden;
           }
-
-          .print-root.thermal3 .combined-summary-row div {
-            font-size: 10px !important;
-          }
-
           .print-root.thermal3 .print-table thead th {
             font-weight: 800 !important;
-            font-size: 12px !important;
-            padding-top: 0px !important;
-            padding-bottom: 0px !important;
+            font-size: 11px !important;
+            /* shadcn's TableHead is h-12 (48px) — that was the empty band
+               between the column headings and the first item. */
+            height: auto !important;
+            line-height: 1.25 !important;
+            padding-top: 1px !important;
+            padding-bottom: 1px !important;
+            white-space: nowrap;
+            color: inherit !important;
+            vertical-align: bottom !important;
           }
-
-          .print-root.thermal3 .header-row-divider td {
-            padding: 0 !important;
+          /* shadcn puts border-b on every TableRow; the receipt draws its own rules. */
+          .print-root.thermal3 .print-table tr { border: 0 !important; }
+          .print-root.thermal3 .print-table > div,
+          .print-root.thermal3 .print-table { overflow: visible !important; }
+          .print-root.thermal3 .header-row-divider td { padding: 0 !important; }
+          .print-root.thermal3 .print-table tbody td {
+            font-weight: 700 !important;
+            font-size: 11px;
+            line-height: 1.25;
           }
 
           .print-root.thermal3 .text-center { text-align: center !important; }
           .print-root.thermal3 .text-left   { text-align: left !important; }
           .print-root.thermal3 .text-right  { text-align: right !important; }
-          /* Override text-right specifically for the info-table wrapper */
-          .print-root.thermal3 .mb-2.font-mono > table.text-right {
-            text-align: left !important;
-          }
 
-          .print-root.thermal3 .print-table tbody td {
-            font-weight: 700 !important;
-            font-size: 12px;
-            line-height: 1.2;
-          }
-
-          /* 3-inch column widths - rebalanced to prevent wrap */
+          /* Column widths tuned to 69mm of usable width */
           .print-root.thermal3 .col-product {
-            width: 40%;
-            font-size: 12px !important;
-            line-height: 1.2;
+            width: 42%;
+            padding-left: 0 !important;
+            font-size: 11px !important;
+            line-height: 1.25;
             white-space: normal !important;
             word-wrap: break-word;
             word-break: break-word;
             padding-right: 2px;
           }
-          .print-root.thermal3 .col-qty,
+          /* Rate and Amount wrap rather than clip, so an unusually long value
+             can never lose digits. Normal bills fit on one line. */
           .print-root.thermal3 .col-rate,
           .print-root.thermal3 .col-amount {
-            font-size: 12px !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere;
           }
-          .print-root.thermal3 .col-qty    { width: 18%; }
-          .print-root.thermal3 .col-rate   { width: 18%; }
-          .print-root.thermal3 .col-amount { width: 24%; }
+          /* Qty stays on one line so the unit never splits off the number. */
+          .print-root.thermal3 .col-qty {
+            white-space: nowrap !important;
+            width: 21%;
+            padding-right: 3px !important;
+          }
+          .print-root.thermal3 .col-rate   { width: 15%; padding-left: 2px !important; padding-right: 3px !important; }
+          .print-root.thermal3 .col-amount { width: 22%; padding-left: 2px !important; }
+          .print-root.thermal3 .col-qty,
+          .print-root.thermal3 .col-rate,
+          .print-root.thermal3 .col-amount { font-size: 11px !important; }
 
           .print-root.thermal3 .uom-text {
-            font-size: 10px !important;
-            margin-left: 2px;
+            font-size: 9px !important;
+            margin-left: 1px;
+            font-weight: 700;
           }
 
+          .print-root.thermal3 .combined-summary-row div {
+            font-size: 9px !important;
+            padding-right: 0 !important;
+          }
+
+          /* ---- Summary ---- */
+          .print-root.thermal3 .summary-section-wrapper {
+            display: block !important;
+            width: 100%;
+          }
           .print-root.thermal3 .summary-table {
             width: 100%;
             max-width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 700;
           }
-          .print-root.thermal3 .summary-table td {
-            padding: 1px 3px;
+          .print-root.thermal3 .summary-table td { padding: 1px 1px; }
+          .print-root.thermal3 .summary-label {
+            text-align: left;
+            white-space: nowrap;
+            width: 55%;
           }
-          .print-root.thermal3 .summary-label { text-align: left; white-space: nowrap; }
-          .print-root.thermal3 .summary-colon { width: 10px; text-align: center; }
-          .print-root.thermal3 .summary-value { text-align: right; white-space: nowrap; }
-          .print-root.thermal3 .summary-total-row td { font-weight: bold; }
-          .print-root.thermal3 .summary-divider-row td { border-top: 1px solid black; }
-          .print-root.thermal3 .summary-final-balance td { font-size: 14px; font-weight: 800; }
+          .print-root.thermal3 .summary-colon { width: 4mm; text-align: center; }
+          .print-root.thermal3 .summary-value {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+          }
+          .print-root.thermal3 .summary-total-row td { font-weight: 800; }
+          .print-root.thermal3 .summary-divider-row td { border-top: 1px solid #000; }
+          .print-root.thermal3 .summary-final-balance td { font-size: 13px; font-weight: 800; }
 
           .print-root.thermal3 .print-footer {
-            margin-top: 10mm;
+            margin-top: 6mm;
             text-align: left;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 800;
             font-style: italic;
-            padding-bottom: 5mm;
+            padding-bottom: 4mm;
           }
 
           /* 3-inch thermal: no page breaks, continuous feed */
