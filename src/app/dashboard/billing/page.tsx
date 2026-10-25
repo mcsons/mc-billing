@@ -226,6 +226,8 @@ export default function BillingPage() {
   const [rate, setRate] = useState('');
   const [uom, setUom] = useState('KGS');
   const [paidAmount, setPaidAmount] = useState('');
+  /** Date the paid amount was received; null = same as the bill date. */
+  const [paidDate, setPaidDate] = useState<Date | null>(null);
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
 
@@ -517,6 +519,13 @@ export default function BillingPage() {
             setInitialBillTotal(billToLoad.amount);
             setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
             setPaidAmount(billToLoad.paidAmount?.toString() || '');
+            {
+              // Restore when the paid amount was received, if it differs from the bill date.
+              const linked = (payments || []).find(p => p.linkedBillId === billToLoad!.billNo && !p.isDeleted);
+              const linkedDate = linked?.date ? (linked.date instanceof Timestamp ? linked.date.toDate() : new Date(linked.date)) : null;
+              const billDate = billToLoad.date ? (billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date)) : null;
+              setPaidDate(linkedDate && !isNaN(linkedDate.getTime()) && !(billDate && isSameDay(linkedDate, billDate)) ? linkedDate : null);
+            }
             setDescription(billToLoad.description || '');
 
             // Fetch items from Firestore once
@@ -559,6 +568,7 @@ export default function BillingPage() {
             setInitialBillTotal(0);
             setDeliveryCharge('');
             setPaidAmount('');
+            setPaidDate(null);
             setLocalBillItems([]);
             setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
@@ -989,6 +999,7 @@ export default function BillingPage() {
     setRate('');
     setUom('KGS'); // Default reset to KGS
     setPaidAmount('');
+    setPaidDate(null);
     setDeliveryCharge('');
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
@@ -1171,7 +1182,9 @@ export default function BillingPage() {
       parseFloat(paidAmount) || 0,
       parseFloat(deliveryCharge) || 0,
       date || new Date(),
-      activeBillNo
+      activeBillNo,
+      undefined,
+      paidDate ?? undefined
     );
 
     try {
@@ -1393,6 +1406,39 @@ export default function BillingPage() {
     setHistoryDate(undefined);
     setHistorySelectedCustomer('');
     setHistorySearchText('');
+  };
+
+  /** Small date button beside "Paid": the date the paid amount was received. */
+  const renderPaidDatePicker = (buttonClass: string) => {
+    const effective = paidDate ?? date ?? new Date();
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn('h-8 px-2 text-xs font-mono font-normal select-none', paidDate && 'border-amber-500 font-bold', buttonClass)}
+            title="Date the paid amount was received"
+            aria-label="Paid date"
+          >
+            <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+            {format(effective, 'dd-MM-yy')}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="single"
+            selected={effective}
+            onSelect={(d) => {
+              if (!d) return;
+              // Picking the bill date itself means "no separate paid date".
+              setPaidDate(date && isSameDay(d, date) ? null : d);
+            }}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
+    );
   };
 
   const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
@@ -1994,7 +2040,7 @@ export default function BillingPage() {
                       disabled={!canEditBalances}
                     />
 
-                    <span className="font-medium text-muted-foreground flex items-center">Paid</span>
+                    <span className="font-medium text-muted-foreground flex items-center gap-2">Paid {renderPaidDatePicker('')}</span>
                     <Input className="h-10 text-right font-mono text-base px-2 border-primary/20" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
 
                     <span className="font-semibold text-base border-t pt-3">Balance</span>
@@ -2020,7 +2066,7 @@ export default function BillingPage() {
                     onFocus={(e) => e.target.select()}
                     disabled={!canEditBalances}
                   />
-                  <span className="font-semibold">Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold flex items-center justify-end gap-2">{renderPaidDatePicker('')}Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold text-lg pt-1">Balance:</span>
                   <span className={cn(
                     "font-mono font-bold text-xl md:text-2xl pt-1",
