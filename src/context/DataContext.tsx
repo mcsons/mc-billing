@@ -28,7 +28,7 @@ import {
   Page,
   initialPermissions,
 } from '@/lib/data';
-import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay, parseISO } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, startOfYesterday, endOfYesterday, format, isSameDay, parseISO, differenceInCalendarDays } from 'date-fns';
 import { useAuth, useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
 import { collection, doc, serverTimestamp, writeBatch, getDoc, getDocs, query, where, Timestamp, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { signOut, createUserWithEmailAndPassword } from 'firebase/auth';
@@ -67,6 +67,22 @@ export interface DashboardStats {
   }[];
 }
 
+/** One row of the Unpaid page / the unit the Unpaid dashboard card counts. */
+export interface UnpaidCustomer {
+  customerId: string;
+  customerName: string;
+  customerNameTa: string;
+  /** Start-of-day millis of the customer's latest payment; null = never paid. */
+  lastPaidDate: number | null;
+  /** Amount of that latest payment; null = never paid. */
+  lastPaidAmount: number | null;
+  /** Authoritative outstanding balance (same value Main Billing shows). */
+  currentBalance: number;
+}
+
+/** A customer is unpaid once this many completed days have passed with no payment. */
+export const UNPAID_AFTER_DAYS = 7;
+
 interface DataContextType {
   customers: Customer[];
   products: Product[];
@@ -88,6 +104,8 @@ interface DataContextType {
   isCurrentUserAdmin: boolean;
   liveBillItems: LiveBillItems;
   dashboardStats: DashboardStats;
+  unpaidCustomers: UnpaidCustomer[];
+  isUnpaidLoading: boolean;
   logout: () => void;
   addCustomer: (customer: Omit<Customer, 'id'> & { id?: string, openingBalance?: number }) => void;
   editCustomer: (oldId: string, newData: Omit<Customer, 'id'> & { id: string }) => Promise<void>;
@@ -571,6 +589,80 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     return balances;
   }, [customers, liveBillSummaries, payments, openingBalances]);
+
+  /**
+   * Unpaid customers — the single source both the Unpaid page and the Unpaid
+   * dashboard card read, so their counts can never disagree.
+   *
+   * A customer qualifies when their outstanding balance is positive AND their
+   * most recent payment is more than UNPAID_AFTER_DAYS completed calendar days
+   * old (never-paid customers with a positive balance qualify too). Dates are
+   * compared at start-of-day in the browser's local calendar, so a payment
+   * recorded exactly 7 days ago is NOT unpaid.
+   *
+   * Derived entirely from the `customers`, `payments` and `customerBalances`
+   * values this context already streams: no extra query, listener or read.
+   */
+  const unpaidCustomers = useMemo<UnpaidCustomer[]>(() => {
+    const today = startOfDay(new Date());
+    const toMillis = (value: any): number => {
+      if (!value) return NaN;
+      if (value instanceof Timestamp) return value.toMillis();
+      if (typeof value?.toDate === 'function') return value.toDate().getTime();
+      if (typeof value?.seconds === 'number') return value.seconds * 1000;
+      return new Date(value).getTime();
+    };
+
+    // Latest payment day per customer, in one pass over the payments already in memory.
+    type Latest = { day: number; sum: number; newestCreated: number; newestAmount: number; allHaveCreatedAt: boolean; count: number };
+    const latest = new Map<string, Latest>();
+    for (const payment of payments || []) {
+      if (payment.isDeleted || !payment.customerId) continue;
+      const paidMs = toMillis(payment.date);
+      if (Number.isNaN(paidMs)) continue;              // unparseable date: not a reliable record
+      const day = startOfDay(new Date(paidMs)).getTime();
+      const amount = Number(payment.amount) || 0;
+      const createdMs = toMillis(payment.createdAt);
+      const current = latest.get(payment.customerId);
+      if (!current || day > current.day) {
+        latest.set(payment.customerId, {
+          day, sum: amount, newestCreated: createdMs, newestAmount: amount,
+          allHaveCreatedAt: !Number.isNaN(createdMs), count: 1,
+        });
+      } else if (day === current.day) {
+        // Several payments share the latest date: prefer the newest by createdAt
+        // (the app's own ordering); if any of them lacks one, show the day's total.
+        current.sum += amount;
+        current.count += 1;
+        if (Number.isNaN(createdMs)) current.allHaveCreatedAt = false;
+        else if (Number.isNaN(current.newestCreated) || createdMs > current.newestCreated) {
+          current.newestCreated = createdMs;
+          current.newestAmount = amount;
+        }
+      }
+    }
+
+    return customers
+      .filter(customer => (customerBalances[customer.id] || 0) > 0)
+      .map(customer => {
+        const paid = latest.get(customer.id);
+        return {
+          customerId: customer.id,
+          customerName: customer.name_en,
+          customerNameTa: customer.name_ta,
+          lastPaidDate: paid ? paid.day : null,
+          lastPaidAmount: paid ? (paid.count > 1 && paid.allHaveCreatedAt ? paid.newestAmount : paid.sum) : null,
+          currentBalance: customerBalances[customer.id] || 0,
+        };
+      })
+      .filter(row => row.lastPaidDate === null
+        || differenceInCalendarDays(today, new Date(row.lastPaidDate)) > UNPAID_AFTER_DAYS)
+      // Longest overdue first; never-paid customers lead the list.
+      .sort((a, b) => (a.lastPaidDate ?? -1) - (b.lastPaidDate ?? -1));
+  }, [customers, payments, customerBalances]);
+
+  /** True until the collections the Unpaid list depends on have all arrived. */
+  const isUnpaidLoading = customersData == null || paymentsData == null || liveBillSummariesData == null;
 
   const { data: partyBalancesData } = useCollection<PartyBalance>(useMemoFirebase(() => firestore && firebaseUser ? collection(firestore, 'partyBalances') : null, [firestore, firebaseUser]));
   
@@ -2541,6 +2633,8 @@ const updatePartyPayment = async (paymentId: string, data: { amount: number; not
         clearCustomerProductPrice,
         openingBalances,
         customerBalances,
+        unpaidCustomers,
+        isUnpaidLoading,
         payments,
         partyPayments,
         currentUser,

@@ -27,6 +27,7 @@ import {
   Users2,
   Package,
   FileBarChart2,
+  AlertCircle,
 } from 'lucide-react';
 import React from 'react';
 
@@ -79,6 +80,7 @@ const coreOperationsBottom = [
   { href: '/dashboard/vehicle-bill', label: 'Vehicle Bill', icon: ClipboardPaste },
   { href: '/dashboard/sales-report', label: 'Reports', icon: BarChart3 },
   { href: '/dashboard/payments', label: 'Payments', icon: IndianRupee },
+  { href: '/dashboard/unpaid', label: 'Unpaid', icon: AlertCircle },
   { href: '/dashboard/cust-statement', label: 'Cust Statement', icon: History },
 ];
 

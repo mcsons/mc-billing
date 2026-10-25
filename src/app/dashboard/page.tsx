@@ -7,6 +7,7 @@ import {
   IndianRupee,
   Tag,
   X,
+  AlertCircle,
   Users2,
   Wallet,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ import { useData } from '@/context/DataContext';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { dashboardStats, currentUser } = useData();
+  const { dashboardStats, currentUser, unpaidCustomers, isUnpaidLoading } = useData();
   const [showAllProducts, setShowAllProducts] = useState(false);
 
   const getGreeting = () => {
@@ -136,6 +137,31 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">
             Total payments received today
             </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Unpaid</CardTitle>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/20 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {isUnpaidLoading ? '—' : (unpaidCustomers || []).length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Customers with no payment for more than 7 days
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3 w-full sm:w-auto"
+              onClick={() => router.push('/dashboard/unpaid')}
+            >
+              Show All
+              <ArrowRight className="ml-1 h-4 w-4" />
+            </Button>
           </CardContent>
         </Card>
       </div>
