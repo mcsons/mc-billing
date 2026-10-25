@@ -1,0 +1,249 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* For components using default tailwind vars like `bg-background` */
+    --background: 0 0% 100%; /* white */
+    --foreground: 222.2 84% 4.9%; /* dark text */
+
+    /* For the main page shell, which will be applied directly to `body` */
+    --shell-background: 215 28% 12%; /* dark blue */
+    --shell-foreground: 0 0% 98%; /* light text */
+
+    /* Standard Light theme elements for cards, inputs etc. */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* App's specific primary color */
+    --primary: 174 58% 39%; /* Muted Teal */
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    
+    --ring: 174 58% 39%; /* Muted Teal */
+    --radius: 0.5rem;
+
+    /* Customization: Sidebar to match dark shell */
+    --sidebar-background: 215 28% 18%;
+    --sidebar-foreground: 220 13% 80%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 215 28% 15%;
+    --sidebar-accent: 215 28% 23%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 28% 25%;
+    --sidebar-ring: 174 58% 39%;
+
+    /* Chart colors can remain */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Custom Button Colors */
+    --btn-save-bg: #15803d; /* Darker green to contrast with teal */
+    --btn-save-hover: #166534;
+
+    --btn-print-bg: #2563eb;
+    --btn-print-hover: #1d4ed8;
+  }
+
+  .dark {
+    --background: 215 28% 12%;
+    --foreground: 0 0% 98%;
+    --card: 215 28% 15%;
+    --card-foreground: 0 0% 98%;
+    --popover: 215 28% 12%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 215 28% 15%;
+    --secondary: 215 28% 20%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 215 28% 20%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 174 58% 39%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 215 28% 23%;
+    --input: 215 28% 23%;
+    --ring: 174 58% 39%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 215 28% 12%;
+    --sidebar-foreground: 220 13% 80%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 215 28% 15%;
+    --sidebar-accent: 215 28% 18%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 28% 20%;
+    --sidebar-ring: 174 58% 39%;
+
+     /* Custom Button Colors */
+     --btn-save-bg: #166534; /* Darker green */
+     --btn-save-hover: #14532d;
+ 
+     --btn-print-bg: #3b82f6;
+     --btn-print-hover: #2563eb;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    /* The key change: apply shell colors directly, not via tailwind utility classes */
+    background-color: hsl(var(--shell-background));
+    color: hsl(var(--shell-foreground));
+    font-family: var(--font-body), sans-serif;
+    overflow-x: hidden; /* prevent horizontal scroll on mobile */
+  }
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  * {
+    background: transparent !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  .dark * {
+    background: transparent !important;
+    color: #000000 !important;
+  }
+
+  .print-container,
+  .sales-report,
+  .statement-container {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}
+
+.loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.save-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@layer components {
+  /* Custom Button Styles */
+  .btn-save {
+    background-color: var(--btn-save-bg) !important;
+    color: white !important;
+    border-color: transparent !important;
+  }
+
+  .btn-save:hover {
+    background-color: var(--btn-save-hover) !important;
+  }
+
+  .btn-print {
+    background-color: var(--btn-print-bg) !important;
+    color: white !important;
+    border-color: transparent !important;
+  }
+
+  .btn-print:hover {
+    background-color: var(--btn-print-hover) !important;
+  }
+
+  .btn-save, .btn-print {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+}
+
+
+/* Custom Qty/UOM Selection Highlights */
+.qty-option {
+  transition: all 0.15s ease;
+}
+
+.qty-option:hover,
+.qty-option:focus {
+  background-color: #2563eb !important;   /* clear blue highlight */
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+.qty-option.active {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.4);
+}
+
+/* ── Payments page: Customer Statement responsive visibility ── */
+.payments-desktop-table {
+  display: none;
+}
+.payments-mobile-cards {
+  display: block;
+}
+@media (min-width: 768px) {
+  .payments-desktop-table {
+    display: block;
+  }
+  .payments-mobile-cards {
+    display: none;
+  }
+}
+
+/* ── Payments page: Payment History responsive visibility ── */
+.payments-history-desktop {
+  display: none;
+}
+.payments-history-mobile {
+  display: block;
+}
+@media (min-width: 768px) {
+  .payments-history-desktop {
+    display: block;
+  }
+  .payments-history-mobile {
+    display: none;
+  }
+}

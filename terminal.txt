@@ -1,0 +1,9 @@
+npm install
+npm install -g firebase-tools
+firebase login
+firebase use --add
+firebase use
+firebase init
+npm install cross-env
+npm run build // run
+firebase deploy
