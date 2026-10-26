@@ -27,6 +27,8 @@ interface BillPrintData {
   paidAmount: number;
   finalBalance: number;
   stall: string;
+  /** Non-zero received payments (mode/amount/date). Absent on older print data. */
+  payments?: { mode: string; amount: number; date: string }[];
 }
 
 function PrintPageContent() {
@@ -185,6 +187,13 @@ function PrintPageContent() {
     paidAmount,
     finalBalance,
   } = billData;
+
+  // Received block (Print Receipt + Print 3-Inch): payments on the left, totals on the right.
+  const receivedList = (billData.payments || []).filter(p => p.amount > 0);
+  const showReceived = paper !== 'a4' && receivedList.length > 0;
+  const receivedTotal = receivedList.reduce((s, p) => s + p.amount, 0);
+  const fmtReceived = (n: number) => (paper === 'thermal3' ? String(Math.round(n)) : n.toFixed(2));
+  const billDay = date ? format(new Date(date), 'yyyy-MM-dd') : '';
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
 
@@ -482,7 +491,7 @@ function PrintPageContent() {
                   <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                     <span className="qty-num">{item.qty}</span>
-                    <strong className="uom-text">{item.uom}</strong>
+                    <strong className="uom-text">{paper === 'thermal3' && item.uom.toUpperCase() === 'KGS' ? 'KG' : item.uom}</strong>
                     </span>
                   </TableCell>
                   <TableCell className="col-rate text-right font-mono">
@@ -538,7 +547,35 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-2 summary-section-wrapper" style={{ breakInside: 'avoid' }}>
+          <div className={`flex justify-end mt-2 summary-section-wrapper${showReceived ? ' has-received' : ''}`} style={{ breakInside: 'avoid' }}>
+            {showReceived && (
+              <div className="received-block">
+                <div className="received-title">Received</div>
+                <table className="received-table">
+                  <tbody>
+                    {receivedList.map((p, i) => {
+                      const d = new Date(p.date);
+                      const showDate = !isNaN(d.getTime()) && format(d, 'yyyy-MM-dd') !== billDay;
+                      return (
+                        <tr key={i}>
+                          <td className="rcv-mode">
+                            {p.mode}
+                            {showDate && <span className="rcv-date">{format(d, 'dd-MM-yy')}</span>}
+                          </td>
+                          <td className="rcv-amt">{fmtReceived(p.amount)}</td>
+                        </tr>
+                      );
+                    })}
+                    {receivedList.length > 1 && (
+                      <tr className="rcv-total">
+                        <td className="rcv-mode">Total</td>
+                        <td className="rcv-amt">{fmtReceived(receivedTotal)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <table className="summary-table">
               <tbody>
               {paper === 'thermal3' ? (
@@ -900,19 +937,47 @@ function PrintPageContent() {
           }
         }
         /* ===============================
-           3-INCH THERMAL — same geometry as the C# POS (BillForm.cs):
-             paper 285 x h (1/100 in) = 2.85in = 72.39mm wide, margins 0,
-             x = 0 at the paper edge (OriginAtMargins = false).
-             Content runs from x = 0.03in to x = 2.83in, so nothing reaches
-             the right edge. Fonts: Arial Bold, title 14pt, body 9pt,
-             totals 10pt label / 12pt value, footer 6pt.
+           RECEIVED BLOCK (Print Receipt + Print 3-Inch)
+           Payments on the left, totals on the right, side by side
+           inside the existing receipt width.
+        ================================ */
+        @media all {
+          .received-block { font-weight: 700; min-width: 0; }
+          .received-title { text-align: center; text-decoration: underline; margin-bottom: 1px; }
+          .received-table { width: 100%; border-collapse: collapse; }
+          .received-table td { padding: 0; border: none; vertical-align: top; line-height: 1.25; }
+          .received-table .rcv-mode { text-align: left; white-space: nowrap; }
+          .received-table .rcv-amt { text-align: right; white-space: nowrap; padding-left: 2px; font-variant-numeric: tabular-nums; }
+          .received-table .rcv-date { display: block; font-size: 0.8em; font-weight: 600; }
+          .received-table .rcv-total td { border-top: 1px solid #000; }
+          .summary-section-wrapper.has-received { display: flex; justify-content: space-between; align-items: flex-start; }
+        }
+        @media print {
+          .print-root.thermal .has-received { gap: 3mm; }
+          .print-root.thermal .received-block { flex: 0 0 30%; font-size: 13px; }
+          .print-root.thermal .has-received .summary-table { flex: 1 1 auto; width: auto; max-width: none; font-size: 13px; }
+          .print-root.thermal .has-received .summary-table td { padding: 1px 2px; }
+          .print-root.thermal .has-received .summary-final-balance td { font-size: 14px; }
+        }
+
+        /* ===============================
+           3-INCH THERMAL.
+             The printer driver adds its own left offset (~4-5mm) to browser
+             prints, so a full 72mm-wide receipt gets cut on the right.
+             The content is therefore a narrower block that always fits:
+               --receipt-width : printed content width (default 64mm)
+               --receipt-left  : extra left shift (default 0)
+             Still cut on the right? lower --receipt-width (e.g. 62mm).
+             Gap on the left too big? use a negative --receipt-left.
            Not inside @media print: the preview shows exactly what prints.
         ================================ */
         @media all {
           .print-root.thermal3 {
-            width: 2.85in;
-            max-width: 2.85in;
-            margin: 0;                 /* left-aligned like the C# x = 0 origin */
+            --receipt-width: 64mm;
+            --receipt-left: 0mm;
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
+            margin: 0 0 0 var(--receipt-left);
             padding: 0;
             display: block;
             font-family: Arial, 'Nirmala UI', Latha, 'Noto Sans Tamil', sans-serif !important;
@@ -920,11 +985,10 @@ function PrintPageContent() {
           }
 
           .print-root.thermal3 #print-area {
-            width: 2.85in;
-            max-width: 2.85in;
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
             box-sizing: border-box;
-            /* left 0.03in, right 0.02in -> text spans 0.03in .. 2.83in */
-            padding: 3mm 0.02in 8mm 0.03in;
+            padding: 3mm 0 8mm 0;
             margin: 0 !important;
             overflow: hidden;
           }
@@ -934,7 +998,7 @@ function PrintPageContent() {
              otherwise open big gaps in the middle of the receipt. */
           .print-root.thermal3 header { text-align: center !important; margin: 0 !important; }
           .print-root.thermal3 .header-title {
-            font-size: 14pt !important;
+            font-size: 12.5pt !important;
             font-weight: 700;
             letter-spacing: 0;
             line-height: 1.25;
@@ -1054,7 +1118,7 @@ function PrintPageContent() {
           .print-root.thermal3 .col-product {
             width: 41.07%;
             padding-left: 0 !important;
-            font-size: 9pt !important;
+            font-size: 8pt !important;   /* smaller so long product names fit */
             line-height: 0.18in;
             white-space: normal !important;
             word-wrap: break-word;
@@ -1125,6 +1189,18 @@ function PrintPageContent() {
           /* C#: labels stay 10pt even on the final line; only the value is 12pt. */
           .print-root.thermal3 .summary-final-balance .summary-label,
           .print-root.thermal3 .summary-final-balance .summary-colon { font-size: 10pt; }
+
+          /* With a Received block: payments left (~31%), compact totals right. */
+          .print-root.thermal3 .summary-section-wrapper.has-received { display: flex !important; gap: 1.5mm; }
+          .print-root.thermal3 .received-block { flex: 0 0 31%; font-size: 8pt; }
+          .print-root.thermal3 .received-table .rcv-date { font-size: 6.5pt; }
+          .print-root.thermal3 .has-received .summary-table { flex: 1 1 auto; width: auto; min-width: 0; table-layout: auto; font-size: 8pt; }
+          .print-root.thermal3 .has-received .summary-label { width: auto; white-space: normal; line-height: 1.15; }
+          .print-root.thermal3 .has-received .summary-colon { width: 2mm; }
+          .print-root.thermal3 .has-received .summary-value,
+          .print-root.thermal3 .has-received .summary-final-balance .summary-value { font-size: 10pt; }
+          .print-root.thermal3 .has-received .summary-final-balance .summary-label,
+          .print-root.thermal3 .has-received .summary-final-balance .summary-colon { font-size: 8pt; }
 
           .print-root.thermal3 .print-footer {
             margin-top: 6mm;

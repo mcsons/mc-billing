@@ -36,7 +36,7 @@ import {
   X,
   Loader2,
 } from 'lucide-react';
-import { BillItem, Customer, LiveBillSummary } from '@/lib/data';
+import { BillItem, BillPaymentEntry, Customer, LiveBillSummary, Payment } from '@/lib/data';
 import {
   Popover,
   PopoverContent,
@@ -104,7 +104,39 @@ interface BillPrintData {
   paidAmount: number;
   finalBalance: number;
   stall: string;
+  /** Non-zero received payments, shown in the receipt's Received block. */
+  payments?: { mode: string; amount: number; date: string }[];
 }
+
+/** Received-payment modes offered on Main Billing. */
+type PayMode = 'Cash' | 'UPI' | 'Bank';
+const PAY_MODES: PayMode[] = ['Cash', 'UPI', 'Bank'];
+/** Stored mode -> dropdown mode. Legacy 'Bill Payment' / missing show as Cash. */
+const toPayMode = (m?: string): PayMode =>
+  m === 'UPI' ? 'UPI' : (m === 'Bank' || m === 'Bank Transfer' || m === 'ACC') ? 'Bank' : 'Cash';
+/** An additional received-payment row (row 1 is the existing Paid input). */
+interface ExtraPayment {
+  key: string;
+  date: Date;
+  amount: string;
+  mode: PayMode;
+  paymentId?: string;
+  origMode?: string;
+}
+/** Mode to write: omitted when an existing payment's mode was not changed, so
+ *  historical modes (e.g. 'Bill Payment', 'Bank Transfer') are never rewritten. */
+const modeToWrite = (mode: PayMode, paymentId?: string, origMode?: string) =>
+  paymentId && toPayMode(origMode) === mode ? undefined : mode;
+const toJsDate = (v: any): Date | null => {
+  if (!v) return null;
+  const d = v instanceof Timestamp ? v.toDate() : (typeof v?.toDate === 'function' ? v.toDate() : new Date(v));
+  return isNaN(d.getTime()) ? null : d;
+};
+/** A bill's live linked payments in entry order. */
+const linkedPaymentsOf = (payments: Payment[] | undefined, billNo: string) =>
+  (payments || [])
+    .filter(p => p.linkedBillId === billNo && !p.isDeleted)
+    .sort((a, b) => (a.entryIndex ?? 0) - (b.entryIndex ?? 0));
 
 // INR Currency Formatter Helper
 const formatINR = (value: number) => {
@@ -228,6 +260,16 @@ export default function BillingPage() {
   const [paidAmount, setPaidAmount] = useState('');
   /** Date the paid amount was received; null = same as the bill date. */
   const [paidDate, setPaidDate] = useState<Date | null>(null);
+  /** Mode of the first (existing Paid) payment row, and its stored payment doc. */
+  const [paidMode, setPaidMode] = useState<PayMode>('Cash');
+  const [paidMeta, setPaidMeta] = useState<{ paymentId?: string; origMode?: string }>({});
+  /** Payment rows added with "+". */
+  const [extraPayments, setExtraPayments] = useState<ExtraPayment[]>([]);
+  /** Total Received = Paid row + every extra row; used wherever Paid was used. */
+  const totalReceived = useMemo(
+    () => (parseFloat(paidAmount) || 0) + extraPayments.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0),
+    [paidAmount, extraPayments]
+  );
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [manualCustomerName, setManualCustomerName] = useState('');
 
@@ -247,13 +289,14 @@ export default function BillingPage() {
       qty !== '' || 
       rate !== '' || 
       paidAmount !== '' || 
+      extraPayments.length > 0 ||
       deliveryCharge !== '' ||
       activeBillNo !== null ||
       isPrevBalModified ||
       description !== '';
     
     setIsDirty(hasChanges, handleSaveBill);
-  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, activeBillNo, isPrevBalModified, description, setIsDirty]);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, extraPayments, deliveryCharge, activeBillNo, isPrevBalModified, description, setIsDirty]);
 
   // Handle Walk-in Selection Logic
   const handleWalkInSelection = useCallback((index: number) => {
@@ -518,13 +561,25 @@ export default function BillingPage() {
             setActiveBillNo(billToLoad.billNo);
             setInitialBillTotal(billToLoad.amount);
             setDeliveryCharge(billToLoad.deliveryCharge?.toString() || '');
-            setPaidAmount(billToLoad.paidAmount?.toString() || '');
             {
-              // Restore when the paid amount was received, if it differs from the bill date.
-              const linked = (payments || []).find(p => p.linkedBillId === billToLoad!.billNo && !p.isDeleted);
-              const linkedDate = linked?.date ? (linked.date instanceof Timestamp ? linked.date.toDate() : new Date(linked.date)) : null;
-              const billDate = billToLoad.date ? (billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date)) : null;
-              setPaidDate(linkedDate && !isNaN(linkedDate.getTime()) && !(billDate && isSameDay(linkedDate, billDate)) ? linkedDate : null);
+              // Restore every received payment (amount, date, mode) from the bill's linked payments.
+              // Row 1 is the existing Paid input; a single/legacy payment keeps using bill.paidAmount.
+              const linked = linkedPaymentsOf(payments, billToLoad.billNo);
+              const first = linked[0];
+              const billDate = toJsDate(billToLoad.date);
+              setPaidAmount(linked.length > 1 ? String(first.amount) : (billToLoad.paidAmount?.toString() || ''));
+              const linkedDate = toJsDate(first?.date);
+              setPaidDate(linkedDate && !(billDate && isSameDay(linkedDate, billDate)) ? linkedDate : null);
+              setPaidMode(toPayMode(first?.paymentMode));
+              setPaidMeta({ paymentId: first?.id, origMode: first?.paymentMode });
+              setExtraPayments(linked.slice(1).map(p => ({
+                key: p.id,
+                date: toJsDate(p.date) ?? billDate ?? new Date(),
+                amount: String(p.amount),
+                mode: toPayMode(p.paymentMode),
+                paymentId: p.id,
+                origMode: p.paymentMode,
+              })));
             }
             setDescription(billToLoad.description || '');
 
@@ -569,6 +624,9 @@ export default function BillingPage() {
             setDeliveryCharge('');
             setPaidAmount('');
             setPaidDate(null);
+            setPaidMode('Cash');
+            setPaidMeta({});
+            setExtraPayments([]);
             setLocalBillItems([]);
             setDescription('');
             // Previous Balance Logic: "Always latest customer balance"
@@ -1000,6 +1058,9 @@ export default function BillingPage() {
     setUom('KGS'); // Default reset to KGS
     setPaidAmount('');
     setPaidDate(null);
+    setPaidMode('Cash');
+    setPaidMeta({});
+    setExtraPayments([]);
     setDeliveryCharge('');
     setInitialBillTotal(0);
     setWalkInConfirmed(false);
@@ -1039,7 +1100,7 @@ export default function BillingPage() {
   const getBillPrintData = useCallback((overrideBillNo?: string): BillPrintData | null => {
     const customer = customers.find((c) => c.id === selectedCustomerId);
     const deliveryChargeNum = parseFloat(deliveryCharge) || 0;
-    const paidAmountNum = parseFloat(paidAmount) || 0;
+    const paidAmountNum = totalReceived;
     const finalItemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
     const finalTotalAmount = finalItemsTotal + deliveryChargeNum;
     const finalFinalBalance = staticPrevBalance + finalTotalAmount - paidAmountNum;
@@ -1057,9 +1118,13 @@ export default function BillingPage() {
         previousBalance: staticPrevBalance,
         paidAmount: paidAmountNum,
         finalBalance: finalFinalBalance,
-        stall: '1'
+        stall: '1',
+        payments: [
+          { mode: paidMode, amount: parseFloat(paidAmount) || 0, date: (paidDate ?? date ?? new Date()).toISOString() },
+          ...extraPayments.map(p => ({ mode: p.mode, amount: parseFloat(p.amount) || 0, date: p.date.toISOString() })),
+        ].filter(p => p.amount > 0),
     };
-  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, staticPrevBalance, date, manualCustomerName]);
+  }, [customers, selectedCustomerId, localBillItems, activeBillNo, deliveryCharge, paidAmount, paidDate, paidMode, extraPayments, totalReceived, staticPrevBalance, date, manualCustomerName]);
 
   // ── Billing Guard: sync unsaved state & expose save callback ─────────
   const hasUnsavedChanges = useMemo(() => {
@@ -1069,12 +1134,13 @@ export default function BillingPage() {
       qty !== '' ||
       rate !== '' ||
       paidAmount !== '' ||
+      extraPayments.length > 0 ||
       deliveryCharge !== '' ||
       description !== '' ||
       activeBillNo !== null ||
       isPrevBalModified
     );
-  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, deliveryCharge, description, activeBillNo, isPrevBalModified]);
+  }, [selectedCustomerId, localBillItems, qty, rate, paidAmount, extraPayments, deliveryCharge, description, activeBillNo, isPrevBalModified]);
 
   useEffect(() => {
     billingGuard.setHasUnsavedChanges(hasUnsavedChanges);
@@ -1131,6 +1197,17 @@ export default function BillingPage() {
         return null;
     }
 
+    // Received payments: every filled amount must be a valid non-negative number.
+    const badPayment = [paidAmount, ...extraPayments.map(p => p.amount)].some(a => {
+      if (a.trim() === '') return false;
+      const n = Number(a);
+      return !isFinite(n) || n < 0;
+    }) || extraPayments.some(p => isNaN(p.date.getTime()));
+    if (badPayment) {
+      toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Payment amounts must be valid non-negative numbers with a valid date.' });
+      return null;
+    }
+
     // Persist Manual Balance Override if active (Today Only)
     if (isPrevBalModified && selectedCustomerId && selectedCustomerId !== 'WALK-IN') {
       const isToday = isSameDay(date || new Date(), new Date());
@@ -1171,24 +1248,52 @@ export default function BillingPage() {
       prevBalance: staticPrevBalance,
     };
 
-    const parsedPaid = parseFloat(paidAmount) || 0;
+    const parsedPaid = totalReceived;
     const parsedDelivery = parseFloat(deliveryCharge) || 0;
     const itemsTotal = localBillItems.reduce((sum, item) => sum + item.amount, 0);
     const finalBalanceCalc = staticPrevBalance + itemsTotal + parsedDelivery - parsedPaid;
     
-    const { billNo, commitPromise } = createOrUpdateLiveBill(
+    const billDateForSave = date || new Date();
+    const paymentEntries: BillPaymentEntry[] = [
+      {
+        paymentId: paidMeta.paymentId,
+        amount: parseFloat(paidAmount) || 0,
+        date: paidDate ?? billDateForSave,
+        mode: modeToWrite(paidMode, paidMeta.paymentId, paidMeta.origMode),
+      },
+      ...extraPayments.map(p => ({
+        paymentId: p.paymentId,
+        amount: parseFloat(p.amount) || 0,
+        date: p.date,
+        mode: modeToWrite(p.mode, p.paymentId, p.origMode),
+      })),
+    ];
+
+    const { billNo, commitPromise, paymentIds } = createOrUpdateLiveBill(
       billSummary,
       localBillItems,
-      parseFloat(paidAmount) || 0,
+      totalReceived,
       parseFloat(deliveryCharge) || 0,
-      date || new Date(),
+      billDateForSave,
       activeBillNo,
       undefined,
-      paidDate ?? undefined
+      paidDate ?? undefined,
+      paymentEntries
     );
 
     try {
       await commitPromise;
+      // Remember the saved payment docs so a later save of this same bill
+      // updates them instead of creating new ones.
+      if (paymentIds) {
+        const writtenMode = (e: BillPaymentEntry, old?: string) => e.mode ?? old;
+        setPaidMeta(m => ({ paymentId: paymentIds[0], origMode: paymentIds[0] ? writtenMode(paymentEntries[0], m.origMode) : undefined }));
+        setExtraPayments(rows => rows.map((r, i) => ({
+          ...r,
+          paymentId: paymentIds[i + 1],
+          origMode: paymentIds[i + 1] ? writtenMode(paymentEntries[i + 1], r.origMode) : undefined,
+        })));
+      }
       toast({ title: activeBillNo ? 'Bill Updated' : 'Bill Saved', description: `Bill ${billNo} saved.` });
       if (!activeBillNo) setActiveBillNo(billNo);
       
@@ -1332,14 +1437,19 @@ export default function BillingPage() {
     if (selectedBills.size === 0) return;
 
     // Capture data for undo
-    const billsToRestore: { summary: LiveBillSummary, items: BillItem[] }[] = [];
+    const billsToRestore: { summary: LiveBillSummary, items: BillItem[], paymentEntries?: BillPaymentEntry[] }[] = [];
     try {
       for (const billNo of selectedBills) {
         const summary = liveBillSummaries.find(b => b.billNo === billNo);
         if (summary && firestore) {
           const itemsSnap = await getDocs(collection(firestore, 'bills', billNo, 'billItems'));
           const items = itemsSnap.docs.map(d => ({ ...d.data(), id: d.id } as BillItem));
-          billsToRestore.push({ summary, items });
+          // Bills with several received payments restore each one (amount, date, mode).
+          const linked = linkedPaymentsOf(payments, billNo);
+          const paymentEntries = linked.length > 1
+            ? linked.map(p => ({ amount: p.amount, date: toJsDate(p.date) ?? new Date(), mode: p.paymentMode || 'Cash' }))
+            : undefined;
+          billsToRestore.push({ summary, items, paymentEntries });
         }
       }
     } catch (err) {
@@ -1370,7 +1480,10 @@ export default function BillingPage() {
                   data.summary.paidAmount || 0,
                   data.summary.deliveryCharge || 0,
                   data.summary.date instanceof Timestamp ? data.summary.date.toDate() : new Date(data.summary.date),
-                  data.summary.billNo
+                  data.summary.billNo,
+                  undefined,
+                  undefined,
+                  data.paymentEntries
                 );
               });
               toast({ title: "Bills restored" });
@@ -1408,38 +1521,94 @@ export default function BillingPage() {
     setHistorySearchText('');
   };
 
+  /** Small date button used by each received-payment row. */
+  const renderDatePicker = (effective: Date, highlighted: boolean, onPick: (d: Date) => void, buttonClass = '') => (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn('h-8 px-2 text-xs font-mono font-normal select-none', highlighted && 'border-amber-500 font-bold', buttonClass)}
+          title="Date the payment was received"
+          aria-label="Payment date"
+        >
+          <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+          {format(effective, 'dd-MM-yy')}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="end">
+        <Calendar
+          mode="single"
+          selected={effective}
+          onSelect={(d) => { if (d) onPick(d); }}
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+
   /** Small date button beside "Paid": the date the paid amount was received. */
-  const renderPaidDatePicker = (buttonClass: string) => {
-    const effective = paidDate ?? date ?? new Date();
-    return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className={cn('h-8 px-2 text-xs font-mono font-normal select-none', paidDate && 'border-amber-500 font-bold', buttonClass)}
-            title="Date the paid amount was received"
-            aria-label="Paid date"
-          >
-            <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
-            {format(effective, 'dd-MM-yy')}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
-          <Calendar
-            mode="single"
-            selected={effective}
-            onSelect={(d) => {
-              if (!d) return;
-              // Picking the bill date itself means "no separate paid date".
-              setPaidDate(date && isSameDay(d, date) ? null : d);
-            }}
-            initialFocus
-          />
-        </PopoverContent>
-      </Popover>
+  const renderPaidDatePicker = (buttonClass: string) =>
+    renderDatePicker(
+      paidDate ?? date ?? new Date(),
+      !!paidDate,
+      // Picking the bill date itself means "no separate paid date".
+      (d) => setPaidDate(date && isSameDay(d, date) ? null : d),
+      buttonClass
     );
-  };
+
+  /** Cash / UPI / Bank dropdown of a payment row. */
+  const renderModeSelect = (value: PayMode, onChange: (m: PayMode) => void) => (
+    <select
+      aria-label="Payment mode"
+      title="Payment mode"
+      value={value}
+      onChange={(e) => onChange(e.target.value as PayMode)}
+      className="h-8 rounded-md border border-input bg-background px-1 text-xs font-normal text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+    >
+      {PAY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+    </select>
+  );
+
+  const addPaymentRow = () =>
+    setExtraPayments(rows => [...rows, { key: `new-${Date.now()}-${rows.length}`, date: new Date(), amount: '', mode: 'Cash' }]);
+  const updatePaymentRow = (key: string, patch: Partial<ExtraPayment>) =>
+    setExtraPayments(rows => rows.map(r => (r.key === key ? { ...r, ...patch } : r)));
+  const removePaymentRow = (key: string) =>
+    setExtraPayments(rows => rows.filter(r => r.key !== key));
+
+  const renderAddPaymentButton = () => (
+    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={addPaymentRow} title="Add another payment" aria-label="Add another payment">
+      <PlusCircle className="h-4 w-4" />
+    </Button>
+  );
+
+  /** The rows added with "+": [date][mode][remove] | amount, in the same two-column grid. */
+  const renderExtraPaymentRows = (labelClass: string, inputClass: string, labelSpacer = false) => (
+    <>
+      {extraPayments.map(p => (
+        <React.Fragment key={p.key}>
+          <span className={labelClass}>
+            {renderDatePicker(p.date, false, (d) => updatePaymentRow(p.key, { date: d }))}
+            {renderModeSelect(p.mode, (m) => updatePaymentRow(p.key, { mode: m }))}
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 hover:text-destructive" onClick={() => removePaymentRow(p.key)} title="Remove payment" aria-label="Remove payment">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+            {/* Invisible "Paid:" keeps the controls aligned under the Paid row. */}
+            {labelSpacer && <span className="invisible" aria-hidden="true">Paid:</span>}
+          </span>
+          <Input
+            className={inputClass}
+            inputMode="decimal"
+            value={p.amount}
+            onChange={(e) => updatePaymentRow(p.key, { amount: e.target.value })}
+            onFocus={(e) => e.target.select()}
+            aria-label="Payment amount"
+          />
+        </React.Fragment>
+      ))}
+    </>
+  );
 
   const handleDateKeyDown = (e: React.KeyboardEvent, currentDate: Date | undefined, setDateFn: (d: Date | undefined) => void) => {
     if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
@@ -1526,7 +1695,7 @@ export default function BillingPage() {
 
   const itemsTotal = useMemo(() => localBillItems.reduce((sum, item) => sum + item.amount, 0), [localBillItems]);
   const totalAmount = itemsTotal + (parseFloat(deliveryCharge) || 0);
-  const finalBalance = staticPrevBalance + totalAmount - (parseFloat(paidAmount) || 0);
+  const finalBalance = staticPrevBalance + totalAmount - totalReceived;
 
   const { totalKgs, totalBox } = useMemo(() => {
     return localBillItems.reduce(
@@ -2040,8 +2209,15 @@ export default function BillingPage() {
                       disabled={!canEditBalances}
                     />
 
-                    <span className="font-medium text-muted-foreground flex items-center gap-2">Paid {renderPaidDatePicker('')}</span>
+                    <span className="font-medium text-muted-foreground flex flex-wrap items-center gap-2">Paid {renderPaidDatePicker('')}{renderModeSelect(paidMode, setPaidMode)}{renderAddPaymentButton()}</span>
                     <Input className="h-10 text-right font-mono text-base px-2 border-primary/20" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                    {renderExtraPaymentRows('flex flex-wrap items-center gap-2', 'h-10 text-right font-mono text-base px-2 border-primary/20')}
+                    {extraPayments.length > 0 && (
+                      <>
+                        <span className="font-medium text-muted-foreground">Total Received</span>
+                        <span className="font-mono font-bold text-right">₹{formatINR(totalReceived)}</span>
+                      </>
+                    )}
 
                     <span className="font-semibold text-base border-t pt-3">Balance</span>
                     <span className="font-mono font-bold text-right text-base text-primary border-t pt-3">₹{finalBalance.toFixed(2)}</span>
@@ -2066,7 +2242,14 @@ export default function BillingPage() {
                     onFocus={(e) => e.target.select()}
                     disabled={!canEditBalances}
                   />
-                  <span className="font-semibold flex items-center justify-end gap-2">{renderPaidDatePicker('')}Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold flex items-center justify-end gap-2">{renderPaidDatePicker('')}{renderModeSelect(paidMode, setPaidMode)}{renderAddPaymentButton()}Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  {extraPayments.length > 0 && (
+                    <>
+                      {renderExtraPaymentRows('font-semibold flex items-center justify-end gap-2', 'ml-auto max-w-32 h-9 md:h-10 text-right font-mono', true)}
+                      <span className="font-semibold">Total Received:</span>
+                      <span className="font-mono font-bold">₹{formatINR(totalReceived)}</span>
+                    </>
+                  )}
                   <span className="font-semibold text-lg pt-1">Balance:</span>
                   <span className={cn(
                     "font-mono font-bold text-xl md:text-2xl pt-1",
@@ -2076,7 +2259,8 @@ export default function BillingPage() {
                   </span>
                 </div>
 
-                <div className="hidden flex-wrap justify-end gap-2 md:flex">
+                <div className="hidden flex-col items-end gap-2 md:flex">
+                  <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0}>{"<<"}</Button>
                   <Button variant="outline" className="nav-btn" onClick={() => {
                     if (currentBillIndex === -1 && sortedBills.length > 0) {
@@ -2091,6 +2275,8 @@ export default function BillingPage() {
                   <Button className="btn-print" onClick={() => handlePrintBill('a4')} disabled={!selectedCustomerId}>Print A4</Button>
                   */}
                   <Button variant="secondary" onClick={handlePrint3Inch} disabled={!selectedCustomerId}>Print 3-Inch</Button>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
                   <Button variant="outline" className="nav-btn" onClick={() => {
                     if (currentBillIndex > 0) {
                       router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex - 1].billNo}`);
@@ -2108,6 +2294,7 @@ export default function BillingPage() {
                   >
                     <Share className="mr-2 h-4 w-4" /> Share (PDF)
                   </Button>
+                  </div>
                 </div>
               </CardFooter>
           </Card>
