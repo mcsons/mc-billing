@@ -38,6 +38,9 @@ function PrintPageContent() {
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const paper = searchParams.get('paper') || 'thermal';
+  /** 4-inch "Print Receipt" ('thermal') uses the same receipt format as the 3-inch print. */
+  const isFourInch = paper === 'thermal';
+  const layout = isFourInch ? 'thermal3' : paper;
   const autoShare = searchParams.get('share') === 'pdf';
 
   useEffect(() => {
@@ -192,7 +195,7 @@ function PrintPageContent() {
   const receivedList = (billData.payments || []).filter(p => p.amount > 0);
   const showReceived = paper !== 'a4' && receivedList.length > 0;
   const receivedTotal = receivedList.reduce((s, p) => s + p.amount, 0);
-  const fmtReceived = (n: number) => (paper === 'thermal3' ? String(Math.round(n)) : n.toFixed(2));
+  const fmtReceived = (n: number) => (layout === 'thermal3' ? String(Math.round(n)) : n.toFixed(2));
   const billDay = date ? format(new Date(date), 'yyyy-MM-dd') : '';
 
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
@@ -215,9 +218,9 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings: string[] = [];
-  if (totalKgs > 0) qtyStrings.push(paper === 'thermal3' ? `${totalKgs.toFixed(1)}KGS` : `${totalKgs.toFixed(1)} KGS `);
-  if (totalBox > 0) qtyStrings.push(paper === 'thermal3' ? `${Math.round(totalBox)}BOX` : `${Math.round(totalBox)} BOX `);
-  const totalQtyString = paper === 'thermal3' ? qtyStrings.join(',') : qtyStrings.join(',').trim();
+  if (totalKgs > 0) qtyStrings.push(layout === 'thermal3' ? `${totalKgs.toFixed(1)}KGS` : `${totalKgs.toFixed(1)} KGS `);
+  if (totalBox > 0) qtyStrings.push(layout === 'thermal3' ? `${Math.round(totalBox)}BOX` : `${Math.round(totalBox)} BOX `);
+  const totalQtyString = layout === 'thermal3' ? qtyStrings.join(',') : qtyStrings.join(',').trim();
 
   // ─────────────────────────────────────────────────────────────
   //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
@@ -401,9 +404,11 @@ function PrintPageContent() {
       </div>
 
       {/* ── Original print-root (unchanged — used for browser Print) ── */}
-      <div className={`print-root ${paper}`}>
+      <div className={`print-root ${layout}${isFourInch ? ' four-inch' : ''}`}>
         <div id="print-area">
           <header className="text-center">
+            {/* Logo on the 3-inch and 4-inch receipts (grayscale version made for thermal printing). */}
+            {layout === 'thermal3' && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
             <h1 className="header-title">M.C &amp; SONS FISH COMPANY</h1>
             <p className="header-sub">
               No. 1, Fish Market, Palladam Road,<br />
@@ -458,7 +463,7 @@ function PrintPageContent() {
             {/* table-layout:fixed reads column widths from <col> first; without
                 this the colSpan=4 divider row above the headings would force
                 four equal columns. Only the 3-inch roll needs it. */}
-            {paper === 'thermal3' && (
+            {layout === 'thermal3' && (
               <colgroup>
                 <col className="col-product" />
                 <col className="col-qty" />
@@ -491,16 +496,16 @@ function PrintPageContent() {
                   <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                     <span className="qty-num">{item.qty}</span>
-                    <strong className="uom-text">{paper === 'thermal3' && item.uom.toUpperCase() === 'KGS' ? 'KG' : item.uom}</strong>
+                    <strong className="uom-text">{layout === 'thermal3' && item.uom.toUpperCase() === 'KGS' ? 'KG' : item.uom}</strong>
                     </span>
                   </TableCell>
                   <TableCell className="col-rate text-right font-mono">
-                    {paper === 'thermal3'
+                    {layout === 'thermal3'
                       ? (Number.isInteger(item.rate) ? item.rate : item.rate.toFixed(2))
                       : item.rate.toFixed(2)}
                   </TableCell>
                   <TableCell className="col-amount text-right font-mono">
-                    {paper === 'a4' ? formatINR(item.amount) : (paper === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
+                    {paper === 'a4' ? formatINR(item.amount) : (layout === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
                   </TableCell>
                 </TableRow>
               ))}
@@ -513,10 +518,10 @@ function PrintPageContent() {
 
               <TableRow className="combined-summary-row">
               <TableCell colSpan={4} className="px-1 py-1" style={{ overflow: 'visible' }}>
-              <div className={paper === 'thermal3' ? "flex justify-between items-center w-full pr-[16px] whitespace-nowrap overflow-hidden font-bold text-[11px] uppercase" : "flex justify-between items-center w-full font-bold text-[11px] uppercase"}>
-                    {paper === 'thermal3' ? (
+              <div className={layout === 'thermal3' ? "flex justify-between items-center w-full pr-[16px] whitespace-nowrap overflow-hidden font-bold text-[11px] uppercase" : "flex justify-between items-center w-full font-bold text-[11px] uppercase"}>
+                    {layout === 'thermal3' ? (
                       <>
-                        <span>Total Items:{items.length}</span>
+                        <span>{isFourInch ? "Total Items" : "Items"}:{items.length}</span>
                         {totalQtyString && (
                           <>
                           <span>•</span>
@@ -578,7 +583,7 @@ function PrintPageContent() {
             )}
             <table className="summary-table">
               <tbody>
-              {paper === 'thermal3' ? (
+              {layout === 'thermal3' ? (
                   <>
                     <tr>
                       <td className="summary-label">Items Total</td>
@@ -997,6 +1002,12 @@ function PrintPageContent() {
           /* Margins are set explicitly: browser defaults on h1/p would
              otherwise open big gaps in the middle of the receipt. */
           .print-root.thermal3 header { text-align: center !important; margin: 0 !important; }
+          .print-root.thermal3 .bill-logo {
+            display: block;
+            width: 24mm;              /* 3-inch: 24mm; 4-inch (zoom 1.2): ~29mm */
+            height: auto;
+            margin: 0 auto 1.5mm;     /* centred over the company name */
+          }
           .print-root.thermal3 .header-title {
             font-size: 12.5pt !important;
             font-weight: 700;
@@ -1192,15 +1203,35 @@ function PrintPageContent() {
 
           /* With a Received block: payments left (~31%), compact totals right. */
           .print-root.thermal3 .summary-section-wrapper.has-received { display: flex !important; gap: 1.5mm; }
-          .print-root.thermal3 .received-block { flex: 0 0 31%; font-size: 8pt; }
+          .print-root.thermal3 .received-block { flex: 0 1 31%; font-size: 8pt; }  /* may shrink to its content when totals need room */
           .print-root.thermal3 .received-table .rcv-date { font-size: 6.5pt; }
-          .print-root.thermal3 .has-received .summary-table { flex: 1 1 auto; width: auto; min-width: 0; table-layout: auto; font-size: 8pt; }
-          .print-root.thermal3 .has-received .summary-label { width: auto; white-space: normal; line-height: 1.15; }
+          /* Totals hug their content and sit at the right edge, so the free
+             space falls between the Received block and the totals. */
+          .print-root.thermal3 .has-received .summary-table { flex: 0 1 auto; width: auto; min-width: 0; margin-left: auto; table-layout: auto; font-size: 8pt; }
+          .print-root.thermal3 .has-received .summary-value { padding-left: 2mm; }
+          .print-root.thermal3 .has-received .summary-label { width: 1%; white-space: nowrap; line-height: 1.15; padding-right: 0.5mm; }
           .print-root.thermal3 .has-received .summary-colon { width: 2mm; }
+
+          /* Totals: label column hugs the longest label so the colon sits right
+             after the titles; the free space goes before the right-aligned value. */
+          .print-root.thermal3 .summary-table { table-layout: auto; }
+          .print-root.thermal3 .summary-label { width: 1%; white-space: nowrap; padding-right: 1.5mm; }
+          .print-root.thermal3 .summary-value { width: auto; }
           .print-root.thermal3 .has-received .summary-value,
           .print-root.thermal3 .has-received .summary-final-balance .summary-value { font-size: 10pt; }
           .print-root.thermal3 .has-received .summary-final-balance .summary-label,
           .print-root.thermal3 .has-received .summary-final-balance .summary-colon { font-size: 8pt; }
+
+          /* 4-inch Print Receipt: the 3-inch receipt scaled 1.2x (text ~15%
+             smaller than the earlier 1.4x). Same paper footprint as before:
+             81.7mm x 1.2 = 98mm wide, starting 6.67mm x 1.2 = 8mm in.
+             Text size: change zoom AND keep width x zoom = 98mm, left x zoom = 8mm.
+             Off-centre? Change --receipt-left (+0.83mm moves the print 1mm right). */
+          .print-root.thermal3.four-inch {
+            --receipt-width: 81.7mm;
+            --receipt-left: 6.67mm;
+            zoom: 1.2;
+          }
 
           .print-root.thermal3 .print-footer {
             margin-top: 6mm;
