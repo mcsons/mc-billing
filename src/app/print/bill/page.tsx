@@ -942,18 +942,6 @@ function PrintPageContent() {
           }
         }
         /* ===============================
-<<<<<<< HEAD
-           3-INCH THERMAL (80mm roll)
-           Printable width on a standard 80mm roll is 72mm (576 dots @203dpi).
-           Everything below is sized to that, so nothing runs off the paper.
-           Not inside @media print: the preview must show exactly what prints.
-        ================================ */
-        @media all {
-          .print-root.thermal3 {
-            width: 72mm;
-            max-width: 72mm;
-            margin: 0 auto;
-=======
            RECEIVED BLOCK (Print Receipt + Print 3-Inch)
            Payments on the left, totals on the right, side by side
            inside the existing receipt width.
@@ -995,7 +983,6 @@ function PrintPageContent() {
             width: var(--receipt-width);
             max-width: var(--receipt-width);
             margin: 0 0 0 var(--receipt-left);
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             padding: 0;
             display: block;
             font-family: Arial, 'Nirmala UI', Latha, 'Noto Sans Tamil', sans-serif !important;
@@ -1003,19 +990,11 @@ function PrintPageContent() {
           }
 
           .print-root.thermal3 #print-area {
-<<<<<<< HEAD
-            width: 72mm;
-            max-width: 72mm;
-            box-sizing: border-box;
-            padding: 2mm 1.5mm 8mm 1.5mm;
-            margin: 0 auto !important;
-=======
             width: var(--receipt-width);
             max-width: var(--receipt-width);
             box-sizing: border-box;
             padding: 3mm 0 8mm 0;
             margin: 0 !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             overflow: hidden;
           }
 
@@ -1023,11 +1002,6 @@ function PrintPageContent() {
           /* Margins are set explicitly: browser defaults on h1/p would
              otherwise open big gaps in the middle of the receipt. */
           .print-root.thermal3 header { text-align: center !important; margin: 0 !important; }
-<<<<<<< HEAD
-          .print-root.thermal3 .header-title {
-            font-size: 15px !important;
-            font-weight: 800;
-=======
           .print-root.thermal3 .bill-logo {
             display: block;
             width: 24mm;              /* 3-inch: 24mm; 4-inch (zoom 1.2): ~29mm */
@@ -1037,7 +1011,6 @@ function PrintPageContent() {
           .print-root.thermal3 .header-title {
             font-size: 12.5pt !important;
             font-weight: 700;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             letter-spacing: 0;
             line-height: 1.25;
             white-space: normal;
@@ -1046,22 +1019,14 @@ function PrintPageContent() {
           .print-root.thermal3 .header-sub {
             display: block;
             text-align: center;
-<<<<<<< HEAD
-            font-size: 10px !important;
-=======
             font-size: 9pt !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
             line-height: 1.3;
             margin: 1px 0 0 !important;
           }
           .print-root.thermal3 .header-phone { margin-top: 2px !important; }
           .print-root.thermal3 .hr-line {
-<<<<<<< HEAD
-            border-top: 1.5px solid #000;
-=======
             border-top: 1px solid #000;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             margin: 3px 0 !important;
           }
           .print-root.thermal3 .mb-2 { margin-bottom: 2px !important; }
@@ -1072,12 +1037,8 @@ function PrintPageContent() {
 
           /* ---- Customer / bill info ---- */
           .print-root.thermal3 .mb-2.font-mono {
-<<<<<<< HEAD
-            font-size: 9px !important;
-=======
             font-family: inherit !important;
             font-size: 9pt !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             display: flex !important;
             justify-content: space-between !important;
             gap: 0;
@@ -1130,23 +1091,14 @@ function PrintPageContent() {
           .print-root.thermal3 .print-table th,
           .print-root.thermal3 .print-table td {
             border: none;
-<<<<<<< HEAD
-            padding: 1px 1px;
-=======
             padding: 1px 0;
             font-family: inherit !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             vertical-align: top !important;
             overflow: hidden;
           }
           .print-root.thermal3 .print-table thead th {
-<<<<<<< HEAD
-            font-weight: 800 !important;
-            font-size: 11px !important;
-=======
             font-weight: 700 !important;
             font-size: 9pt !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             /* shadcn's TableHead is h-12 (48px) — that was the empty band
                between the column headings and the first item. */
             height: auto !important;
@@ -1164,27 +1116,14 @@ function PrintPageContent() {
           .print-root.thermal3 .header-row-divider td { padding: 0 !important; }
           .print-root.thermal3 .print-table tbody td {
             font-weight: 700 !important;
-<<<<<<< HEAD
-            font-size: 11px;
-            line-height: 1.25;
-=======
             font-size: 9pt;
             line-height: 0.18in;      /* C# lineHeight = 18 (1/100 in) */
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
           }
 
           .print-root.thermal3 .text-center { text-align: center !important; }
           .print-root.thermal3 .text-left   { text-align: left !important; }
           .print-root.thermal3 .text-right  { text-align: right !important; }
 
-<<<<<<< HEAD
-          /* Column widths tuned to 69mm of usable width */
-          .print-root.thermal3 .col-product {
-            width: 42%;
-            padding-left: 0 !important;
-            font-size: 11px !important;
-            line-height: 1.25;
-=======
           /* Column widths = the C# receipt: item 115 | qty 60 | rate 45 | amount 60
              (1/100 in, over 280 of content). Qty/Rate/Amount right-aligned. */
           .print-root.thermal3 .col-product {
@@ -1192,7 +1131,6 @@ function PrintPageContent() {
             padding-left: 0 !important;
             font-size: 8pt !important;   /* smaller so long product names fit */
             line-height: 0.18in;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             white-space: normal !important;
             word-wrap: break-word;
             word-break: break-word;
@@ -1208,20 +1146,6 @@ function PrintPageContent() {
           /* Qty stays on one line so the unit never splits off the number. */
           .print-root.thermal3 .col-qty {
             white-space: nowrap !important;
-<<<<<<< HEAD
-            width: 21%;
-            padding-right: 3px !important;
-          }
-          .print-root.thermal3 .col-rate   { width: 15%; padding-left: 2px !important; padding-right: 3px !important; }
-          .print-root.thermal3 .col-amount { width: 22%; padding-left: 2px !important; }
-          .print-root.thermal3 .col-qty,
-          .print-root.thermal3 .col-rate,
-          .print-root.thermal3 .col-amount { font-size: 11px !important; }
-
-          .print-root.thermal3 .uom-text {
-            font-size: 9px !important;
-            margin-left: 1px;
-=======
             width: 21.43%;
             padding-right: 0 !important;
           }
@@ -1234,17 +1158,12 @@ function PrintPageContent() {
           .print-root.thermal3 .uom-text {
             font-size: 7pt !important;
             margin-left: 2px;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
           }
 
           .print-root.thermal3 .combined-summary-row div {
-<<<<<<< HEAD
-            font-size: 9px !important;
-=======
             font-family: inherit !important;
             font-size: 8pt !important;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             padding-right: 0 !important;
           }
 
@@ -1258,11 +1177,7 @@ function PrintPageContent() {
             max-width: 100%;
             table-layout: fixed;
             border-collapse: collapse;
-<<<<<<< HEAD
-            font-size: 11px;
-=======
             font-size: 10pt;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
           }
           .print-root.thermal3 .summary-table td { padding: 1px 1px; }
@@ -1270,18 +1185,6 @@ function PrintPageContent() {
             text-align: left;
             white-space: nowrap;
             width: 55%;
-<<<<<<< HEAD
-          }
-          .print-root.thermal3 .summary-colon { width: 4mm; text-align: center; }
-          .print-root.thermal3 .summary-value {
-            text-align: right;
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-          }
-          .print-root.thermal3 .summary-total-row td { font-weight: 800; }
-          .print-root.thermal3 .summary-divider-row td { border-top: 1px solid #000; }
-          .print-root.thermal3 .summary-final-balance td { font-size: 13px; font-weight: 800; }
-=======
           }
           .print-root.thermal3 .summary-colon { width: 4mm; text-align: center; }
           .print-root.thermal3 .summary-value {
@@ -1329,18 +1232,12 @@ function PrintPageContent() {
             --receipt-left: 6.67mm;
             zoom: 1.2;
           }
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
 
           .print-root.thermal3 .print-footer {
             margin-top: 6mm;
             text-align: left;
-<<<<<<< HEAD
-            font-size: 9px;
-            font-weight: 800;
-=======
             font-size: 6pt;           /* C# footer: Arial 6pt bold */
             font-weight: 700;
->>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-style: italic;
             padding-bottom: 4mm;
           }
