@@ -147,9 +147,8 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {/* Same list the Unpaid page renders, so the two counts always agree. */}
             <div className="text-2xl font-bold">
-              {isUnpaidLoading ? '—' : unpaidCustomers.length}
+              {isUnpaidLoading ? '—' : (unpaidCustomers || []).length}
             </div>
             <p className="text-xs text-muted-foreground">
               Customers with no payment for more than 7 days

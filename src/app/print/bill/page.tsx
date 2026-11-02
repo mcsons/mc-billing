@@ -27,6 +27,8 @@ interface BillPrintData {
   paidAmount: number;
   finalBalance: number;
   stall: string;
+  /** Non-zero received payments (mode/amount/date). Absent on older print data. */
+  payments?: { mode: string; amount: number; date: string }[];
 }
 
 function PrintPageContent() {
@@ -36,6 +38,9 @@ function PrintPageContent() {
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const paper = searchParams.get('paper') || 'thermal';
+  /** 4-inch "Print Receipt" ('thermal') uses the same receipt format as the 3-inch print. */
+  const isFourInch = paper === 'thermal';
+  const layout = isFourInch ? 'thermal3' : paper;
   const autoShare = searchParams.get('share') === 'pdf';
 
   useEffect(() => {
@@ -186,6 +191,13 @@ function PrintPageContent() {
     finalBalance,
   } = billData;
 
+  // Received block (Print Receipt + Print 3-Inch): payments on the left, totals on the right.
+  const receivedList = (billData.payments || []).filter(p => p.amount > 0);
+  const showReceived = paper !== 'a4' && receivedList.length > 0;
+  const receivedTotal = receivedList.reduce((s, p) => s + p.amount, 0);
+  const fmtReceived = (n: number) => (layout === 'thermal3' ? String(Math.round(n)) : n.toFixed(2));
+  const billDay = date ? format(new Date(date), 'yyyy-MM-dd') : '';
+
   const displayDeliveryCharge = parseFloat(deliveryCharge.toString()) || 0;
 
   // INR Formatting Helper (A4 Only)
@@ -206,9 +218,9 @@ function PrintPageContent() {
     .reduce((sum, i) => sum + i.qty, 0);
 
   const qtyStrings: string[] = [];
-  if (totalKgs > 0) qtyStrings.push(paper === 'thermal3' ? `${totalKgs.toFixed(1)}KGS` : `${totalKgs.toFixed(1)} KGS `);
-  if (totalBox > 0) qtyStrings.push(paper === 'thermal3' ? `${Math.round(totalBox)}BOX` : `${Math.round(totalBox)} BOX `);
-  const totalQtyString = paper === 'thermal3' ? qtyStrings.join(',') : qtyStrings.join(',').trim();
+  if (totalKgs > 0) qtyStrings.push(layout === 'thermal3' ? `${totalKgs.toFixed(1)}KGS` : `${totalKgs.toFixed(1)} KGS `);
+  if (totalBox > 0) qtyStrings.push(layout === 'thermal3' ? `${Math.round(totalBox)}BOX` : `${Math.round(totalBox)} BOX `);
+  const totalQtyString = layout === 'thermal3' ? qtyStrings.join(',') : qtyStrings.join(',').trim();
 
   // ─────────────────────────────────────────────────────────────
   //  Hidden A4 bill rendered with INLINE STYLES so html2canvas
@@ -392,9 +404,11 @@ function PrintPageContent() {
       </div>
 
       {/* ── Original print-root (unchanged — used for browser Print) ── */}
-      <div className={`print-root ${paper}`}>
+      <div className={`print-root ${layout}${isFourInch ? ' four-inch' : ''}`}>
         <div id="print-area">
           <header className="text-center">
+            {/* Logo on the 3-inch and 4-inch receipts (grayscale version made for thermal printing). */}
+            {layout === 'thermal3' && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
             <h1 className="header-title">M.C &amp; SONS FISH COMPANY</h1>
             <p className="header-sub">
               No. 1, Fish Market, Palladam Road,<br />
@@ -449,7 +463,7 @@ function PrintPageContent() {
             {/* table-layout:fixed reads column widths from <col> first; without
                 this the colSpan=4 divider row above the headings would force
                 four equal columns. Only the 3-inch roll needs it. */}
-            {paper === 'thermal3' && (
+            {layout === 'thermal3' && (
               <colgroup>
                 <col className="col-product" />
                 <col className="col-qty" />
@@ -482,16 +496,16 @@ function PrintPageContent() {
                   <TableCell className="col-qty text-right">
                     <span className="qty-uom">
                     <span className="qty-num">{item.qty}</span>
-                    <strong className="uom-text">{item.uom}</strong>
+                    <strong className="uom-text">{layout === 'thermal3' && item.uom.toUpperCase() === 'KGS' ? 'KG' : item.uom}</strong>
                     </span>
                   </TableCell>
                   <TableCell className="col-rate text-right font-mono">
-                    {paper === 'thermal3'
+                    {layout === 'thermal3'
                       ? (Number.isInteger(item.rate) ? item.rate : item.rate.toFixed(2))
                       : item.rate.toFixed(2)}
                   </TableCell>
                   <TableCell className="col-amount text-right font-mono">
-                    {paper === 'a4' ? formatINR(item.amount) : (paper === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
+                    {paper === 'a4' ? formatINR(item.amount) : (layout === 'thermal3' ? Math.round(item.amount).toString() : item.amount.toFixed(2))}
                   </TableCell>
                 </TableRow>
               ))}
@@ -504,10 +518,10 @@ function PrintPageContent() {
 
               <TableRow className="combined-summary-row">
               <TableCell colSpan={4} className="px-1 py-1" style={{ overflow: 'visible' }}>
-              <div className={paper === 'thermal3' ? "flex justify-between items-center w-full pr-[16px] whitespace-nowrap overflow-hidden font-bold text-[11px] uppercase" : "flex justify-between items-center w-full font-bold text-[11px] uppercase"}>
-                    {paper === 'thermal3' ? (
+              <div className={layout === 'thermal3' ? "flex justify-between items-center w-full pr-[16px] whitespace-nowrap overflow-hidden font-bold text-[11px] uppercase" : "flex justify-between items-center w-full font-bold text-[11px] uppercase"}>
+                    {layout === 'thermal3' ? (
                       <>
-                        <span>Total Items:{items.length}</span>
+                        <span>{isFourInch ? "Total Items" : "Items"}:{items.length}</span>
                         {totalQtyString && (
                           <>
                           <span>•</span>
@@ -538,10 +552,38 @@ function PrintPageContent() {
             </TableBody>
           </Table>
 
-          <div className="flex justify-end mt-2 summary-section-wrapper" style={{ breakInside: 'avoid' }}>
+          <div className={`flex justify-end mt-2 summary-section-wrapper${showReceived ? ' has-received' : ''}`} style={{ breakInside: 'avoid' }}>
+            {showReceived && (
+              <div className="received-block">
+                <div className="received-title">Received</div>
+                <table className="received-table">
+                  <tbody>
+                    {receivedList.map((p, i) => {
+                      const d = new Date(p.date);
+                      const showDate = !isNaN(d.getTime()) && format(d, 'yyyy-MM-dd') !== billDay;
+                      return (
+                        <tr key={i}>
+                          <td className="rcv-mode">
+                            {p.mode}
+                            {showDate && <span className="rcv-date">{format(d, 'dd-MM-yy')}</span>}
+                          </td>
+                          <td className="rcv-amt">{fmtReceived(p.amount)}</td>
+                        </tr>
+                      );
+                    })}
+                    {receivedList.length > 1 && (
+                      <tr className="rcv-total">
+                        <td className="rcv-mode">Total</td>
+                        <td className="rcv-amt">{fmtReceived(receivedTotal)}</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <table className="summary-table">
               <tbody>
-              {paper === 'thermal3' ? (
+              {layout === 'thermal3' ? (
                   <>
                     <tr>
                       <td className="summary-label">Items Total</td>
@@ -686,7 +728,8 @@ function PrintPageContent() {
                 width: 106mm;
             }
             /* 3-inch preview is styled by the shared block further down so
-               the preview and the paper are identical. */
+               the preview and the paper are identical; only centred here. */
+            .print-root.thermal3 { margin: 1rem auto !important; }
             .print-root.a4 #print-area {
                 width: 210mm;
                 min-height: 297mm;
@@ -899,6 +942,7 @@ function PrintPageContent() {
           }
         }
         /* ===============================
+<<<<<<< HEAD
            3-INCH THERMAL (80mm roll)
            Printable width on a standard 80mm roll is 72mm (576 dots @203dpi).
            Everything below is sized to that, so nothing runs off the paper.
@@ -909,17 +953,69 @@ function PrintPageContent() {
             width: 72mm;
             max-width: 72mm;
             margin: 0 auto;
+=======
+           RECEIVED BLOCK (Print Receipt + Print 3-Inch)
+           Payments on the left, totals on the right, side by side
+           inside the existing receipt width.
+        ================================ */
+        @media all {
+          .received-block { font-weight: 700; min-width: 0; }
+          .received-title { text-align: center; text-decoration: underline; margin-bottom: 1px; }
+          .received-table { width: 100%; border-collapse: collapse; }
+          .received-table td { padding: 0; border: none; vertical-align: top; line-height: 1.25; }
+          .received-table .rcv-mode { text-align: left; white-space: nowrap; }
+          .received-table .rcv-amt { text-align: right; white-space: nowrap; padding-left: 2px; font-variant-numeric: tabular-nums; }
+          .received-table .rcv-date { display: block; font-size: 0.8em; font-weight: 600; }
+          .received-table .rcv-total td { border-top: 1px solid #000; }
+          .summary-section-wrapper.has-received { display: flex; justify-content: space-between; align-items: flex-start; }
+        }
+        @media print {
+          .print-root.thermal .has-received { gap: 3mm; }
+          .print-root.thermal .received-block { flex: 0 0 30%; font-size: 13px; }
+          .print-root.thermal .has-received .summary-table { flex: 1 1 auto; width: auto; max-width: none; font-size: 13px; }
+          .print-root.thermal .has-received .summary-table td { padding: 1px 2px; }
+          .print-root.thermal .has-received .summary-final-balance td { font-size: 14px; }
+        }
+
+        /* ===============================
+           3-INCH THERMAL.
+             The printer driver adds its own left offset (~4-5mm) to browser
+             prints, so a full 72mm-wide receipt gets cut on the right.
+             The content is therefore a narrower block that always fits:
+               --receipt-width : printed content width (default 64mm)
+               --receipt-left  : extra left shift (default 0)
+             Still cut on the right? lower --receipt-width (e.g. 62mm).
+             Gap on the left too big? use a negative --receipt-left.
+           Not inside @media print: the preview shows exactly what prints.
+        ================================ */
+        @media all {
+          .print-root.thermal3 {
+            --receipt-width: 64mm;
+            --receipt-left: 0mm;
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
+            margin: 0 0 0 var(--receipt-left);
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             padding: 0;
             display: block;
-            font-family: 'Courier New', 'Noto Sans Tamil', monospace !important;
+            font-family: Arial, 'Nirmala UI', Latha, 'Noto Sans Tamil', sans-serif !important;
+            font-weight: 700;
           }
 
           .print-root.thermal3 #print-area {
+<<<<<<< HEAD
             width: 72mm;
             max-width: 72mm;
             box-sizing: border-box;
             padding: 2mm 1.5mm 8mm 1.5mm;
             margin: 0 auto !important;
+=======
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
+            box-sizing: border-box;
+            padding: 3mm 0 8mm 0;
+            margin: 0 !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             overflow: hidden;
           }
 
@@ -927,9 +1023,21 @@ function PrintPageContent() {
           /* Margins are set explicitly: browser defaults on h1/p would
              otherwise open big gaps in the middle of the receipt. */
           .print-root.thermal3 header { text-align: center !important; margin: 0 !important; }
+<<<<<<< HEAD
           .print-root.thermal3 .header-title {
             font-size: 15px !important;
             font-weight: 800;
+=======
+          .print-root.thermal3 .bill-logo {
+            display: block;
+            width: 24mm;              /* 3-inch: 24mm; 4-inch (zoom 1.2): ~29mm */
+            height: auto;
+            margin: 0 auto 1.5mm;     /* centred over the company name */
+          }
+          .print-root.thermal3 .header-title {
+            font-size: 12.5pt !important;
+            font-weight: 700;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             letter-spacing: 0;
             line-height: 1.25;
             white-space: normal;
@@ -938,14 +1046,22 @@ function PrintPageContent() {
           .print-root.thermal3 .header-sub {
             display: block;
             text-align: center;
+<<<<<<< HEAD
             font-size: 10px !important;
+=======
+            font-size: 9pt !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
             line-height: 1.3;
             margin: 1px 0 0 !important;
           }
           .print-root.thermal3 .header-phone { margin-top: 2px !important; }
           .print-root.thermal3 .hr-line {
+<<<<<<< HEAD
             border-top: 1.5px solid #000;
+=======
+            border-top: 1px solid #000;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             margin: 3px 0 !important;
           }
           .print-root.thermal3 .mb-2 { margin-bottom: 2px !important; }
@@ -956,7 +1072,12 @@ function PrintPageContent() {
 
           /* ---- Customer / bill info ---- */
           .print-root.thermal3 .mb-2.font-mono {
+<<<<<<< HEAD
             font-size: 9px !important;
+=======
+            font-family: inherit !important;
+            font-size: 9pt !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             display: flex !important;
             justify-content: space-between !important;
             gap: 0;
@@ -1009,13 +1130,23 @@ function PrintPageContent() {
           .print-root.thermal3 .print-table th,
           .print-root.thermal3 .print-table td {
             border: none;
+<<<<<<< HEAD
             padding: 1px 1px;
+=======
+            padding: 1px 0;
+            font-family: inherit !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             vertical-align: top !important;
             overflow: hidden;
           }
           .print-root.thermal3 .print-table thead th {
+<<<<<<< HEAD
             font-weight: 800 !important;
             font-size: 11px !important;
+=======
+            font-weight: 700 !important;
+            font-size: 9pt !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             /* shadcn's TableHead is h-12 (48px) — that was the empty band
                between the column headings and the first item. */
             height: auto !important;
@@ -1033,20 +1164,35 @@ function PrintPageContent() {
           .print-root.thermal3 .header-row-divider td { padding: 0 !important; }
           .print-root.thermal3 .print-table tbody td {
             font-weight: 700 !important;
+<<<<<<< HEAD
             font-size: 11px;
             line-height: 1.25;
+=======
+            font-size: 9pt;
+            line-height: 0.18in;      /* C# lineHeight = 18 (1/100 in) */
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
           }
 
           .print-root.thermal3 .text-center { text-align: center !important; }
           .print-root.thermal3 .text-left   { text-align: left !important; }
           .print-root.thermal3 .text-right  { text-align: right !important; }
 
+<<<<<<< HEAD
           /* Column widths tuned to 69mm of usable width */
           .print-root.thermal3 .col-product {
             width: 42%;
             padding-left: 0 !important;
             font-size: 11px !important;
             line-height: 1.25;
+=======
+          /* Column widths = the C# receipt: item 115 | qty 60 | rate 45 | amount 60
+             (1/100 in, over 280 of content). Qty/Rate/Amount right-aligned. */
+          .print-root.thermal3 .col-product {
+            width: 41.07%;
+            padding-left: 0 !important;
+            font-size: 8pt !important;   /* smaller so long product names fit */
+            line-height: 0.18in;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             white-space: normal !important;
             word-wrap: break-word;
             word-break: break-word;
@@ -1062,6 +1208,7 @@ function PrintPageContent() {
           /* Qty stays on one line so the unit never splits off the number. */
           .print-root.thermal3 .col-qty {
             white-space: nowrap !important;
+<<<<<<< HEAD
             width: 21%;
             padding-right: 3px !important;
           }
@@ -1074,11 +1221,30 @@ function PrintPageContent() {
           .print-root.thermal3 .uom-text {
             font-size: 9px !important;
             margin-left: 1px;
+=======
+            width: 21.43%;
+            padding-right: 0 !important;
+          }
+          .print-root.thermal3 .col-rate   { width: 16.07%; padding-left: 2px !important; padding-right: 0 !important; }
+          .print-root.thermal3 .col-amount { width: 21.43%; padding-left: 2px !important; padding-right: 0 !important; }
+          .print-root.thermal3 .col-qty,
+          .print-root.thermal3 .col-rate,
+          .print-root.thermal3 .col-amount { font-size: 9pt !important; }
+
+          .print-root.thermal3 .uom-text {
+            font-size: 7pt !important;
+            margin-left: 2px;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
           }
 
           .print-root.thermal3 .combined-summary-row div {
+<<<<<<< HEAD
             font-size: 9px !important;
+=======
+            font-family: inherit !important;
+            font-size: 8pt !important;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             padding-right: 0 !important;
           }
 
@@ -1092,7 +1258,11 @@ function PrintPageContent() {
             max-width: 100%;
             table-layout: fixed;
             border-collapse: collapse;
+<<<<<<< HEAD
             font-size: 11px;
+=======
+            font-size: 10pt;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-weight: 700;
           }
           .print-root.thermal3 .summary-table td { padding: 1px 1px; }
@@ -1100,6 +1270,7 @@ function PrintPageContent() {
             text-align: left;
             white-space: nowrap;
             width: 55%;
+<<<<<<< HEAD
           }
           .print-root.thermal3 .summary-colon { width: 4mm; text-align: center; }
           .print-root.thermal3 .summary-value {
@@ -1110,12 +1281,66 @@ function PrintPageContent() {
           .print-root.thermal3 .summary-total-row td { font-weight: 800; }
           .print-root.thermal3 .summary-divider-row td { border-top: 1px solid #000; }
           .print-root.thermal3 .summary-final-balance td { font-size: 13px; font-weight: 800; }
+=======
+          }
+          .print-root.thermal3 .summary-colon { width: 4mm; text-align: center; }
+          .print-root.thermal3 .summary-value {
+            text-align: right;
+            white-space: nowrap;
+            font-size: 12pt;
+            font-family: inherit !important;
+            font-variant-numeric: tabular-nums;
+          }
+          .print-root.thermal3 .summary-total-row td { font-weight: 700; }
+          .print-root.thermal3 .summary-divider-row td { border-top: 1px solid #000; }
+          .print-root.thermal3 .summary-final-balance td { font-size: 12pt; font-weight: 700; }
+          /* C#: labels stay 10pt even on the final line; only the value is 12pt. */
+          .print-root.thermal3 .summary-final-balance .summary-label,
+          .print-root.thermal3 .summary-final-balance .summary-colon { font-size: 10pt; }
+
+          /* With a Received block: payments left (~31%), compact totals right. */
+          .print-root.thermal3 .summary-section-wrapper.has-received { display: flex !important; gap: 1.5mm; }
+          .print-root.thermal3 .received-block { flex: 0 1 31%; font-size: 8pt; }  /* may shrink to its content when totals need room */
+          .print-root.thermal3 .received-table .rcv-date { font-size: 6.5pt; }
+          /* Totals hug their content and sit at the right edge, so the free
+             space falls between the Received block and the totals. */
+          .print-root.thermal3 .has-received .summary-table { flex: 0 1 auto; width: auto; min-width: 0; margin-left: auto; table-layout: auto; font-size: 8pt; }
+          .print-root.thermal3 .has-received .summary-value { padding-left: 2mm; }
+          .print-root.thermal3 .has-received .summary-label { width: 1%; white-space: nowrap; line-height: 1.15; padding-right: 0.5mm; }
+          .print-root.thermal3 .has-received .summary-colon { width: 2mm; }
+
+          /* Totals: label column hugs the longest label so the colon sits right
+             after the titles; the free space goes before the right-aligned value. */
+          .print-root.thermal3 .summary-table { table-layout: auto; }
+          .print-root.thermal3 .summary-label { width: 1%; white-space: nowrap; padding-right: 1.5mm; }
+          .print-root.thermal3 .summary-value { width: auto; }
+          .print-root.thermal3 .has-received .summary-value,
+          .print-root.thermal3 .has-received .summary-final-balance .summary-value { font-size: 10pt; }
+          .print-root.thermal3 .has-received .summary-final-balance .summary-label,
+          .print-root.thermal3 .has-received .summary-final-balance .summary-colon { font-size: 8pt; }
+
+          /* 4-inch Print Receipt: the 3-inch receipt scaled 1.2x (text ~15%
+             smaller than the earlier 1.4x). Same paper footprint as before:
+             81.7mm x 1.2 = 98mm wide, starting 6.67mm x 1.2 = 8mm in.
+             Text size: change zoom AND keep width x zoom = 98mm, left x zoom = 8mm.
+             Off-centre? Change --receipt-left (+0.83mm moves the print 1mm right). */
+          .print-root.thermal3.four-inch {
+            --receipt-width: 81.7mm;
+            --receipt-left: 6.67mm;
+            zoom: 1.2;
+          }
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
 
           .print-root.thermal3 .print-footer {
             margin-top: 6mm;
             text-align: left;
+<<<<<<< HEAD
             font-size: 9px;
             font-weight: 800;
+=======
+            font-size: 6pt;           /* C# footer: Arial 6pt bold */
+            font-weight: 700;
+>>>>>>> aa911690d902da03379b9edc4529898bc2de4224
             font-style: italic;
             padding-bottom: 4mm;
           }
