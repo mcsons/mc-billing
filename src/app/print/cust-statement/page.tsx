@@ -200,9 +200,10 @@ function PrintPaymentsContent() {
             </Button>
           </div>
         </div>
-        <div className={`print-root ${paper}`}>
+        <div className={`print-root ${paper === 'thermal' ? 'rcpt four-inch' : paper}`}>
           <div id="print-area">
             <header className="text-center">
+              {paper === 'thermal' && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
                 No. 1, Fish Market, Palladam Road,<br />
@@ -383,6 +384,147 @@ function PrintPaymentsContent() {
 
         <style jsx global>{`
         /* ===============================
+           4-INCH RECEIPT — the same styles as the Main Billing 4-inch print
+           (print/bill, .thermal3.four-inch): Arial bold, same header, rules,
+           column text sizes, totals and footer, 98mm wide starting 8mm in.
+           Not inside @media print: the preview shows exactly what prints.
+        ================================ */
+        @media screen {
+          .print-root.rcpt { margin: 1rem auto !important; }
+        }
+        @media all {
+          .print-root.rcpt {
+            --receipt-width: 64mm;
+            --receipt-left: 0mm;
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
+            margin: 0 0 0 var(--receipt-left);
+            padding: 0;
+            display: block;
+            font-weight: 700;
+          }
+          .print-root.rcpt, .print-root.rcpt * {
+            font-family: Arial, 'Nirmala UI', Latha, 'Noto Sans Tamil', sans-serif !important;
+          }
+          .print-root.rcpt #print-area {
+            width: var(--receipt-width);
+            max-width: var(--receipt-width);
+            box-sizing: border-box;
+            padding: 3mm 0 8mm 0;
+            margin: 0 !important;
+            overflow: hidden;
+            background: white;
+            color: black;
+          }
+          .print-root.rcpt p { margin: 0; }
+
+          /* ---- Header (as the bill) ---- */
+          .print-root.rcpt header { text-align: center !important; margin: 0 !important; }
+          .print-root.rcpt .bill-logo { display: block; width: 24mm; height: auto; margin: 0 auto 1.5mm; }
+          .print-root.rcpt .header-title {
+            font-size: 12.5pt !important; font-weight: 700; letter-spacing: 0;
+            line-height: 1.25; white-space: normal; margin: 0 !important;
+          }
+          .print-root.rcpt .header-sub {
+            display: block; text-align: center; font-size: 9pt !important;
+            font-weight: 700; line-height: 1.3; margin: 1px 0 0 !important;
+          }
+          .print-root.rcpt .header-sub .city { display: block; }
+          .print-root.rcpt .header-phone { margin-top: 2px !important; }
+          .print-root.rcpt .hr-line { border-top: 1px solid #000; margin: 3px 0 !important; }
+          .print-root.rcpt .table-header-line { border-top: 1px solid #000; margin: 0; }
+
+          /* ---- Report title and info lines (bill info-line size) ---- */
+          .print-root.rcpt h2 {
+            font-size: 10pt !important; font-weight: 700 !important;
+            line-height: 1.3; margin: 2px 0 !important; text-align: center;
+          }
+          .print-root.rcpt .grid {
+            display: flex !important; justify-content: space-between; align-items: flex-start;
+            gap: 2mm; margin: 0 0 2px !important;
+          }
+          .print-root.rcpt .text-sm { font-size: 9pt !important; line-height: 1.35 !important; }
+          .print-root.rcpt .font-semibold, .print-root.rcpt strong { font-weight: 700 !important; }
+          .print-root.rcpt .py-1 { padding: 1px 0 !important; }
+          .print-root.rcpt .cust-name,
+          .print-root.rcpt .cust-name-highlight { font-size: 9pt !important; font-weight: 700 !important; }
+          /* Sales 'Total ==>' row on one line, like the bill's Items/Total Qty row. */
+          .print-root.rcpt .totals-section > .flex:first-child { white-space: nowrap; gap: 2mm; }
+          .print-root.rcpt .totals-section > .flex:first-child > span:nth-child(1) { width: auto !important; flex: 0 0 auto; }
+          .print-root.rcpt .totals-section > .flex:first-child > span:nth-child(2) { width: auto !important; flex: 1 1 auto; text-align: center; }
+          .print-root.rcpt .totals-section > .flex:first-child > span:nth-child(3) { width: auto !important; flex: 0 0 auto; }
+
+          /* ---- Items table (as the bill) ---- */
+          .print-root.rcpt .print-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+          .print-root.rcpt .print-table > div,
+          .print-root.rcpt .print-table { overflow: visible !important; }
+          .print-root.rcpt .print-table th,
+          .print-root.rcpt .print-table td {
+            border: none; padding: 1px 0; vertical-align: top !important; overflow: hidden;
+          }
+          .print-root.rcpt .print-table thead th {
+            font-weight: 700 !important; font-size: 9pt !important; height: auto !important;
+            line-height: 1.25 !important; padding-top: 1px !important; padding-bottom: 1px !important;
+            white-space: nowrap; color: inherit !important; vertical-align: bottom !important;
+          }
+          .print-root.rcpt .print-table tr { border: 0 !important; }
+          .print-root.rcpt .print-table tbody td {
+            font-weight: 700 !important; font-size: 9pt !important; line-height: 0.18in;
+          }
+          .print-root.rcpt .text-center { text-align: center !important; }
+          .print-root.rcpt .text-left   { text-align: left !important; }
+          .print-root.rcpt .text-right  { text-align: right !important; }
+          .print-root.rcpt .uom-text { font-size: 7pt !important; margin-left: 2px; font-weight: 700; }
+
+          /* Sales Report columns: Qty/Rate/Amt right-aligned like the bill; the
+             item name gets the bill's smaller product size so long names fit. */
+          .print-root.rcpt .col-billdate { width: 17%; font-size: 8pt !important; white-space: nowrap; }
+          .print-root.rcpt .col-itemname {
+            width: 32%; font-size: 8pt !important; white-space: normal !important;
+            word-break: break-word; padding-right: 2px !important;
+          }
+          .print-root.rcpt .col-qty    { width: 21%; white-space: nowrap !important; text-align: right !important; }
+          .print-root.rcpt .col-rate   { width: 13%; padding-left: 2px !important; }
+          .print-root.rcpt .col-amount { width: 17%; padding-left: 2px !important; }
+          .print-root.rcpt .col-rate,
+          .print-root.rcpt .col-amount { white-space: normal !important; overflow-wrap: anywhere; font-size: 9pt !important; }
+          /* Customer Statement columns */
+          .print-root.rcpt .col-date     { width: 34%; white-space: nowrap; }
+          .print-root.rcpt .col-billed   { width: 33%; }
+          .print-root.rcpt .col-received { width: 33%; }
+
+          /* ---- Totals (as the bill's summary) ---- */
+          .print-root.rcpt .totals-section,
+          .print-root.rcpt .totals-section span { font-size: 9pt !important; font-weight: 700 !important; }
+          .print-root.rcpt .totals-section { width: 100% !important; max-width: none !important; margin-top: 2px !important; }
+          .print-root.rcpt .summary-table {
+            width: 100%; max-width: 100%; table-layout: auto; border-collapse: collapse;
+            font-size: 10pt !important; font-weight: 700;
+          }
+          .print-root.rcpt .summary-table td { padding: 1px 1px; }
+          .print-root.rcpt .summary-label { text-align: left; white-space: nowrap; width: 1%; padding-right: 1.5mm !important; font-size: 10pt !important; }
+          .print-root.rcpt .summary-colon { width: 4mm; text-align: center; font-size: 10pt !important; }
+          .print-root.rcpt .summary-value {
+            text-align: right; white-space: nowrap; width: auto;
+            font-size: 12pt !important; font-variant-numeric: tabular-nums;
+          }
+          .print-root.rcpt .summary-divider-row td { border-top: 1px solid #000; }
+          .print-root.rcpt .summary-final-balance td { font-weight: 700; }
+
+          .print-root.rcpt .print-footer {
+            margin-top: 6mm; text-align: left; font-size: 6pt !important;
+            font-weight: 700; font-style: italic; padding-bottom: 4mm;
+          }
+
+          /* 4-inch: same geometry as the 4-inch bill (81.7mm x 1.2 = 98mm wide,
+             starting 6.67mm x 1.2 = 8mm in). */
+          .print-root.rcpt.four-inch {
+            --receipt-width: 81.7mm;
+            --receipt-left: 6.67mm;
+            zoom: 1.2;
+          }
+        }
+        /* ===============================
           SCREEN PREVIEW STYLES
         ================================ */
         @media screen {
@@ -439,7 +581,7 @@ function PrintPaymentsContent() {
             width: 106mm;
             max-width: 106mm;
             margin: 0 auto;
-            font-family: 'Courier New', 'Lucida Console', monospace !important;
+            font-family: Arial, 'Nirmala UI', Latha, 'Noto Sans Tamil', sans-serif !important;
           }
 
           h2.text-lg {
@@ -605,8 +747,9 @@ function PrintPaymentsContent() {
            }
 
           @page {
-            size: A4;
-            margin: 10mm;
+            /* A4 keeps its page size; the 4-inch receipt uses the roll width
+               and no margins, the same as the bill. */
+            ${paper === 'thermal' ? 'margin: 0;' : 'size: A4; margin: 10mm;'}
           }
         }
       `}</style>

@@ -82,6 +82,7 @@ function PrintPaymentReceiptContent() {
         <div className={`print-root ${paper}`}>
           <div id="print-area">
             <header className="text-center">
+              {paper === 'thermal' && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
                 No. 1, Fish Market, Palladam Road,
@@ -160,6 +161,8 @@ function PrintPaymentReceiptContent() {
           </div>
         </div>
         <style jsx global>{`
+        /* Logo on the 4-inch thermal print (same image and size as the 4-inch bill). */
+        .print-root.thermal .bill-logo { display: block; width: 29mm; height: auto; margin: 0 auto 1.5mm; }
         /* ===============================
           SCREEN PREVIEW STYLES
         ================================ */

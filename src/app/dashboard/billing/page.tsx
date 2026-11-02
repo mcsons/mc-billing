@@ -248,10 +248,26 @@ export default function BillingPage() {
   const [prevBalInput, setPrevBalInput] = useState('0.00');
   const [originalPrevBalance, setOriginalPrevBalance] = useState(0);
   const [isPrevBalModified, setIsPrevBalModified] = useState(false);
+  /** Prev Bal is read-only until the user ticks the box next to it — guards
+   *  against typos in a field that moves the customer's running balance. */
+  const [isPrevBalUnlocked, setIsPrevBalUnlocked] = useState(false);
   const [description, setDescription] = useState('');
 
   // Derived numeric value from input
   const staticPrevBalance = useMemo(() => parseFloat(prevBalInput) || 0, [prevBalInput]);
+
+  /**
+   * Ticking the box opens Prev Bal for editing; unticking it puts the loaded
+   * balance back and drops the "modified" flag, so an accidental edit can be
+   * undone without reloading the bill.
+   */
+  const handlePrevBalUnlockChange = useCallback((unlocked: boolean) => {
+    setIsPrevBalUnlocked(unlocked);
+    if (!unlocked) {
+      setPrevBalInput(originalPrevBalance.toFixed(2));
+      setIsPrevBalModified(false);
+    }
+  }, [originalPrevBalance]);
 
   // Form state for new item entry
   const [qty, setQty] = useState('');
@@ -531,6 +547,7 @@ export default function BillingPage() {
         setActiveBillNo(null);
         setLocalBillItems([]);
         setPrevBalInput('0.00');
+        setIsPrevBalUnlocked(false);
         setDescription('');
         setLoading(false);
         return;
@@ -607,6 +624,7 @@ export default function BillingPage() {
             setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
+            setIsPrevBalUnlocked(false);
 
             if (billToLoad.date) {
                 setDate(billToLoad.date instanceof Timestamp ? billToLoad.date.toDate() : new Date(billToLoad.date));
@@ -634,6 +652,7 @@ export default function BillingPage() {
             setPrevBalInput(prev.toFixed(2));
             setOriginalPrevBalance(prev);
             setIsPrevBalModified(false);
+            setIsPrevBalUnlocked(false);
           } 
         } finally {
           setLoading(false);
@@ -1068,6 +1087,7 @@ export default function BillingPage() {
     setPrevBalInput('0.00');
     setOriginalPrevBalance(0);
     setIsPrevBalModified(false);
+    setIsPrevBalUnlocked(false);
     setManualCustomerName('');
     setDescription('');
     isEditingRef.current = false;
@@ -1528,11 +1548,11 @@ export default function BillingPage() {
         <Button
           type="button"
           variant="outline"
-          className={cn('h-8 px-2 text-xs font-mono font-normal select-none', highlighted && 'border-amber-500 font-bold', buttonClass)}
+          className={cn('h-10 px-3 text-sm font-mono font-normal select-none', highlighted && 'border-amber-500 font-bold', buttonClass)}
           title="Date the payment was received"
           aria-label="Payment date"
         >
-          <CalendarIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+          <CalendarIcon className="mr-1.5 h-4 w-4 shrink-0" />
           {format(effective, 'dd-MM-yy')}
         </Button>
       </PopoverTrigger>
@@ -1564,7 +1584,7 @@ export default function BillingPage() {
       title="Payment mode"
       value={value}
       onChange={(e) => onChange(e.target.value as PayMode)}
-      className="h-8 rounded-md border border-input bg-background px-1 text-xs font-normal text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      className="h-10 rounded-md border border-input bg-background px-2 text-sm font-normal text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
     >
       {PAY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
     </select>
@@ -2197,15 +2217,28 @@ export default function BillingPage() {
                     <span className="font-medium text-muted-foreground">Bill Total</span>
                     <span className="font-mono font-bold text-right">₹{totalAmount.toFixed(2)}</span>
 
-                    <span className="font-medium text-muted-foreground flex items-center">Prev Bal</span>
+                    <span className="font-medium text-muted-foreground flex items-center gap-2">
+                      <Checkbox
+                        id="prev-bal-unlock-mobile"
+                        className="h-4 w-4 rounded-full shrink-0"
+                        checked={isPrevBalUnlocked}
+                        onCheckedChange={(c) => handlePrevBalUnlockChange(c === true)}
+                        disabled={!canEditBalances}
+                        aria-label="Allow editing previous balance"
+                      />
+                      <label htmlFor="prev-bal-unlock-mobile" className="cursor-pointer select-none">Prev Bal</label>
+                    </span>
                     <Input
                       className={cn(
                         "h-10 text-right font-mono text-base px-2 border-primary/20",
-                        isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
+                        isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold",
+                        !isPrevBalUnlocked && "bg-muted text-muted-foreground"
                       )}
                       value={prevBalInput}
                       onChange={(e) => { setPrevBalInput(e.target.value); setIsPrevBalModified(true); }}
                       onFocus={(e) => e.target.select()}
+                      readOnly={!isPrevBalUnlocked}
+                      tabIndex={isPrevBalUnlocked ? undefined : -1}
                       disabled={!canEditBalances}
                     />
 
@@ -2228,11 +2261,22 @@ export default function BillingPage() {
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
                   <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>
-                  <span className="font-semibold">Prev Bal:</span>
+                  <span className="font-semibold flex items-center justify-end gap-2">
+                    <Checkbox
+                      id="prev-bal-unlock"
+                      className="h-4 w-4 rounded-full shrink-0"
+                      checked={isPrevBalUnlocked}
+                      onCheckedChange={(c) => handlePrevBalUnlockChange(c === true)}
+                      disabled={!canEditBalances}
+                      aria-label="Allow editing previous balance"
+                    />
+                    <label htmlFor="prev-bal-unlock" className="cursor-pointer select-none">Prev Bal:</label>
+                  </span>
                   <Input 
                     className={cn(
                       "ml-auto max-w-32 h-9 md:h-10 text-right font-mono",
-                      isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold"
+                      isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold",
+                      !isPrevBalUnlocked && "bg-muted text-muted-foreground"
                     )} 
                     value={prevBalInput} 
                     onChange={(e) => {
@@ -2240,6 +2284,8 @@ export default function BillingPage() {
                       setIsPrevBalModified(true);
                     }} 
                     onFocus={(e) => e.target.select()}
+                    readOnly={!isPrevBalUnlocked}
+                    tabIndex={isPrevBalUnlocked ? undefined : -1}
                     disabled={!canEditBalances}
                   />
                   <span className="font-semibold flex items-center justify-end gap-2">{renderPaidDatePicker('')}{renderModeSelect(paidMode, setPaidMode)}{renderAddPaymentButton()}Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
