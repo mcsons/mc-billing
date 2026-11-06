@@ -460,50 +460,62 @@ function PrintPageContent() {
             <div className="py-1"></div>
 
             <Table className="print-table">
+              {/* Column widths come from here (the first row is a full-width line). */}
+              <colgroup>
+                <col className="col-itemname" /><col className="col-qty" />
+                <col className="col-rate" /><col className="col-amount" />
+              </colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={4} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableHead className="col-billdate">BillDate</TableHead>
-                  <TableHead className="col-itemname">{mode === 'PRODUCT' ? 'Cust Name' : 'ItemName'}</TableHead>
-                  <TableHead className="col-qty text-center">Qty</TableHead>
+                  <TableHead className="col-itemname">{mode === 'PRODUCT' ? 'Cust Name' : 'Items'}</TableHead>
+                  <TableHead className="col-qty text-right">Qty</TableHead>
                   <TableHead className="col-rate text-right">Rate</TableHead>
-                  <TableHead className="col-amount text-right">Amt</TableHead>
+                  <TableHead className="col-amount text-right">Amount</TableHead>
                 </TableRow>
                  <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={4} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {/* Each day: a bold, underlined "Date : ..." line, then that day's items
+                    across the full width (no separate date column). */}
                 {itemsByDate.map(({ date, items }: { date: string, items: any[] }) => (
-                    items.map((item: any, itemIndex: number) => (
-                        <TableRow key={`${date}-${item.id}`}>
-                            <TableCell className="col-billdate">{itemIndex === 0 ? date : ''}</TableCell>
-                            <TableCell className="col-itemname">{item.product}</TableCell>
-                            <TableCell className="col-qty">
-                              {item.product === 'Delivery' ? (
-                                <span className="qty-uom"><strong>-</strong></span>
-                              ) : (
-                                <span className="qty-uom">
-                                  <strong>{item.qty.toFixed(1)}</strong>
-                                  <span className="uom-text">{item.uom?.toUpperCase() === 'KGS' ? 'KG' : item.uom}</span>
-                                </span>
-                              )}
+                    <React.Fragment key={date}>
+                        <TableRow className="date-row">
+                            <TableCell colSpan={4}>
+                                <span className="date-label">Date : {date}</span>
                             </TableCell>
-                            <TableCell className="col-rate text-right">
-                                {item.product === 'Delivery' ? '-' : Math.round(item.rate)}
-                            </TableCell>
-                            <TableCell className="col-amount text-right">{Math.round(item.amount)}</TableCell>
                         </TableRow>
-                    ))
+                        {items.map((item: any) => (
+                            <TableRow key={`${date}-${item.id}`}>
+                                <TableCell className="col-itemname">{item.product}</TableCell>
+                                <TableCell className="col-qty">
+                                  {item.product === 'Delivery' ? (
+                                    <span className="qty-uom"><strong>-</strong></span>
+                                  ) : (
+                                    <span className="qty-uom">
+                                      <strong>{item.qty.toFixed(1)}</strong>
+                                      <span className="uom-text">{item.uom?.toUpperCase() === 'KGS' ? 'KG' : item.uom}</span>
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="col-rate text-right">
+                                    {item.product === 'Delivery' ? '-' : Math.round(item.rate)}
+                                </TableCell>
+                                <TableCell className="col-amount text-right">{Math.round(item.amount)}</TableCell>
+                            </TableRow>
+                        ))}
+                    </React.Fragment>
                 ))}
                  <TableRow>
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={4} className="p-0">
                     <div className="table-header-line"></div>
                   </TableCell>
                 </TableRow>
@@ -913,14 +925,21 @@ function PrintPageContent() {
 
           /* Sales Report columns: Qty/Rate/Amt right-aligned like the bill; the
              item name gets the bill's smaller product size so long names fit. */
-          .print-root.rcpt .col-billdate { width: 17%; font-size: 8pt !important; white-space: nowrap; }
+          /* No date column: the item name gets the width (whole words wrap,
+             letters never split unless a single word is wider than the column). */
           .print-root.rcpt .col-itemname {
-            width: 32%; font-size: 8pt !important; white-space: normal !important;
-            word-break: break-word; padding-right: 2px !important;
+            width: 47%; font-size: 8pt !important; white-space: normal !important;
+            word-break: normal !important; overflow-wrap: break-word; padding-right: 2px !important;
           }
-          .print-root.rcpt .col-qty    { width: 21%; white-space: nowrap !important; text-align: right !important; }
-          .print-root.rcpt .col-rate   { width: 13%; padding-left: 2px !important; }
-          .print-root.rcpt .col-amount { width: 17%; padding-left: 2px !important; }
+          .print-root.rcpt .col-qty    { width: 20%; white-space: nowrap !important; text-align: right !important; }
+          .print-root.rcpt .col-rate   { width: 14%; padding-left: 2px !important; }
+          .print-root.rcpt .col-amount { width: 19%; padding-left: 2px !important; }
+          /* Day heading: bold, with a neat thin underline under the text only. */
+          .print-root.rcpt .date-row td { padding: 4px 0 2px !important; }
+          .print-root.rcpt .date-label {
+            display: inline-block; font-size: 10.5pt !important; font-weight: 700 !important;
+            border-bottom: 1px solid #000; padding: 0 3mm 1px 0; line-height: 1.25;
+          }
           .print-root.rcpt .col-rate,
           .print-root.rcpt .col-amount { white-space: normal !important; overflow-wrap: anywhere; font-size: 9pt !important; }
           /* Customer Statement columns */

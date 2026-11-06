@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { X } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,7 +50,7 @@ export function AlertDialogComponent() {
   return (
     <AlertDialog open={isOpen} onOpenChange={hideAlertDialog}>
       <AlertDialogContent onKeyDown={handleKeyDown}>
-        <AlertDialogHeader>
+        <AlertDialogHeader className={options.showClose ? 'pr-8' : undefined}>
           <AlertDialogTitle>{options.title}</AlertDialogTitle>
           <AlertDialogDescription>
             {options.description}
@@ -61,6 +62,18 @@ export function AlertDialogComponent() {
             {options.confirmText || 'Confirm'}
           </AlertDialogAction>
         </AlertDialogFooter>
+        {/* After the footer in DOM order so the dialog still opens with focus on its buttons. */}
+        {options.showClose && (
+          <button
+            type="button"
+            onClick={hideAlertDialog}
+            aria-label="Close"
+            title="Close (Esc)"
+            className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
       </AlertDialogContent>
     </AlertDialog>
   );

@@ -8,6 +8,8 @@ type AlertDialogOptions = {
   onCancel?: () => void;
   confirmText?: string;
   cancelText?: string;
+  /** Show a close (×) button in the top-right corner. Closing does nothing else. */
+  showClose?: boolean;
 };
 
 interface AlertDialogContextType {

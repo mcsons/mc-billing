@@ -996,6 +996,7 @@ export default function BillingPage() {
     const qtyNum = parseFloat(qty);
     const rateNum = parseFloat(rate);
 
+    const addNow = () => {
     const newItem: BillItem = {
       id: Date.now().toString(),
       product: productInfo.name_ta,
@@ -1027,7 +1028,26 @@ export default function BillingPage() {
     setTimeout(() => {
         productSelectRef.current?.focus();
     }, 50);
-  }, [selectedProductId, qty, rate, uom, currentUser, products, activeBillNo, toast]);
+    };
+
+    // Boxes are counted in whole numbers: a decimal BOX qty is almost always
+    // a KGS entry with the wrong unit picked, so ask before adding it.
+    if (uom.toUpperCase() === 'BOX' && !Number.isInteger(qtyNum)) {
+      showAlertDialog({
+        title: 'Decimal quantity in BOX?',
+        description: `${qty} BOX for ${productInfo.name_ta}. Did you mean KGS?`,
+        showClose: true,
+        // Answers to "Did you mean KGS?": Yes -> switch to KGS, No -> keep BOX.
+        confirmText: 'No, add as BOX',
+        cancelText: 'Yes, change to KGS',
+        onConfirm: addNow,
+        onCancel: () => setUom('KGS'),
+      });
+      return;
+    }
+
+    addNow();
+  }, [selectedProductId, qty, rate, uom, currentUser, products, activeBillNo, toast, showAlertDialog]);
 
   const persistItemUpdate = (itemId: string, field: 'rate' | 'qty', value: string) => {
     const parsedValue = parseFloat(value) || 0;
