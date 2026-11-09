@@ -328,6 +328,7 @@ export default function ReceivedPage() {
                                 <SelectItem value="Cash">Cash</SelectItem>
                                 <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
                                 <SelectItem value="UPI">UPI</SelectItem>
+                                <SelectItem value="LESS">LESS</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -558,6 +559,7 @@ export default function ReceivedPage() {
                                     <SelectItem value="Cash">Cash</SelectItem>
                                     <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
                                     <SelectItem value="UPI">UPI</SelectItem>
+                                    <SelectItem value="LESS">LESS</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

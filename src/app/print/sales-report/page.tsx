@@ -24,6 +24,8 @@ function PrintPageContent() {
   const [isSharingNoBal, setIsSharingNoBal] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [printWithoutPrevBal, setPrintWithoutPrevBal] = useState(false);
+  /** true while printing on 3-inch paper (Print 3'); otherwise the 4-inch layout. */
+  const [print3, setPrint3] = useState(false);
 
   useEffect(() => {
     const rawData = sessionStorage.getItem('unifiedReportData');
@@ -413,13 +415,28 @@ function PrintPageContent() {
                 Print Without Prev Bal
               </Button>
             )}
+            {/* Print 3': the same report on 3-inch paper, using the Main Billing
+                3-inch receipt settings (64mm, same fonts and sizes, same structure). */}
+            <Button
+              className="bg-blue-600 text-white font-semibold hover:bg-blue-500 focus-visible:ring-blue-400"
+              onClick={() => {
+                setPrint3(true);
+                setTimeout(() => {
+                  window.print();
+                  setTimeout(() => setPrint3(false), 500);
+                }, 100);
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print 3&apos;
+            </Button>
             <Button onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
           </div>
         </div>
-        <div className="print-root rcpt four-inch">
+        <div className={`print-root rcpt${print3 ? '' : ' four-inch'}`}>
           <div id="print-area">
             <header className="text-center">
               <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />
@@ -934,6 +951,14 @@ function PrintPageContent() {
           .print-root.rcpt .col-qty    { width: 20%; white-space: nowrap !important; text-align: right !important; }
           .print-root.rcpt .col-rate   { width: 14%; padding-left: 2px !important; }
           .print-root.rcpt .col-amount { width: 19%; padding-left: 2px !important; }
+          /* 3-inch (Print 3'): the Main Billing 3-inch column widths, and the
+             total line may wrap so nothing is squeezed on the narrow roll. */
+          .print-root.rcpt:not(.four-inch) .col-itemname { width: 41.07%; }
+          .print-root.rcpt:not(.four-inch) .col-qty      { width: 21.43%; }
+          .print-root.rcpt:not(.four-inch) .col-rate     { width: 16.07%; }
+          .print-root.rcpt:not(.four-inch) .col-amount   { width: 21.43%; }
+          .print-root.rcpt:not(.four-inch) .totals-section > .flex:first-child { white-space: normal; }
+          .print-root.rcpt:not(.four-inch) .totals-section > .flex:first-child > span:nth-child(2) { min-width: 0; }
           /* Day heading: bold, with a neat thin underline under the text only. */
           .print-root.rcpt .date-row td { padding: 4px 0 2px !important; }
           .print-root.rcpt .date-label {

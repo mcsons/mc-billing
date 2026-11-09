@@ -109,11 +109,11 @@ interface BillPrintData {
 }
 
 /** Received-payment modes offered on Main Billing. */
-type PayMode = 'Cash' | 'UPI' | 'Bank';
-const PAY_MODES: PayMode[] = ['Cash', 'UPI', 'Bank'];
+type PayMode = 'Cash' | 'UPI' | 'Bank' | 'LESS';
+const PAY_MODES: PayMode[] = ['Cash', 'UPI', 'Bank', 'LESS'];
 /** Stored mode -> dropdown mode. Legacy 'Bill Payment' / missing show as Cash. */
 const toPayMode = (m?: string): PayMode =>
-  m === 'UPI' ? 'UPI' : (m === 'Bank' || m === 'Bank Transfer' || m === 'ACC') ? 'Bank' : 'Cash';
+  m === 'UPI' ? 'UPI' : m === 'LESS' ? 'LESS' : (m === 'Bank' || m === 'Bank Transfer' || m === 'ACC') ? 'Bank' : 'Cash';
 /** An additional received-payment row (row 1 is the existing Paid input). */
 interface ExtraPayment {
   key: string;
@@ -137,6 +137,9 @@ const linkedPaymentsOf = (payments: Payment[] | undefined, billNo: string) =>
   (payments || [])
     .filter(p => p.linkedBillId === billNo && !p.isDeleted)
     .sort((a, b) => (a.entryIndex ?? 0) - (b.entryIndex ?? 0));
+
+/** Price-card cell: whole rupees without decimals, otherwise 2 decimals. */
+const formatPriceCell = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(2));
 
 // INR Currency Formatter Helper
 const formatINR = (value: number) => {
@@ -186,6 +189,20 @@ const isBoxWeightPurchase = (item: { uom?: unknown; qty?: unknown }): boolean =>
   // Reject anything that is not an exact multiple of 35 (within float tolerance).
   return wholeBoxes >= 1 && Math.abs(boxes - wholeBoxes) < 1e-6;
 };
+
+/**
+ * True when a historical bill item is an ordinary loose-KGS purchase for the
+ * card's KGS column: UOM KGS and less than one box (under 35 KGS).
+ */
+const isLooseKgsPurchase = (item: { uom?: unknown; qty?: unknown }): boolean => {
+  const uom = String(item?.uom ?? '').trim().toUpperCase();
+  if (uom !== 'KGS') return false;
+  const qty = typeof item?.qty === 'number' ? item.qty : parseFloat(String(item?.qty ?? ''));
+  return Number.isFinite(qty) && qty > 0 && qty < KGS_PER_BOX;
+};
+
+/** Last-paid rates per product for the Customer Prices card. */
+type LastPaidRates = { box: Record<string, number>; kgs: Record<string, number> };
 
 /** Product IDs appear both zero-padded ("004") and bare ("4") in existing data,
  *  so compare them numerically when possible. Never mutates stored data. */
@@ -474,6 +491,9 @@ export default function BillingPage() {
     }),
     option: (baseStyles: any, state: any) => ({
       ...baseStyles,
+      // Compact rows, same for Customer, Product and UOM lists.
+      padding: '8px 12px',
+      fontSize: '1.05rem',
       backgroundColor: state.isSelected
         ? 'hsl(var(--primary))'
         : state.isFocused
@@ -510,8 +530,8 @@ export default function BillingPage() {
     ...reactSelectStyles,
     menuList: (baseStyles: any) => ({
       ...baseStyles,
-      // 3 rows × 36 px (react-select default option height) + 8 px top/bottom padding
-      maxHeight: '120px',
+      // ~3 rows (≈40 px each) + 8 px top/bottom padding
+      maxHeight: '128px',
       overflowY: 'auto' as const,
       WebkitOverflowScrolling: 'touch',
     }),
@@ -758,11 +778,11 @@ export default function BillingPage() {
   const priceCardBillsRef = useRef(priceCardBills);
   priceCardBillsRef.current = priceCardBills;
 
-  // customerId|signature -> { normalizedProductId: lastPaidRate }
-  const lastPaidRatesCache = useRef<Map<string, Record<string, number>>>(new Map());
+  // customerId|signature -> last-paid BOX and KGS rates per normalized product id
+  const lastPaidRatesCache = useRef<Map<string, LastPaidRates>>(new Map());
   const priceCardRequestRef = useRef(0);
 
-  const [lastPaidRates, setLastPaidRates] = useState<Record<string, number> | null>(null);
+  const [lastPaidRates, setLastPaidRates] = useState<LastPaidRates | null>(null);
   const [isPriceCardLoading, setIsPriceCardLoading] = useState(false);
   const [priceCardError, setPriceCardError] = useState(false);
 
@@ -778,7 +798,7 @@ export default function BillingPage() {
 
     const cacheKey = `${customerId}|${priceCardSignature}`;
     const cached = lastPaidRatesCache.current.get(cacheKey);
-    if (cached) {
+    if (cached && cached.box && cached.kgs) {
       setLastPaidRates(cached);
       setIsPriceCardLoading(false);
       setPriceCardError(false);
@@ -796,12 +816,14 @@ export default function BillingPage() {
     (async () => {
       try {
         const wanted = new Set(CUSTOMER_PRICE_CARD_PRODUCT_IDS.map(normalizeProductId));
-        const found: Record<string, number> = {};
+        const found: LastPaidRates = { box: {}, kgs: {} };
+        const done = () =>
+          Object.keys(found.box).length === wanted.size && Object.keys(found.kgs).length === wanted.size;
 
-        // Newest bill first; stop as soon as every product has a rate.
+        // Newest bill first; stop as soon as every product has both rates.
         for (const bill of priceCardBillsRef.current) {
           if (isStale()) return;
-          if (Object.keys(found).length === wanted.size) break;
+          if (done()) break;
 
           const snap = await getDocs(
             collection(firestore, 'bills', bill.billNo, 'billItems')
@@ -809,17 +831,17 @@ export default function BillingPage() {
           snap.forEach((d) => {
             const item = d.data() as BillItem;
             const key = normalizeProductId(item?.productId);
-            // First hit wins because bills are walked newest-first.
-            if (!wanted.has(key) || found[key] !== undefined) return;
-            // Only a whole-box KGS purchase may set the box rate. An ordinary
-            // KGS purchase is skipped entirely, so the scan keeps looking back
-            // through older bills for a genuine box purchase.
-            if (!isBoxWeightPurchase(item)) return;
+            if (!wanted.has(key)) return;
+            // BOX column: whole-box KGS purchases (35, 70, 105 ...) — unchanged rule.
+            // KGS column: ordinary purchases under 35 KGS.
+            // First hit wins for each column because bills are walked newest-first.
+            const target = isBoxWeightPurchase(item) ? found.box : isLooseKgsPurchase(item) ? found.kgs : null;
+            if (!target || target[key] !== undefined) return;
             // Use the rate stored on the historical item — never derived
             // from amount/qty and never scaled by the number of boxes.
             const rate =
               typeof item?.rate === 'number' ? item.rate : parseFloat(String(item?.rate ?? ''));
-            if (Number.isFinite(rate)) found[key] = rate;
+            if (Number.isFinite(rate)) target[key] = rate;
           });
         }
 
@@ -831,7 +853,7 @@ export default function BillingPage() {
         if (isStale()) return;
         // Billing stays fully usable; the card falls back to configured prices.
         setPriceCardError(true);
-        setLastPaidRates({});
+        setLastPaidRates({ box: {}, kgs: {} });
       } finally {
         if (!cancelled && requestId === priceCardRequestRef.current) {
           setIsPriceCardLoading(false);
@@ -844,7 +866,8 @@ export default function BillingPage() {
     };
   }, [selectedCustomerId, priceCardSignature, firestore]);
 
-  // Resolution order: last paid rate -> customer-specific price -> default price.
+  // Each column: last paid rate (BOX: whole-box purchase, KGS: under 35 KGS)
+  //   -> customer-specific price -> default price.
   const customerPriceRows = useMemo(() => {
     if (!selectedCustomerId || selectedCustomerId === 'WALK-IN') return [];
 
@@ -853,40 +876,32 @@ export default function BillingPage() {
       const product = products.find((p) => normalizeProductId(p.id) === key);
       if (!product) return null;
 
-      // 1. Latest rate this customer actually paid for this product.
-      const historical = lastPaidRates?.[key];
-      if (historical !== undefined) {
-        return { id: product.id, name: product.name_en, price: historical, source: 'Last box rate' };
-      }
-
       const uoms = product.uom_allowed || [];
-
-      // 2. Customer-specific price configured on the Set Prices page.
-      for (const u of uoms) {
-        const configured = getCustomerProductPrice(selectedCustomerId, product.id, u);
-        if (configured !== undefined && configured !== null) {
-          return { id: product.id, name: product.name_en, price: configured, source: 'Customer price' };
-        }
-      }
-
-      // 3. Existing default product price.
       const priceMap = productPrices[product.id] || {};
-      for (const u of uoms) {
-        if (priceMap[u] !== undefined && priceMap[u] !== null) {
-          return { id: product.id, name: product.name_en, price: priceMap[u], source: 'Default' };
-        }
-      }
-      const anyDefault = Object.values(priceMap).find((v) => typeof v === 'number');
-      if (anyDefault !== undefined) {
-        return { id: product.id, name: product.name_en, price: anyDefault as number, source: 'Default' };
-      }
 
-      return { id: product.id, name: product.name_en, price: null, source: 'Not set' };
+      // Configured fallback (customer price, then default), preferring `prefer` UOM.
+      const configuredPrice = (prefer?: string): number | null => {
+        const order = prefer ? [prefer, ...uoms.filter((u) => u !== prefer)] : uoms;
+        for (const u of order) {
+          const c = getCustomerProductPrice(selectedCustomerId, product.id, u);
+          if (c !== undefined && c !== null) return c;
+        }
+        for (const u of order) {
+          if (priceMap[u] !== undefined && priceMap[u] !== null) return priceMap[u];
+        }
+        const anyDefault = Object.values(priceMap).find((v) => typeof v === 'number');
+        return anyDefault !== undefined ? (anyDefault as number) : null;
+      };
+
+      // `?.` on box/kgs too: tolerates older cached data without those maps.
+      const box = lastPaidRates?.box?.[key] ?? configuredPrice();
+      const kgs = lastPaidRates?.kgs?.[key] ?? configuredPrice('KGS');
+      return { id: product.id, name: product.name_en, kgs, box };
     }).filter(Boolean) as {
       id: string;
       name: string;
-      price: number | null;
-      source: string;
+      kgs: number | null;
+      box: number | null;
     }[];
   }, [selectedCustomerId, products, lastPaidRates, getCustomerProductPrice, productPrices]);
 
@@ -1568,7 +1583,7 @@ export default function BillingPage() {
         <Button
           type="button"
           variant="outline"
-          className={cn('h-10 px-3 text-sm font-mono font-normal select-none', highlighted && 'border-amber-500 font-bold', buttonClass)}
+          className={cn('h-10 px-3 text-sm font-mono font-normal select-none lg:h-11 lg:px-4 lg:text-base', highlighted && 'border-amber-500 font-bold', buttonClass)}
           title="Date the payment was received"
           aria-label="Payment date"
         >
@@ -1604,7 +1619,7 @@ export default function BillingPage() {
       title="Payment mode"
       value={value}
       onChange={(e) => onChange(e.target.value as PayMode)}
-      className="h-10 rounded-md border border-input bg-background px-2 text-sm font-normal text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+      className="h-10 rounded-md border border-input bg-background px-2 text-sm font-normal text-foreground focus:outline-none focus:ring-1 focus:ring-ring lg:h-11 lg:px-3 lg:text-base"
     >
       {PAY_MODES.map(m => <option key={m} value={m}>{m}</option>)}
     </select>
@@ -1618,8 +1633,8 @@ export default function BillingPage() {
     setExtraPayments(rows => rows.filter(r => r.key !== key));
 
   const renderAddPaymentButton = () => (
-    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={addPaymentRow} title="Add another payment" aria-label="Add another payment">
-      <PlusCircle className="h-4 w-4" />
+    <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 lg:h-10 lg:w-10" onClick={addPaymentRow} title="Add another payment" aria-label="Add another payment">
+      <PlusCircle className="h-4 w-4 lg:h-5 lg:w-5" />
     </Button>
   );
 
@@ -1631,7 +1646,7 @@ export default function BillingPage() {
           <span className={labelClass}>
             {renderDatePicker(p.date, false, (d) => updatePaymentRow(p.key, { date: d }))}
             {renderModeSelect(p.mode, (m) => updatePaymentRow(p.key, { mode: m }))}
-            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 hover:text-destructive" onClick={() => removePaymentRow(p.key)} title="Remove payment" aria-label="Remove payment">
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0 hover:text-destructive lg:h-10 lg:w-10" onClick={() => removePaymentRow(p.key)} title="Remove payment" aria-label="Remove payment">
               <Trash2 className="h-4 w-4" />
             </Button>
             {/* Invisible "Paid:" keeps the controls aligned under the Paid row. */}
@@ -1823,23 +1838,26 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8 pb-32 md:pb-8 max-w-full" onKeyDown={handleGlobalTab}>
-      <div className="grid auto-rows-max items-start gap-4 lg:grid-cols-2 lg:gap-8">
-      <div className="grid auto-rows-max gap-4 section-box">
-        <Card className="border-none shadow-none bg-transparent">
-          <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-start md:justify-between pb-2">
-              <div>
-                <CardTitle className="font-headline">
+    /* Desktop (lg+): one fixed screen, POS style — left column: top bar, add-item row,
+       items table (scrolls inside), description; right column: totals + buttons, then
+       a compact bill search list (scrolls inside). Phones/tablets keep the stacked layout. */
+    <div className="billing-root flex flex-col gap-8 pb-32 md:pb-8 max-w-full lg:grid lg:grid-cols-[minmax(0,1.3fr)_minmax(460px,1fr)] lg:gap-3 lg:pb-0" onKeyDown={handleGlobalTab}>
+      <div className="grid auto-rows-max items-start gap-4 lg:flex lg:flex-col lg:items-stretch lg:min-h-0 lg:gap-3">
+      <div className="grid auto-rows-max gap-4 section-box lg:contents">
+        <Card className="border-none shadow-none bg-transparent lg:order-1 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(18rem,1.25fr)] lg:items-center lg:gap-x-4 lg:gap-y-2 lg:rounded-xl lg:border-2 lg:border-solid lg:border-border lg:bg-card lg:px-3 lg:py-2">
+          <CardHeader className="flex flex-col items-start gap-4 md:flex-row md:items-start md:justify-between pb-2 lg:contents lg:space-y-0">
+              <div className="lg:col-start-1 lg:row-start-1">
+                <CardTitle className="font-headline lg:text-xl lg:whitespace-nowrap">
                   {activeBillNo ? `Editing Bill ${activeBillNo}` : 'Create Bill'}
                 </CardTitle>
-                <CardDescription>Manage active transaction.</CardDescription>
+                <CardDescription className="lg:hidden">Manage active transaction.</CardDescription>
               </div>
-              <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:items-end">
-                <div className="grid gap-1">
-                  <Label className="text-xs text-muted-foreground">Date</Label>
+              <div className="flex w-full flex-col items-stretch gap-2 md:w-auto md:items-end lg:contents">
+                <div className="grid gap-1 lg:col-start-2 lg:row-start-1">
+                  <Label className="text-xs text-muted-foreground lg:hidden">Date</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                  <Button variant={'outline'}  className={cn('w-full justify-start text-left font-normal h-[44px] md:w-[240px] select-none', !date && 'text-muted-foreground')}
+                  <Button variant={'outline'}  className={cn('w-full justify-start text-left font-normal h-[44px] md:w-[240px] lg:w-[145px] lg:h-10 select-none', !date && 'text-muted-foreground')}
                          onFocus={() => { if(!date) setDate(new Date()) }} 
                          onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} 
                          onKeyDown={(e) => handleDateKeyDown(e, date, (d) => {
@@ -1877,16 +1895,17 @@ export default function BillingPage() {
                   </PopoverContent>
                 </Popover>
                 </div>
-                <Button variant="outline" className="w-full md:w-auto h-[44px]" onClick={handleNewBill}>
+                <Button variant="outline" className="w-full md:w-auto h-[44px] lg:h-10 lg:col-start-2 lg:row-start-2 lg:w-full" onClick={handleNewBill}>
                   <FilePlus className="mr-2 h-4 w-4" />
-                  New Bill
+                  New
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-4 md:p-6">
-              <div className="grid gap-2">
-                <Label htmlFor="customer">Customer</Label>
+            <CardContent className="p-4 md:p-6 lg:contents">
+              <div className="grid gap-2 lg:contents">
+                <Label htmlFor="customer" className="lg:hidden">Customer</Label>
                 <ReactSelect
+                  className="lg:col-start-1 lg:row-start-2 lg:min-w-0"
                   ref={customerSelectRef}
                   instanceId="customer-select"
                   placeholder="Select customer..."
@@ -1926,7 +1945,7 @@ export default function BillingPage() {
                   noOptionsMessage={() => "No customer found"}
                 />
                 {selectedCustomerId === 'WALK-IN' && (
-                  <div className="mt-2 grid gap-1.5">
+                  <div className="mt-2 grid gap-1.5 lg:col-start-1 lg:row-start-3 lg:mt-0">
                     <Label htmlFor="manualCustomerName" className="text-xs text-muted-foreground">Enter Customer Name (optional)</Label>
                     <Input
                       id="manualCustomerName"
@@ -1942,7 +1961,7 @@ export default function BillingPage() {
 
                 {/* Customer Prices — read-only info panel, does not affect Add Item */}
                 {showCustomerPriceCard && (
-                  <div className="mt-2 w-full max-w-full min-w-0 rounded-md border bg-muted/40 px-3 py-2">
+                  <div className="mt-2 w-full max-w-full min-w-0 rounded-md border bg-muted/40 px-3 py-2 lg:col-start-3 lg:row-start-1 lg:row-span-3 lg:self-stretch lg:mt-0 lg:max-h-[9.5rem] lg:overflow-y-auto lg:px-4 lg:py-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Customer Prices
@@ -1958,19 +1977,28 @@ export default function BillingPage() {
                       </p>
                     ) : (
                       <>
-                        <ul className="mt-1.5 space-y-1">
-                          {customerPriceRows.map((row) => (
-                            <li
-                              key={row.id}
-                              className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-sm"
-                            >
-                              <span className="min-w-0 break-words font-medium">{row.name}</span>
-                              <span className="font-mono font-semibold tabular-nums">
-                                {row.price !== null ? `Rs. ${row.price}` : '—'}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                        <table className="mt-1.5 w-full border-collapse text-sm lg:mt-1 lg:text-base">
+                          <thead>
+                            <tr className="text-xs font-semibold uppercase text-muted-foreground lg:text-sm">
+                              <th className="pb-0.5 text-left font-semibold">Product</th>
+                              <th className="w-[5.5rem] pb-0.5 text-right font-semibold">KGS</th>
+                              <th className="w-[5.5rem] pb-0.5 text-right font-semibold">BOX</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {customerPriceRows.map((row) => (
+                              <tr key={row.id}>
+                                <td className="min-w-0 break-words py-0.5 pr-2 font-medium">{row.name}</td>
+                                <td className="py-0.5 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
+                                  {row.kgs !== null ? `₹${formatPriceCell(row.kgs)}` : '—'}
+                                </td>
+                                <td className="py-0.5 text-right font-mono font-semibold tabular-nums whitespace-nowrap">
+                                  {row.box !== null ? `₹${formatPriceCell(row.box)}` : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                         {priceCardError && (
                           <p className="mt-1.5 text-[11px] text-muted-foreground">
                             Showing configured prices — previous bills could not be read.
@@ -1984,20 +2012,18 @@ export default function BillingPage() {
             </CardContent>
           </Card>
 
-          <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t scroll-mt-4 scroll-mb-40 md:scroll-mb-28">
-            <CardHeader className="pb-2"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
-            <CardContent className="p-4 md:p-6">
+          <Card id="product-section" className="border-none shadow-none bg-transparent mt-4 pt-4 border-t scroll-mt-4 scroll-mb-40 md:scroll-mb-28 lg:order-2 lg:mt-0 lg:rounded-xl lg:border-2 lg:border-solid lg:border-border lg:bg-card lg:px-3 lg:py-2">
+            <CardHeader className="pb-2 lg:hidden"><CardTitle className="font-headline text-lg">Add Item</CardTitle></CardHeader>
+            <CardContent className="p-4 md:p-6 lg:p-0">
             <div className="flex flex-wrap md:flex-nowrap items-end gap-2">
               <div className="grid gap-1.5 w-full md:w-auto md:flex-1 min-w-0" onClick={handleProductSelectInteraction}>
-                  <Label htmlFor="product" className="text-xs">Product</Label>
+                  <Label htmlFor="product" className="text-xs lg:text-sm">Product</Label>
                   <ReactSelect
                     instanceId="product-select"
                     placeholder="Select product..."
                     isClearable
                     tabSelectsValue={true}
                     openMenuOnFocus={true}
-                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                    menuPosition="fixed"
                     options={products.map((p) => ({ value: p.id, label: `${p.name_en} (${p.name_ta})` }))}
                     value={products.find(p => p.id === selectedProductId) ? { value: selectedProductId, label: products.find(p => p.id === selectedProductId)?.name_en + ' (' + products.find(p => p.id === selectedProductId)?.name_ta + ')' } : null}
                     onChange={(option) => {
@@ -2018,17 +2044,15 @@ export default function BillingPage() {
                   />
                 </div>
                 <div className="grid gap-1.5 flex-1 md:flex-none md:w-[80px] shrink-0 min-w-[60px]">
-                  <Label htmlFor="qty" className="text-xs">Qty</Label>
+                  <Label htmlFor="qty" className="text-xs lg:text-sm">Qty</Label>
                   <Input id="qty" type="number" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} ref={qtyInputRef} onKeyDown={handleQtyKeyDown} className="h-11 px-2 text-center" />
                 </div>
                 <div className="grid gap-1.5 flex-1 md:flex-none shrink-0 min-w-[80px]">
-                  <Label className="text-xs">UOM</Label>
+                  <Label className="text-xs lg:text-sm">UOM</Label>
                   <ReactSelect
                     ref={uomSelectRef}
                     instanceId="uom-select"
                     placeholder="UOM"
-                    menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
-                    menuPosition="fixed"
                     options={(() => {
                       const opts = selectedProduct?.uom_allowed.map((o: string) => ({ value: o, label: o })) || [];
                       return [...opts].sort((a, b) => a.value === 'KGS' ? -1 : b.value === 'KGS' ? 1 : 0);
@@ -2051,7 +2075,7 @@ export default function BillingPage() {
                   />
                 </div>
                 <div className="grid gap-1.5 flex-1 md:flex-none md:w-[72px] shrink-0 min-w-[60px]">
-                  <Label htmlFor="rate" className="text-xs">Rate</Label>
+                  <Label htmlFor="rate" className="text-xs lg:text-sm">Rate</Label>
                   <Input
                     id="rate"
                     type="number"
@@ -2073,13 +2097,13 @@ export default function BillingPage() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-2">
+          <Card className="lg:order-4 lg:shrink-0 lg:border-2">
+            <CardHeader className="pb-2 lg:hidden">
               <CardTitle className="text-lg font-headline">Description (optional)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="lg:p-2">
               <Textarea
-                className="min-h-[70px] w-full resize-none text-sm"
+                className="min-h-[70px] w-full resize-none text-sm lg:min-h-0 lg:h-10 lg:py-2"
                 placeholder="Enter notes (optional)"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -2088,13 +2112,13 @@ export default function BillingPage() {
           </Card>
         </div>
 
-        <div className="lg:sticky lg:top-4">
-          <Card className="section-box">
-            <CardHeader className="pb-2">
+        <div className="lg:order-3 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
+          <Card className="section-box lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:!p-0 lg:overflow-hidden">
+            <CardHeader className="pb-2 lg:hidden">
               <CardTitle className="font-headline">Current Bill</CardTitle>
               <CardDescription className="truncate">{selectedCustomerId === 'WALK-IN' ? 'Items added for Walk-in Customer.' : selectedCustomerId ? `Items added for ${customers.find(c => c.id === selectedCustomerId)?.name_en}.` : 'No customer selected.'}</CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
+            <CardContent className="p-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
               {/* Mobile Card List */}
               <div ref={billItemsContainerRef} className="block md:hidden border-t max-h-[300px] overflow-y-auto">
                 {isItemsLoading ? (
@@ -2157,17 +2181,18 @@ export default function BillingPage() {
               </div>
 
               {/* Desktop Table */}
-              <div className="hidden md:block border-t overflow-x-auto">
-                <div ref={desktopBillTableRef} className="max-h-[240px] overflow-y-auto live-bill-container">
-                  <Table className="min-w-[650px] table-fixed border-collapse">
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent border-b">
-                        <TableHead className="w-[45px] px-1 text-center font-bold text-sm uppercase">S/N</TableHead>
-                        <TableHead className="px-1 text-left font-bold text-sm uppercase">Product</TableHead>
-                        <TableHead className="w-[60px] px-1 text-center font-bold text-sm uppercase">UOM</TableHead>
-                        <TableHead className="w-[100px] px-1 text-center font-bold text-sm uppercase">Qty</TableHead>
-                        <TableHead className="w-[120px] px-1 text-right font-bold text-sm uppercase">Rate</TableHead>
-                        <TableHead className="w-[130px] px-1 text-right font-bold text-sm uppercase">Amt</TableHead>
+              <div className="hidden md:block border-t overflow-x-auto lg:border-t-0 lg:flex lg:flex-1 lg:min-h-0 lg:flex-col">
+                <div ref={desktopBillTableRef} className="max-h-[240px] overflow-y-auto live-bill-container lg:max-h-none lg:flex-1 lg:min-h-0">
+                  <Table className="min-w-[650px] lg:min-w-[560px] table-fixed border-collapse">
+                    {/* Cream header row (items table). */}
+                    <TableHeader className="bg-[#F5E9D0] lg:sticky lg:top-0 lg:z-10 [&_th]:!text-[#3B2A14]">
+                      <TableRow className="bg-[#F5E9D0] hover:bg-[#F5E9D0] border-b border-[#E3D3B0]">
+                        <TableHead className="w-[45px] px-1 text-center font-bold text-sm lg:text-base uppercase">S/N</TableHead>
+                        <TableHead className="px-1 text-left font-bold text-sm lg:text-base uppercase">Product</TableHead>
+                        <TableHead className="w-[60px] px-1 text-center font-bold text-sm lg:text-base uppercase">UOM</TableHead>
+                        <TableHead className="w-[100px] px-1 text-center font-bold text-sm lg:text-base uppercase">Qty</TableHead>
+                        <TableHead className="w-[120px] px-1 text-right font-bold text-sm lg:text-base uppercase">Rate</TableHead>
+                        <TableHead className="w-[130px] px-1 text-right font-bold text-sm lg:text-base uppercase">Amt</TableHead>
                         <TableHead className="w-[45px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2188,24 +2213,24 @@ export default function BillingPage() {
                                 setLocalBillItems(prev => prev.filter(i => i.id !== item.id));
                                 setTimeout(() => productSelectRef.current?.focus(), 50);
                               }}>
-                                <TableCell className="px-1 text-center text-muted-foreground">{index + 1}</TableCell>
+                                <TableCell className="px-1 text-center text-muted-foreground lg:text-base">{index + 1}</TableCell>
                                 <TableCell className="px-1 max-w-[120px]">
                                   <Tooltip key={item.id}>
                                     <TooltipTrigger asChild>
-                                      <span className="cursor-default block w-full whitespace-normal break-words text-base leading-normal">{item.product}</span>
+                                      <span className="cursor-default block w-full whitespace-normal break-words text-base lg:text-lg leading-normal">{item.product}</span>
                                     </TooltipTrigger>
                                     <TooltipContent side="top"><p>Created by: {username}</p></TooltipContent>
                                   </Tooltip>
                                 </TableCell>
-                                <TableCell className="px-1 text-center">{item.uom}</TableCell>
-                                <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-10 w-[90px] text-center font-mono text-base px-1" /></TableCell>
-                                <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-10 w-[110px] text-right font-mono text-base px-1" /></TableCell>
-                                <TableCell className="px-1 text-right font-mono font-semibold text-base whitespace-nowrap">{item.amount.toFixed(2)}</TableCell>
+                                <TableCell className="px-1 text-center lg:text-base">{item.uom}</TableCell>
+                                <TableCell className="px-1"><Input type="number" defaultValue={item.qty} onBlur={(e) => persistItemUpdate(item.id, 'qty', e.target.value)} onFocus={(e) => e.target.select()} className="mx-auto h-10 w-[90px] text-center font-mono text-base lg:h-11 lg:text-lg px-1" /></TableCell>
+                                <TableCell className="px-1 text-right"><Input type="number" defaultValue={item.rate} onBlur={(e) => persistItemUpdate(item.id, 'rate', e.target.value)} onFocus={(e) => e.target.select()} className="ml-auto h-10 w-[110px] text-right font-mono text-base lg:h-11 lg:text-lg px-1" /></TableCell>
+                                <TableCell className="px-1 text-right font-mono font-semibold text-base lg:text-lg whitespace-nowrap">{item.amount.toFixed(2)}</TableCell>
                                 <TableCell className="px-1 text-right"><Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={(e) => { e.stopPropagation(); handleRemoveItem(item.id); }}><Trash2 className="h-4 w-4" /></Button></TableCell>
                               </TableRow>
                             );
                           })
-                        ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No items.</TableCell></TableRow>}
+                        ) : <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground lg:text-lg">No items.</TableCell></TableRow>}
                       </TooltipProvider>
                     </TableBody>
                   </Table>
@@ -2215,7 +2240,7 @@ export default function BillingPage() {
             </CardContent>
               
               {localBillItems.length > 0 && (
-                <div className="total-qty-ui text-right px-4 pt-3 pb-1 text-sm" style={{ fontWeight: 500, color: '#9ca3af' }}>
+                <div className="total-qty-ui text-right px-4 pt-3 pb-1 text-sm lg:shrink-0 lg:border-t lg:py-2" style={{ fontWeight: 500, color: '#9ca3af' }}>
                   <span>Total Qty →</span>
                   <span className="text-foreground">
                     {totalKgs > 0 ? `${totalKgs.toFixed(1)} KGS` : ''}
@@ -2224,7 +2249,14 @@ export default function BillingPage() {
                   </span>
                 </div>
               )}
-              <CardFooter className="flex flex-col items-stretch gap-2 border-t pt-4 sm:items-end">
+          </Card>
+        </div>
+      </div>
+
+      {/* Right column (desktop): totals + buttons, then bill search. */}
+      <div className="flex flex-col gap-8 lg:min-h-0 lg:gap-3">
+          <Card className="section-box lg:shrink-0 lg:!px-5 lg:!py-5">
+              <CardFooter className="flex flex-col items-stretch gap-2 p-0 sm:items-end">
                 {/* Mobile totals — compact two-column grid, full width */}
                 <div className="w-full md:hidden rounded-lg bg-muted/40 border p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-x-2 gap-y-3 text-sm">
@@ -2277,9 +2309,9 @@ export default function BillingPage() {
                   </div>
                 </div>
                 {/* Desktop totals — unchanged */}
-                <div className="hidden md:grid w-full max-sm grid-cols-2 gap-x-4 gap-y-1 self-end text-right text-base md:text-lg">
+                <div className="hidden md:grid w-full grid-cols-[minmax(0,1fr)_minmax(8rem,auto)] gap-x-4 gap-y-1 self-end text-right text-base md:text-lg lg:text-xl lg:gap-x-4 lg:gap-y-2.5">
                   <span className="font-semibold">Items Total:</span><span className="font-mono">₹{formatINR(itemsTotal)}</span>
-                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold">Delivery:</span><Input className="ml-auto max-w-40 h-9 md:h-10 lg:h-11 lg:text-lg text-right font-mono" value={deliveryCharge} onChange={(e) => setDeliveryCharge(e.target.value)} onFocus={(e) => e.target.select()} />
                   <span className="font-semibold">Bill Total:</span><span className="font-mono font-bold">₹{formatINR(totalAmount)}</span>
                   <span className="font-semibold flex items-center justify-end gap-2">
                     <Checkbox
@@ -2294,7 +2326,7 @@ export default function BillingPage() {
                   </span>
                   <Input 
                     className={cn(
-                      "ml-auto max-w-32 h-9 md:h-10 text-right font-mono",
+                      "ml-auto max-w-40 h-9 md:h-10 lg:h-11 lg:text-lg text-right font-mono",
                       isPrevBalModified && "bg-amber-50 dark:bg-amber-950/30 border-amber-500 font-bold",
                       !isPrevBalUnlocked && "bg-muted text-muted-foreground"
                     )} 
@@ -2308,72 +2340,69 @@ export default function BillingPage() {
                     tabIndex={isPrevBalUnlocked ? undefined : -1}
                     disabled={!canEditBalances}
                   />
-                  <span className="font-semibold flex items-center justify-end gap-2">{renderPaidDatePicker('')}{renderModeSelect(paidMode, setPaidMode)}{renderAddPaymentButton()}Paid:</span><Input className="ml-auto max-w-32 h-9 md:h-10 text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
+                  <span className="font-semibold flex flex-wrap items-center justify-end gap-2">{renderPaidDatePicker('')}{renderModeSelect(paidMode, setPaidMode)}{renderAddPaymentButton()}Paid:</span><Input className="ml-auto max-w-40 h-9 md:h-10 lg:h-11 lg:text-lg text-right font-mono" value={paidAmount} onChange={(e) => e.target.value === '' ? setPaidAmount('') : setPaidAmount(e.target.value)} onFocus={(e) => e.target.select()} />
                   {extraPayments.length > 0 && (
                     <>
-                      {renderExtraPaymentRows('font-semibold flex items-center justify-end gap-2', 'ml-auto max-w-32 h-9 md:h-10 text-right font-mono', true)}
+                      {renderExtraPaymentRows('font-semibold flex flex-wrap items-center justify-end gap-2', 'ml-auto max-w-40 h-9 md:h-10 lg:h-11 lg:text-lg text-right font-mono', true)}
                       <span className="font-semibold">Total Received:</span>
                       <span className="font-mono font-bold">₹{formatINR(totalReceived)}</span>
                     </>
                   )}
-                  <span className="font-semibold text-lg pt-1">Balance:</span>
+                  <span className="font-semibold text-lg lg:text-2xl pt-1">Balance:</span>
                   <span className={cn(
-                    "font-mono font-bold text-xl md:text-2xl pt-1",
+                    "font-mono font-bold text-xl md:text-2xl lg:text-[2.1rem] lg:leading-tight pt-1",
                     finalBalance >= 0 ? "text-[#16a34a]" : "text-[#dc2626]"
                   )}>
                     ₹{formatINR(finalBalance)}
                   </span>
                 </div>
 
-                <div className="hidden flex-col items-end gap-2 md:flex">
-                  <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="outline" className="nav-btn" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0}>{"<<"}</Button>
-                  <Button variant="outline" className="nav-btn" onClick={() => {
+                {/* Desktop/tablet buttons, one right-aligned row:
+                    << < Save | Print 4' | Print 3' > >> Share (bill PDF to WhatsApp).
+                    On a very narrow panel the row may wrap rather than overflow. */}
+                <div className="hidden md:flex flex-wrap items-center justify-end gap-2 lg:gap-1.5 lg:mt-2 [&_.nav-btn]:min-w-[3rem] lg:[&_button]:h-11 lg:[&_button]:text-base">
+                  <Button variant="outline" className="nav-btn lg:px-4" onClick={goToFirstBillOfDay} disabled={sortedBills.length === 0}>{"<<"}</Button>
+                  <Button variant="outline" className="nav-btn lg:px-4" onClick={() => {
                     if (currentBillIndex === -1 && sortedBills.length > 0) {
                       router.push(`/dashboard/billing?billNo=${sortedBills[0].billNo}`);
                     } else if (currentBillIndex >= 0 && currentBillIndex < sortedBills.length - 1) {
                       router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex + 1].billNo}`);
                     }
                   }} disabled={sortedBills.length === 0 || currentBillIndex >= sortedBills.length - 1}>{"<"}</Button>
-                  <Button id="save-bill-btn" size="lg" className="btn-save" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save Bill"}</Button>
-                  <Button onClick={() => handlePrintBill('thermal')} disabled={!selectedCustomerId}>Print Receipt</Button>
+                  <Button id="save-bill-btn" size="lg" className="btn-save lg:h-10 lg:px-4" onClick={handleSaveBill} disabled={!selectedCustomerId || isSaving}><Save className="mr-2 h-4 w-4" /> {isSaving ? "Saving..." : "Save"}</Button>
+                  <Button className="lg:px-3" onClick={() => handlePrintBill('thermal')} disabled={!selectedCustomerId}>Print 4&apos;</Button>
                   {/* TEMP DISABLED
                   <Button className="btn-print" onClick={() => handlePrintBill('a4')} disabled={!selectedCustomerId}>Print A4</Button>
                   */}
-                  <Button variant="secondary" onClick={handlePrint3Inch} disabled={!selectedCustomerId}>Print 3-Inch</Button>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                  <Button variant="outline" className="nav-btn" onClick={() => {
+                  <Button className="lg:px-3 bg-blue-600 text-white font-semibold hover:bg-blue-500 focus-visible:ring-blue-400" onClick={handlePrint3Inch} disabled={!selectedCustomerId}>Print 3&apos;</Button>
+                  <Button variant="outline" className="nav-btn lg:px-4" onClick={() => {
                     if (currentBillIndex > 0) {
                       router.push(`/dashboard/billing?billNo=${sortedBills[currentBillIndex - 1].billNo}`);
                     } else if (currentBillIndex === 0) {
                       router.push(`/dashboard/billing`);
                     }
                   }} disabled={currentBillIndex === -1}>{">"}</Button>
-                  <Button variant="outline" className="nav-btn" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0}>{">>"}</Button>
-                  <Button variant="outline" onClick={handleShareWhatsApp} disabled={!selectedCustomerId}><Share className="mr-2 h-4 w-4" /> Share</Button>
+                  <Button variant="outline" className="nav-btn lg:px-4" onClick={goToLastBillOfDay} disabled={sortedBills.length === 0}>{">>"}</Button>
                   <Button
                     variant="outline"
                     onClick={handleSharePDF}
                     disabled={!selectedCustomerId}
-                    className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
+                    title="Share bill PDF on WhatsApp"
+                    className="lg:px-3 border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950"
                   >
-                    <Share className="mr-2 h-4 w-4" /> Share (PDF)
+                    <Share className="mr-2 h-4 w-4" /> Share
                   </Button>
-                  </div>
                 </div>
               </CardFooter>
           </Card>
-        </div>
-      </div>
 
-      <Separator />
+      <Separator className="lg:hidden" />
 
-      <Card className="max-w-full overflow-hidden section-box">
-        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="font-headline text-xl md:text-2xl">Bill History</CardTitle>
-            <CardDescription>Search and view past bills. Double-click or Enter to load for editing.</CardDescription>
+      <Card className="max-w-full overflow-hidden section-box lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:!p-3">
+        <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between lg:p-0 lg:pb-0 lg:gap-2">
+          <div className="lg:hidden">
+            <CardTitle className="font-headline text-xl md:text-2xl lg:text-base">Bill History</CardTitle>
+            <CardDescription className="lg:hidden">Search and view past bills. Double-click or Enter to load for editing.</CardDescription>
           </div>
           {selectedBills.size > 0 && (currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
             <Button variant="destructive" onClick={handleDeleteSelected}>
@@ -2381,22 +2410,22 @@ export default function BillingPage() {
             </Button>
           )}
         </CardHeader>
-        <CardContent>
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end">
-            <div className="grid flex-1 gap-2">
-              <Label>Search</Label>
+        <CardContent className="lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:p-0">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end lg:mb-2 lg:flex-wrap lg:gap-2">
+            <div className="grid flex-1 gap-2 lg:basis-full lg:gap-1">
+              <Label className="lg:hidden">Search</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by name or bill no..."
-                  className="pl-9 h-11 md:h-10"
+                  className="pl-9 h-11 md:h-10 lg:h-10 lg:text-base"
                   value={historySearchText}
                   onChange={(e) => setHistorySearchText(e.target.value)}
                 />
               </div>
             </div>
-            <div className="grid flex-1 gap-2">
-              <Label>Customer Filter</Label>
+            <div className="grid flex-1 gap-2 lg:min-w-0 lg:gap-1">
+              <Label className="lg:hidden">Customer Filter</Label>
               <ReactSelect
                 instanceId="history-customer-select"
                 options={customerOptions}
@@ -2420,11 +2449,11 @@ export default function BillingPage() {
                 noOptionsMessage={() => "No customer found"}
               />
             </div>
-            <div className="grid gap-2">
-              <Label>Date</Label>
+            <div className="grid gap-2 lg:gap-1">
+              <Label className="lg:hidden">Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] lg:w-[150px] lg:text-base justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -2432,24 +2461,24 @@ export default function BillingPage() {
                 <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} initialFocus /></PopoverContent>
               </Popover>
             </div>
-            <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10"><X className="mr-2 h-4 w-4" /> Clear</Button>
+            <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10 lg:px-2" title="Clear filters"><X className="mr-2 h-4 w-4 lg:mr-0" /><span className="lg:hidden">Clear</span></Button>
           </div>
 
           {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto rounded-md border">
+          <div className="hidden md:block overflow-x-auto rounded-md border lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
             <Table className="w-full table-fixed text-sm">
-              <TableHeader>
+              <TableHeader className="lg:sticky lg:top-0 lg:z-10 lg:bg-muted">
                 <TableRow className="bg-muted/50 border-b border-border">
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                    <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground"></TableHead>
+                    <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground"></TableHead>
                   )}
-                  <TableHead className="w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Bill No</TableHead>
-                  <TableHead className="w-[150px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Date</TableHead>
-                  <TableHead className="px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Customer</TableHead>
-                  <TableHead className="w-32 px-4 text-right">Prev Bal</TableHead>
-                  <TableHead className="w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Amt</TableHead>
-                  <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Final Bal</TableHead>
-                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground">Created By</TableHead>
+                  <TableHead className="w-[90px] lg:w-[80px] px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Bill No</TableHead>
+                  <TableHead className="w-[150px] lg:w-[108px] px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Date</TableHead>
+                  <TableHead className="px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground">Customer</TableHead>
+                  <TableHead className="w-32 px-4 text-right lg:hidden">Prev Bal</TableHead>
+                  <TableHead className="w-[130px] lg:w-[124px] text-right px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Amt</TableHead>
+                  <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground lg:hidden">Final Bal</TableHead>
+                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground lg:hidden">Created By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody ref={historyTableBodyRef}>
@@ -2470,15 +2499,15 @@ export default function BillingPage() {
                             <Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} />
                           </TableCell>
                         )}
-                        <TableCell className="px-[10px] py-[12px] text-[14px] font-semibold text-foreground truncate">{bill.billNo}</TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-foreground truncate">{bill.customerName}</TableCell>
-                        <TableCell className="px-4 text-right font-mono font-bold whitespace-nowrap">₹{formatINR(bill.prevBalForHistory)}</TableCell>
-                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-medium text-foreground font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] font-bold text-foreground font-mono">
+                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base font-semibold text-foreground truncate">{bill.billNo}</TableCell>
+                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base text-foreground truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base text-foreground truncate">{bill.customerName}</TableCell>
+                        <TableCell className="px-4 text-right font-mono font-bold whitespace-nowrap lg:hidden">₹{formatINR(bill.prevBalForHistory)}</TableCell>
+                        <TableCell className="text-right px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base font-medium text-foreground font-mono">₹{formatINR(bill.amount)}</TableCell>
+                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] lg:text-base font-bold text-foreground font-mono lg:hidden">
                         {`₹${formatINR(bill.computedFinalBalance)}`}
                       </TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] text-muted-foreground truncate">{creator?.username || bill.createdBy || '--'}</TableCell>
+                        <TableCell className="px-[10px] py-[12px] text-[14px] lg:text-base text-muted-foreground truncate lg:hidden">{creator?.username || bill.createdBy || '--'}</TableCell>
                       </TableRow>
                     );
                   })
@@ -2543,6 +2572,7 @@ export default function BillingPage() {
               </div>
             )}
           </div>
+      </div>
 
       {/* Sticky Mobile Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-10 h-[72px] border-t bg-background/95 px-4 py-2 md:hidden flex items-center justify-between gap-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
@@ -2690,6 +2720,18 @@ export default function BillingPage() {
         opacity: 0.5;
         cursor: not-allowed;
       }
+      /* Desktop billing screen is laid out for ~800px of screen height. On shorter
+         screens (small laptops, 125-150% Windows scaling) the whole billing area is
+         scaled down in fixed steps, so it looks the same on every PC and always fits
+         one screen. Height is divided by the same factor so it still fills the screen
+         exactly (3.5rem = the dashboard header above it). */
+      @media (min-width: 1024px) {
+        .billing-root { --bz: 1; zoom: var(--bz); height: calc((100vh - 3.5rem) / var(--bz)); }
+      }
+      @media (min-width: 1024px) and (max-height: 799px) { .billing-root { --bz: 0.92; } }
+      @media (min-width: 1024px) and (max-height: 719px) { .billing-root { --bz: 0.84; } }
+      @media (min-width: 1024px) and (max-height: 639px) { .billing-root { --bz: 0.76; } }
+      @media (min-width: 1024px) and (max-height: 559px) { .billing-root { --bz: 0.7; } }
       .section-box {
         border: 2px solid hsl(var(--border));
         border-radius: 12px;

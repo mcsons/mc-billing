@@ -26,6 +26,9 @@ function PrintPaymentsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const paper = searchParams.get('paper') || 'thermal';
+  /** true while printing on 3-inch paper (Print 3'); otherwise the chosen paper. */
+  const [print3, setPrint3] = useState(false);
+  const layoutPaper = print3 ? 'thermal3' : paper;
   const [printData, setPrintData] = useState<PrintData | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -194,16 +197,31 @@ function PrintPaymentsContent() {
                 ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Preparing...</>
                 : <><Share2 className="mr-2 h-4 w-4" /> Share (PDF)</>}
             </Button>
+            {/* Print 3': the same report on 3-inch paper, using the Main Billing
+                3-inch receipt settings (64mm, same fonts and sizes, same structure). */}
+            <Button
+              className="bg-blue-600 text-white font-semibold hover:bg-blue-500 focus-visible:ring-blue-400"
+              onClick={() => {
+                setPrint3(true);
+                setTimeout(() => {
+                  window.print();
+                  setTimeout(() => setPrint3(false), 500);
+                }, 100);
+              }}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Print 3&apos;
+            </Button>
             <Button onClick={() => window.print()}>
               <Printer className="mr-2 h-4 w-4" />
               Print
             </Button>
           </div>
         </div>
-        <div className={`print-root ${paper === 'thermal' ? 'rcpt four-inch' : paper}`}>
+        <div className={`print-root ${layoutPaper === 'thermal' ? 'rcpt four-inch' : layoutPaper === 'thermal3' ? 'rcpt' : layoutPaper}`}>
           <div id="print-area">
             <header className="text-center">
-              {paper === 'thermal' && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
+              {(layoutPaper === 'thermal' || layoutPaper === 'thermal3') && <img src="/bill-logo.png" alt="M.C & Sons logo" className="bill-logo" />}
               <h1 className="header-title">M.C & SONS FISH COMPANY</h1>
               <p className="header-sub">
                 No. 1, Fish Market, Palladam Road,<br />
@@ -749,7 +767,7 @@ function PrintPaymentsContent() {
           @page {
             /* A4 keeps its page size; the 4-inch receipt uses the roll width
                and no margins, the same as the bill. */
-            ${paper === 'thermal' ? 'margin: 0;' : 'size: A4; margin: 10mm;'}
+            ${layoutPaper === 'a4' ? 'size: A4; margin: 10mm;' : 'margin: 0;'}
           }
         }
       `}</style>
