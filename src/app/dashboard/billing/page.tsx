@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Card,
@@ -35,6 +36,7 @@ import {
   Search,
   X,
   Loader2,
+  Maximize2,
 } from 'lucide-react';
 import { BillItem, BillPaymentEntry, Customer, LiveBillSummary, Payment } from '@/lib/data';
 import {
@@ -393,6 +395,15 @@ export default function BillingPage() {
   const billItemsContainerRef = useRef<HTMLDivElement>(null);
   const desktopBillTableRef = useRef<HTMLDivElement>(null);
   const historyTableBodyRef = useRef<HTMLTableSectionElement>(null);
+  /** Bill History opened full-screen (Expand) instead of the compact right-column list. */
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const historyCompact = !historyExpanded;
+  useEffect(() => {
+    if (!historyExpanded) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setHistoryExpanded(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [historyExpanded]);
   const manualCustomerNameRef = useRef<HTMLInputElement>(null);
   const ignoreUrlBillNoRef = useRef<string | null>(null);
   const lastSessionKeyRef = useRef('');
@@ -2255,7 +2266,7 @@ export default function BillingPage() {
 
       {/* Right column (desktop): totals + buttons, then bill search. */}
       <div className="flex flex-col gap-8 lg:min-h-0 lg:gap-3">
-          <Card className="section-box lg:shrink-0 lg:!px-5 lg:!py-5">
+          <Card className="section-box lg:shrink-0 lg:!px-5 lg:!py-4">
               <CardFooter className="flex flex-col items-stretch gap-2 p-0 sm:items-end">
                 {/* Mobile totals — compact two-column grid, full width */}
                 <div className="w-full md:hidden rounded-lg bg-muted/40 border p-4 space-y-4">
@@ -2398,10 +2409,12 @@ export default function BillingPage() {
 
       <Separator className="lg:hidden" />
 
-      <Card className="max-w-full overflow-hidden section-box lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:!p-3">
+      {(() => {
+        const historyCard = (
+      <Card className={cn('max-w-full overflow-hidden section-box lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:!p-3', historyExpanded && 'h-full w-full !flex flex-col lg:!p-5')}>
         <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between lg:p-0 lg:pb-0 lg:gap-2">
-          <div className="lg:hidden">
-            <CardTitle className="font-headline text-xl md:text-2xl lg:text-base">Bill History</CardTitle>
+          <div className={cn(historyCompact && 'lg:hidden')}>
+            <CardTitle className="font-headline text-xl md:text-2xl lg:text-xl">Bill History</CardTitle>
             <CardDescription className="lg:hidden">Search and view past bills. Double-click or Enter to load for editing.</CardDescription>
           </div>
           {selectedBills.size > 0 && (currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN') && (
@@ -2411,8 +2424,8 @@ export default function BillingPage() {
           )}
         </CardHeader>
         <CardContent className="lg:flex lg:flex-1 lg:min-h-0 lg:flex-col lg:p-0">
-          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end lg:mb-2 lg:flex-wrap lg:gap-2">
-            <div className="grid flex-1 gap-2 lg:basis-full lg:gap-1">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end lg:mb-2 lg:flex-nowrap lg:items-center lg:gap-1.5">
+            <div className="grid flex-1 gap-2 lg:min-w-0 lg:gap-1">
               <Label className="lg:hidden">Search</Label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -2424,7 +2437,7 @@ export default function BillingPage() {
                 />
               </div>
             </div>
-            <div className="grid flex-1 gap-2 lg:min-w-0 lg:gap-1">
+            <div className="grid flex-1 gap-2 lg:min-w-0 lg:flex-none lg:w-[10.5rem] lg:gap-1">
               <Label className="lg:hidden">Customer Filter</Label>
               <ReactSelect
                 instanceId="history-customer-select"
@@ -2453,7 +2466,7 @@ export default function BillingPage() {
               <Label className="lg:hidden">Date</Label>
               <Popover>
                 <PopoverTrigger asChild>
-                <Button variant={'outline'} className={cn('w-full sm:w-[240px] lg:w-[150px] lg:text-base justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
+                <Button variant={'outline'} className={cn('w-full sm:w-[240px] lg:w-[128px] lg:px-3 lg:text-sm justify-start text-left font-normal select-none', !historyDate && 'text-muted-foreground')} onDoubleClick={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.focus(); }} onKeyDown={(e) => handleDateKeyDown(e, historyDate, setHistoryDate as (d: Date | undefined) => void)}>
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {historyDate ? format(historyDate, 'dd-MM-yyyy') : <span>Pick a date</span>}
                   </Button>
@@ -2461,24 +2474,34 @@ export default function BillingPage() {
                 <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={historyDate} onSelect={setHistoryDate} initialFocus /></PopoverContent>
               </Popover>
             </div>
-            <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10 lg:px-2" title="Clear filters"><X className="mr-2 h-4 w-4 lg:mr-0" /><span className="lg:hidden">Clear</span></Button>
+            <Button variant="ghost" onClick={handleClearHistorySearch} className="h-11 md:h-10 lg:px-2 shrink-0" title="Clear filters"><X className="mr-2 h-4 w-4 lg:mr-0" /><span className="lg:hidden">Clear</span></Button>
+            {/* Desktop: open / close the full-screen history (Esc also closes). */}
+            <Button
+              variant="outline"
+              className="hidden lg:inline-flex h-10 lg:px-2.5 shrink-0"
+              onClick={() => setHistoryExpanded((v) => !v)}
+              title={historyExpanded ? 'Close full view (Esc)' : 'Open full history view'}
+            >
+              {historyExpanded ? <><X className="mr-1.5 h-4 w-4" /> Close</> : <Maximize2 className="h-4 w-4" />}
+            </Button>
           </div>
 
-          {/* Desktop Table */}
+          {/* Desktop Table — compact (right column) or full (Expand). Compact shows Date,
+              Customer, Prev Bal, Amt and Final Bal for comparing bills (no Bill No). */}
           <div className="hidden md:block overflow-x-auto rounded-md border lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
             <Table className="w-full table-fixed text-sm">
               <TableHeader className="lg:sticky lg:top-0 lg:z-10 lg:bg-muted">
                 <TableRow className="bg-muted/50 border-b border-border">
                   {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                    <TableHead className="w-[40px] text-center px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground"></TableHead>
+                    <TableHead className={cn('w-[40px] text-center px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact && 'lg:w-[34px] lg:px-1')}></TableHead>
                   )}
-                  <TableHead className="w-[90px] lg:w-[80px] px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Bill No</TableHead>
-                  <TableHead className="w-[150px] lg:w-[108px] px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Date</TableHead>
-                  <TableHead className="px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground">Customer</TableHead>
-                  <TableHead className="w-32 px-4 text-right lg:hidden">Prev Bal</TableHead>
-                  <TableHead className="w-[130px] lg:w-[124px] text-right px-[10px] lg:px-2 py-[12px] lg:py-2 text-[14px] lg:text-base font-semibold text-muted-foreground">Amt</TableHead>
-                  <TableHead className="w-[150px] text-right px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground lg:hidden">Final Bal</TableHead>
-                  <TableHead className="w-[120px] px-[10px] py-[12px] text-[14px] lg:text-base font-semibold text-muted-foreground lg:hidden">Created By</TableHead>
+                  <TableHead className={cn('w-[90px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:hidden' : 'lg:w-[110px] lg:text-base')}>Bill No</TableHead>
+                  <TableHead className={cn('w-[150px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:w-[102px] lg:px-2 lg:py-2 lg:text-[15px]' : 'lg:w-[140px] lg:text-base')}>Date</TableHead>
+                  <TableHead className={cn('px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:px-2 lg:py-2 lg:text-[15px]' : 'lg:text-base')}>Customer</TableHead>
+                  <TableHead className={cn('w-32 px-4 py-[12px] text-right text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:w-[122px] lg:px-2 lg:py-2 lg:text-[15px]' : 'lg:w-44 lg:text-base')}>Prev Bal</TableHead>
+                  <TableHead className={cn('w-[130px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:w-[108px] lg:px-2 lg:py-2 lg:text-[15px]' : 'lg:w-40 lg:text-base')}>Amt</TableHead>
+                  <TableHead className={cn('w-[150px] text-right px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:w-[124px] lg:px-2 lg:py-2 lg:text-[15px]' : 'lg:w-44 lg:text-base')}>Final Bal</TableHead>
+                  <TableHead className={cn('w-[120px] px-[10px] py-[12px] text-[14px] font-semibold text-muted-foreground', historyCompact ? 'lg:hidden' : 'lg:w-36 lg:text-base')}>Created By</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody ref={historyTableBodyRef}>
@@ -2486,37 +2509,53 @@ export default function BillingPage() {
                   enrichedHistoryBills.map((bill) => {
                     const creator = users.find((user) => user.id === bill.createdBy);
                     const bDate = bill.date ? ((bill.date as any).toDate ? (bill.date as any).toDate() : new Date(bill.date)) : null;
+                    const openBill = () => { setHistoryExpanded(false); handleEditBill(bill.billNo); };
+                    const cell = (compactCls: string, fullCls: string) => (historyCompact ? compactCls : fullCls);
                     return (
                       <TableRow 
                         key={bill.billNo} 
                         className="cursor-pointer hover:bg-muted/50 border-b border-border" 
-                        onDoubleClick={() => handleEditBill(bill.billNo)} 
+                        onDoubleClick={openBill} 
                         tabIndex={0} 
-                        onKeyDown={(e) => e.key === 'Enter' && handleEditBill(bill.billNo)}
+                        onKeyDown={(e) => e.key === 'Enter' && openBill()}
                       >
                         {(currentUser?.role === 'CREATOR' || currentUser?.role === 'ADMIN' || currentUser?.role === 'MANAGER') && (
-                          <TableCell className="w-[40px] text-center px-[10px] py-[12px]">
+                          <TableCell className={cn('w-[40px] text-center px-[10px] py-[12px]', cell('lg:py-1.5 lg:px-1', ''))}>
                             <Checkbox checked={selectedBills.has(bill.billNo)} onCheckedChange={(checked) => handleSelectBill(bill.billNo, !!checked)} />
                           </TableCell>
                         )}
-                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base font-semibold text-foreground truncate">{bill.billNo}</TableCell>
-                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base text-foreground truncate">{bDate ? format(bDate, 'dd-MM-yyyy') : 'N/A'}</TableCell>
-                        <TableCell className="px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base text-foreground truncate">{bill.customerName}</TableCell>
-                        <TableCell className="px-4 text-right font-mono font-bold whitespace-nowrap lg:hidden">₹{formatINR(bill.prevBalForHistory)}</TableCell>
-                        <TableCell className="text-right px-[10px] lg:px-2 py-[12px] lg:py-1.5 text-[14px] lg:text-base font-medium text-foreground font-mono">₹{formatINR(bill.amount)}</TableCell>
-                        <TableCell className="text-right px-[10px] py-[12px] text-[14px] lg:text-base font-bold text-foreground font-mono lg:hidden">
-                        {`₹${formatINR(bill.computedFinalBalance)}`}
-                      </TableCell>
-                        <TableCell className="px-[10px] py-[12px] text-[14px] lg:text-base text-muted-foreground truncate lg:hidden">{creator?.username || bill.createdBy || '--'}</TableCell>
+                        <TableCell className={cn('px-[10px] py-[12px] text-[14px] font-semibold text-foreground truncate', cell('lg:hidden', 'lg:text-base'))}>{bill.billNo}</TableCell>
+                        <TableCell className={cn('px-[10px] py-[12px] text-[14px] text-foreground truncate', cell('lg:px-2 lg:py-1.5 lg:text-base', 'lg:text-base'))}>{bDate ? format(bDate, historyCompact ? 'dd-MM-yy' : 'dd-MM-yyyy') : 'N/A'}</TableCell>
+                        <TableCell className={cn('px-[10px] py-[12px] text-[14px] text-foreground truncate', cell('lg:px-2 lg:py-1.5 lg:text-[17px]', 'lg:text-base'))}>{bill.customerName}</TableCell>
+                        <TableCell className={cn('px-4 py-[12px] text-right font-mono text-[14px] text-muted-foreground whitespace-nowrap', cell('lg:px-2 lg:py-1.5 lg:text-[15.5px] lg:font-sans lg:tabular-nums', 'lg:text-base'))}>{historyCompact ? '' : '₹'}{formatINR(bill.prevBalForHistory)}</TableCell>
+                        <TableCell className={cn('text-right px-[10px] py-[12px] text-[14px] font-medium text-foreground font-mono whitespace-nowrap', cell('lg:px-2 lg:py-1.5 lg:text-[15.5px] lg:font-sans lg:tabular-nums', 'lg:text-base'))}>{historyCompact ? '' : '₹'}{formatINR(bill.amount)}</TableCell>
+                        <TableCell className={cn('text-right px-[10px] py-[12px] text-[14px] font-bold text-foreground font-mono whitespace-nowrap', cell('lg:px-2 lg:py-1.5 lg:text-[15.5px] lg:font-sans lg:tabular-nums', 'lg:text-base'))}>{historyCompact ? '' : '₹'}{formatINR(bill.computedFinalBalance)}</TableCell>
+                        <TableCell className={cn('px-[10px] py-[12px] text-[14px] text-muted-foreground truncate', cell('lg:hidden', 'lg:text-base'))}>{creator?.username || bill.createdBy || '--'}</TableCell>
                       </TableRow>
                     );
                   })
-                ) : <TableRow><TableCell colSpan={7} className="h-24 text-center">No results found.</TableCell></TableRow>}
+                ) : <TableRow><TableCell colSpan={8} className="h-24 text-center">No results found.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
         </CardContent>
       </Card>
+        );
+        // Expanded: the same history card shown full-screen above everything
+        // (outside the scaled billing area, so it is full size). Click outside,
+        // the Close button or Esc returns to the compact list.
+        return historyExpanded && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                className="fixed inset-0 z-50 flex bg-black/70 p-4 md:p-8"
+                onClick={(e) => { if (e.target === e.currentTarget) setHistoryExpanded(false); }}
+              >
+                {historyCard}
+              </div>,
+              document.body
+            )
+          : historyCard;
+      })()}
 
       {/* Mobile Card List */}
       <div className="block md:hidden space-y-3">
