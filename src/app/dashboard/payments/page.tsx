@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Save, X, Pencil, Trash2, Printer } from 'lucide-react';
+import { Save, X, Pencil, Trash2, Printer, Share2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useData } from '@/context/DataContext';
 import { useToast } from '@/hooks/use-toast';
@@ -113,7 +113,7 @@ export default function ReceivedPage() {
         }
     };
 
-    const handleRecordAndPrint = async () => {
+    const handleRecordAndPrint = async (share = false) => {
         const paymentAmount = parseFloat(amount);
         if (!recordSelectedCustomerId || !paymentAmount || isNaN(paymentAmount)) {
             toast({ variant: 'destructive', title: 'Invalid Payment', description: 'Please select a customer and enter a valid amount.' });
@@ -136,7 +136,7 @@ export default function ReceivedPage() {
             };
 
             sessionStorage.setItem('paymentReceiptData', JSON.stringify(printData));
-            window.open('/print/payment-receipt?paper=thermal', '_blank');
+            window.open(`/print/payment-receipt?paper=thermal${share ? '&share=pdf' : ''}`, '_blank');
 
             toast({ title: 'Payment Recorded', description: `₹${formatINR(paymentAmount)} from ${recordSelectedCustomer?.name_en}.` });
             setRecordSelectedCustomerId(''); setAmount(''); setNotes(''); setPaymentMode('Cash'); setRecordDate(new Date());
@@ -146,6 +146,33 @@ export default function ReceivedPage() {
             setIsSaving(false);
             setLoading(false);
         }
+    };
+
+    /**
+     * Receipt (print or share) for an already recorded payment. Balances are the
+     * ones at the time of that payment, taken from the customer ledger's running
+     * balance (no extra reads); falls back to the current balance if not found.
+     */
+    const openReceiptForPayment = (p: Payment, share: boolean) => {
+        const pDate = p.date?.toDate ? p.date.toDate() : new Date(p.date);
+        let finalBalance = customerBalances[p.customerId] || 0;
+        try {
+            const { transactions } = getCustomerLedger(p.customerId, { from: new Date(2000, 0, 1), to: pDate });
+            const tx = transactions.find((t) => t.paymentId === p.id);
+            if (tx) finalBalance = tx.balance;
+        } catch (e) {
+            console.warn('Receipt: ledger lookup failed, using current balance', e);
+        }
+        const printData = {
+            customer: customers.find((c) => c.id === p.customerId),
+            receivedDate: (isNaN(pDate.getTime()) ? new Date() : pDate).toISOString(),
+            receivedCash: p.amount,
+            paymentMode: p.paymentMode || 'Cash',
+            prevBalance: finalBalance + p.amount,
+            finalBalance,
+        };
+        sessionStorage.setItem('paymentReceiptData', JSON.stringify(printData));
+        window.open(`/print/payment-receipt?paper=thermal${share ? '&share=pdf' : ''}`, '_blank');
     };
 
     const handleEditClick = (p: Payment) => {
@@ -342,8 +369,11 @@ export default function ReceivedPage() {
                         <Button size="lg" onClick={handleSubmitPayment} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
                             <Save className="mr-2 h-4 w-4" /> Record Payment
                         </Button>
-                        <Button size="lg" variant="secondary" onClick={handleRecordAndPrint} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
+                        <Button size="lg" variant="secondary" onClick={() => handleRecordAndPrint(false)} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base">
                             <Printer className="mr-2 h-4 w-4" /> Record & Print
+                        </Button>
+                        <Button size="lg" variant="outline" onClick={() => handleRecordAndPrint(true)} disabled={!recordSelectedCustomerId || !amount || isManager || isSaving} className="flex-1 h-12 text-base border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950">
+                            <Share2 className="mr-2 h-4 w-4" /> Record & Share
                         </Button>
                     </div>
                 </CardFooter>
@@ -524,7 +554,7 @@ export default function ReceivedPage() {
 
             {/* ── Edit Modal ── */}
             <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-                <DialogContent>
+                <DialogContent className="sm:max-w-[600px]">
                     <DialogHeader><DialogTitle>Edit Received Entry</DialogTitle></DialogHeader>
                     <div className="space-y-4 py-2">
                         <div className="grid grid-cols-2 gap-4">
@@ -568,11 +598,22 @@ export default function ReceivedPage() {
                             <Textarea id="edit-notes" value={editNotes} onChange={e => setEditNotes(e.target.value)} placeholder="Optional note" />
                         </div>
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="flex-wrap gap-2 sm:justify-between sm:space-x-0">
+                        {/* Receipt for this saved payment (uses its saved values). */}
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => editingTx && openReceiptForPayment(editingTx, false)} disabled={!editingTx || isSaving}>
+                                <Printer className="mr-2 h-4 w-4" /> Print
+                            </Button>
+                            <Button variant="outline" onClick={() => editingTx && openReceiptForPayment(editingTx, true)} disabled={!editingTx || isSaving} className="border-green-500 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950">
+                                <Share2 className="mr-2 h-4 w-4" /> Share (PDF)
+                            </Button>
+                        </div>
+                        <div className="flex gap-2 sm:justify-end">
                         <Button variant="ghost" onClick={() => setEditModalOpen(false)} disabled={isSaving}>Cancel</Button>
                         <Button onClick={handleEditSave} disabled={isSaving}>
                             <Save className="mr-2 h-4 w-4" />{isSaving ? 'Saving...' : 'Save Changes'}
                         </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
